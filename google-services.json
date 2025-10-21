@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "749484708019",
+    "project_id": "messageai-46de9",
+    "storage_bucket": "messageai-46de9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:749484708019:android:72d575494af7794224e0c6",
+        "android_client_info": {
+          "package_name": "com.murad.messageai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "749484708019-2augg6r7jk7sasr7a5gdcjjs6nk1q52r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqgyrHe-SCNUG3MCxJtKcXCp4QrX3tJ9g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "749484708019-2augg6r7jk7sasr7a5gdcjjs6nk1q52r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
