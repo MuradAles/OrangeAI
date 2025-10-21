@@ -1,0 +1,757 @@
+/**
+ * Friend Request Service
+ * 
+ * Handles friend request operations in Firestore
+ */
+
+import { BlockedUser, FriendRequest } from '@/shared/types';
+import {
+    addDoc,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    onSnapshot,
+    orderBy,
+    query,
+    Unsubscribe,
+    updateDoc,
+    where,
+    writeBatch
+} from 'firebase/firestore';
+import { firestore } from './FirebaseConfig';
+import { UserService } from './UserService';
+
+/**
+ * Friend Request Service
+ */
+export class FriendRequestService {
+  private static readonly FRIEND_REQUESTS_COLLECTION = 'friendRequests';
+  private static readonly USERS_COLLECTION = 'users';
+  private static readonly CHATS_COLLECTION = 'chats';
+
+  /**
+   * Send a friend request
+   */
+  static async sendFriendRequest(
+    fromUserId: string,
+    toUserId: string
+  ): Promise<{ success: boolean; requestId?: string; error?: string }> {
+    try {
+      // Validate inputs
+      if (!fromUserId || !toUserId) {
+        return { success: false, error: 'Invalid user IDs' };
+      }
+
+      if (fromUserId === toUserId) {
+        return { success: false, error: 'Cannot send friend request to yourself' };
+      }
+
+      // Check if recipient exists
+      const recipientProfile = await UserService.getProfile(toUserId);
+      if (!recipientProfile) {
+        return { success: false, error: 'User not found' };
+      }
+
+      // Check if user is blocked
+      const isBlocked = await this.isUserBlocked(fromUserId, toUserId);
+      if (isBlocked) {
+        return { success: false, error: 'Cannot send friend request to this user' };
+      }
+
+      // Check if request already exists
+      const existingRequest = await this.getExistingRequest(fromUserId, toUserId);
+      if (existingRequest) {
+        if (existingRequest.status === 'pending') {
+          return { success: false, error: 'Friend request already sent' };
+        }
+        if (existingRequest.status === 'accepted') {
+          return { success: false, error: 'Already friends' };
+        }
+      }
+
+      // Check reverse request (if recipient already sent request to sender)
+      const reverseRequest = await this.getExistingRequest(toUserId, fromUserId);
+      if (reverseRequest && reverseRequest.status === 'pending') {
+        // Auto-accept the reverse request instead of creating a new one
+        await this.acceptFriendRequest(reverseRequest.id, toUserId);
+        return { 
+          success: true, 
+          requestId: reverseRequest.id,
+          error: 'Friend request accepted automatically'
+        };
+      }
+
+      // Create friend request
+      const requestRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
+      const requestData = {
+        fromUserId,
+        toUserId,
+        status: 'pending' as const,
+        createdAt: Date.now(),
+        respondedAt: null,
+      };
+
+      const docRef = await addDoc(requestRef, requestData);
+
+      console.log('✅ Friend request sent:', docRef.id);
+      return { success: true, requestId: docRef.id };
+    } catch (error: any) {
+      console.error('❌ Failed to send friend request:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Accept a friend request
+   */
+  static async acceptFriendRequest(
+    requestId: string,
+    userId: string
+  ): Promise<{ success: boolean; chatId?: string; error?: string }> {
+    try {
+      // Get friend request
+      const requestRef = doc(firestore, this.FRIEND_REQUESTS_COLLECTION, requestId);
+      const requestSnap = await getDoc(requestRef);
+
+      if (!requestSnap.exists()) {
+        return { success: false, error: 'Friend request not found' };
+      }
+
+      const requestData = requestSnap.data();
+
+      // Verify user is the recipient
+      if (requestData.toUserId !== userId) {
+        return { success: false, error: 'Unauthorized to accept this request' };
+      }
+
+      // Verify request is pending
+      if (requestData.status !== 'pending') {
+        return { success: false, error: 'Friend request is no longer pending' };
+      }
+
+      const batch = writeBatch(firestore);
+
+      // Update friend request status
+      batch.update(requestRef, {
+        status: 'accepted',
+        respondedAt: Date.now(),
+      });
+
+      // Create 1-on-1 chat
+      const chatRef = doc(collection(firestore, this.CHATS_COLLECTION));
+      const chatId = chatRef.id;
+
+      batch.set(chatRef, {
+        type: 'one-on-one',
+        participants: [requestData.fromUserId, requestData.toUserId],
+        lastMessageText: '',
+        lastMessageTime: Date.now(),
+        lastMessageSenderId: null,
+        createdAt: Date.now(),
+        createdBy: requestData.fromUserId,
+        // Group-specific fields (null for one-on-one)
+        groupName: null,
+        groupIcon: null,
+        groupDescription: null,
+        groupAdminId: null,
+        inviteCode: null,
+      });
+
+      // Create participant documents for both users
+      const fromUserParticipantRef = doc(
+        firestore,
+        this.CHATS_COLLECTION,
+        chatId,
+        'participants',
+        requestData.fromUserId
+      );
+
+      const toUserParticipantRef = doc(
+        firestore,
+        this.CHATS_COLLECTION,
+        chatId,
+        'participants',
+        requestData.toUserId
+      );
+
+      batch.set(fromUserParticipantRef, {
+        userId: requestData.fromUserId,
+        role: 'member',
+        joinedAt: Date.now(),
+        lastReadMessageId: null,
+        lastReadTimestamp: null,
+        unreadCount: 0,
+      });
+
+      batch.set(toUserParticipantRef, {
+        userId: requestData.toUserId,
+        role: 'member',
+        joinedAt: Date.now(),
+        lastReadMessageId: null,
+        lastReadTimestamp: null,
+        unreadCount: 0,
+      });
+
+      // Add to each user's contacts subcollection
+      const fromUserContactRef = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        requestData.toUserId,
+        'contacts',
+        requestData.fromUserId
+      );
+
+      const toUserContactRef = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        requestData.fromUserId,
+        'contacts',
+        requestData.toUserId
+      );
+
+      batch.set(fromUserContactRef, {
+        userId: requestData.fromUserId,
+        addedAt: Date.now(),
+      });
+
+      batch.set(toUserContactRef, {
+        userId: requestData.toUserId,
+        addedAt: Date.now(),
+      });
+
+      // Commit all changes
+      await batch.commit();
+
+      console.log('✅ Friend request accepted, chat created:', chatId);
+      return { success: true, chatId };
+    } catch (error: any) {
+      console.error('❌ Failed to accept friend request:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Ignore/decline a friend request
+   */
+  static async ignoreFriendRequest(
+    requestId: string,
+    userId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Get friend request
+      const requestRef = doc(firestore, this.FRIEND_REQUESTS_COLLECTION, requestId);
+      const requestSnap = await getDoc(requestRef);
+
+      if (!requestSnap.exists()) {
+        return { success: false, error: 'Friend request not found' };
+      }
+
+      const requestData = requestSnap.data();
+
+      // Verify user is the recipient
+      if (requestData.toUserId !== userId) {
+        return { success: false, error: 'Unauthorized to ignore this request' };
+      }
+
+      // Update status to ignored
+      await updateDoc(requestRef, {
+        status: 'ignored',
+        respondedAt: Date.now(),
+      });
+
+      console.log('✅ Friend request ignored:', requestId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ Failed to ignore friend request:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Block a user (prevents all future friend requests and deletes chat)
+   */
+  static async blockUser(
+    userId: string,
+    blockedUserId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (userId === blockedUserId) {
+        return { success: false, error: 'Cannot block yourself' };
+      }
+
+      const batch = writeBatch(firestore);
+
+      // Add to blocked users subcollection
+      const blockedUserRef = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        userId,
+        'blockedUsers',
+        blockedUserId
+      );
+
+      batch.set(blockedUserRef, {
+        userId: blockedUserId,
+        blockedAt: Date.now(),
+      });
+
+      // Find and delete any existing chat between the two users
+      const chatsRef = collection(firestore, this.CHATS_COLLECTION);
+      const chatQuery = query(
+        chatsRef,
+        where('type', '==', 'one-on-one'),
+        where('participants', 'array-contains', userId)
+      );
+
+      const chatSnapshot = await getDocs(chatQuery);
+      
+      chatSnapshot.forEach((doc) => {
+        const chatData = doc.data();
+        if (
+          chatData.participants.includes(blockedUserId) &&
+          chatData.participants.length === 2
+        ) {
+          // Delete the chat
+          batch.delete(doc.ref);
+        }
+      });
+
+      // Reject any pending friend requests between the users
+      const requestsRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
+      
+      // From blocked user to current user
+      const q1 = query(
+        requestsRef,
+        where('fromUserId', '==', blockedUserId),
+        where('toUserId', '==', userId),
+        where('status', '==', 'pending')
+      );
+      
+      // From current user to blocked user
+      const q2 = query(
+        requestsRef,
+        where('fromUserId', '==', userId),
+        where('toUserId', '==', blockedUserId),
+        where('status', '==', 'pending')
+      );
+
+      const [snapshot1, snapshot2] = await Promise.all([
+        getDocs(q1),
+        getDocs(q2),
+      ]);
+
+      snapshot1.forEach((doc) => {
+        batch.update(doc.ref, {
+          status: 'blocked',
+          respondedAt: Date.now(),
+        });
+      });
+
+      snapshot2.forEach((doc) => {
+        batch.update(doc.ref, {
+          status: 'blocked',
+          respondedAt: Date.now(),
+        });
+      });
+
+      // Delete contacts if they exist
+      const contact1Ref = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        userId,
+        'contacts',
+        blockedUserId
+      );
+
+      const contact2Ref = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        blockedUserId,
+        'contacts',
+        userId
+      );
+
+      batch.delete(contact1Ref);
+      batch.delete(contact2Ref);
+
+      await batch.commit();
+
+      console.log('✅ User blocked:', blockedUserId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ Failed to block user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Unblock a user
+   */
+  static async unblockUser(
+    userId: string,
+    blockedUserId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const blockedUserRef = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        userId,
+        'blockedUsers',
+        blockedUserId
+      );
+
+      await deleteDoc(blockedUserRef);
+
+      console.log('✅ User unblocked:', blockedUserId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ Failed to unblock user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Subscribe to friend requests (REAL-TIME)
+   */
+  static subscribeFriendRequests(
+    userId: string,
+    onUpdate: (requests: FriendRequest[]) => void,
+    onError: (error: Error) => void
+  ): Unsubscribe {
+    try {
+      const requestsRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
+      const q = query(
+        requestsRef,
+        where('toUserId', '==', userId),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      );
+
+      return onSnapshot(
+        q,
+        async (snapshot) => {
+          const requests: FriendRequest[] = [];
+
+          // Fetch sender details for each request
+          for (const doc of snapshot.docs) {
+            const data = doc.data();
+            const senderProfile = await UserService.getProfile(data.fromUserId);
+
+            requests.push({
+              id: doc.id,
+              fromUserId: data.fromUserId,
+              toUserId: data.toUserId,
+              status: data.status,
+              createdAt: data.createdAt,
+              respondedAt: data.respondedAt,
+              fromUserName: senderProfile?.displayName,
+              fromUserAvatar: senderProfile?.profilePictureUrl,
+              fromUserUsername: senderProfile?.username,
+            });
+          }
+
+          onUpdate(requests);
+        },
+        (error) => {
+          console.error('❌ Friend requests listener error:', error);
+          onError(error as Error);
+        }
+      );
+    } catch (error: any) {
+      console.error('❌ Failed to subscribe to friend requests:', error);
+      onError(error);
+      // Return a no-op unsubscribe function
+      return () => {};
+    }
+  }
+
+  /**
+   * Subscribe to sent friend requests (REAL-TIME)
+   */
+  static subscribeSentFriendRequests(
+    userId: string,
+    onUpdate: (requests: FriendRequest[]) => void,
+    onError: (error: Error) => void
+  ): Unsubscribe {
+    try {
+      const requestsRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
+      const q = query(
+        requestsRef,
+        where('fromUserId', '==', userId),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      );
+
+      return onSnapshot(
+        q,
+        async (snapshot) => {
+          const requests: FriendRequest[] = [];
+
+          // Fetch recipient details for each request
+          for (const doc of snapshot.docs) {
+            const data = doc.data();
+            const recipientProfile = await UserService.getProfile(data.toUserId);
+
+            requests.push({
+              id: doc.id,
+              fromUserId: data.fromUserId,
+              toUserId: data.toUserId,
+              status: data.status,
+              createdAt: data.createdAt,
+              respondedAt: data.respondedAt,
+              fromUserName: recipientProfile?.displayName,
+              fromUserAvatar: recipientProfile?.profilePictureUrl,
+              fromUserUsername: recipientProfile?.username,
+            });
+          }
+
+          onUpdate(requests);
+        },
+        (error) => {
+          console.error('❌ Sent requests listener error:', error);
+          onError(error as Error);
+        }
+      );
+    } catch (error: any) {
+      console.error('❌ Failed to subscribe to sent requests:', error);
+      onError(error);
+      // Return a no-op unsubscribe function
+      return () => {};
+    }
+  }
+
+  /**
+   * Get all friend requests for a user (incoming only)
+   */
+  static async getFriendRequests(userId: string): Promise<FriendRequest[]> {
+    try {
+      const requestsRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
+      const q = query(
+        requestsRef,
+        where('toUserId', '==', userId),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const querySnapshot = await getDocs(q);
+      const requests: FriendRequest[] = [];
+
+      // Fetch sender details for each request
+      for (const doc of querySnapshot.docs) {
+        const data = doc.data();
+        const senderProfile = await UserService.getProfile(data.fromUserId);
+
+        requests.push({
+          id: doc.id,
+          fromUserId: data.fromUserId,
+          toUserId: data.toUserId,
+          status: data.status,
+          createdAt: data.createdAt,
+          respondedAt: data.respondedAt,
+          fromUserName: senderProfile?.displayName,
+          fromUserAvatar: senderProfile?.profilePictureUrl,
+          fromUserUsername: senderProfile?.username,
+        });
+      }
+
+      return requests;
+    } catch (error: any) {
+      console.error('❌ Failed to get friend requests:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get sent friend requests (outgoing)
+   */
+  static async getSentFriendRequests(userId: string): Promise<FriendRequest[]> {
+    try {
+      const requestsRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
+      const q = query(
+        requestsRef,
+        where('fromUserId', '==', userId),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const querySnapshot = await getDocs(q);
+      const requests: FriendRequest[] = [];
+
+      // Fetch recipient details for each request
+      for (const doc of querySnapshot.docs) {
+        const data = doc.data();
+        const recipientProfile = await UserService.getProfile(data.toUserId);
+
+        requests.push({
+          id: doc.id,
+          fromUserId: data.fromUserId,
+          toUserId: data.toUserId,
+          status: data.status,
+          createdAt: data.createdAt,
+          respondedAt: data.respondedAt,
+          fromUserName: recipientProfile?.displayName,
+          fromUserAvatar: recipientProfile?.profilePictureUrl,
+          fromUserUsername: recipientProfile?.username,
+        });
+      }
+
+      return requests;
+    } catch (error: any) {
+      console.error('❌ Failed to get sent friend requests:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get blocked users list
+   */
+  static async getBlockedUsers(userId: string): Promise<BlockedUser[]> {
+    try {
+      const blockedRef = collection(
+        firestore,
+        this.USERS_COLLECTION,
+        userId,
+        'blockedUsers'
+      );
+
+      const querySnapshot = await getDocs(blockedRef);
+      const blockedUsers: BlockedUser[] = [];
+
+      for (const doc of querySnapshot.docs) {
+        const data = doc.data();
+        const blockedProfile = await UserService.getProfile(doc.id);
+
+        if (blockedProfile) {
+          blockedUsers.push({
+            userId: doc.id,
+            username: blockedProfile.username,
+            displayName: blockedProfile.displayName,
+            blockedAt: data.blockedAt,
+          });
+        }
+      }
+
+      return blockedUsers;
+    } catch (error: any) {
+      console.error('❌ Failed to get blocked users:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Check if a user is blocked
+   */
+  static async isUserBlocked(
+    userId: string,
+    targetUserId: string
+  ): Promise<boolean> {
+    try {
+      // Check if userId blocked targetUserId
+      const blockedByUser = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        userId,
+        'blockedUsers',
+        targetUserId
+      );
+
+      // Check if targetUserId blocked userId
+      const blockedByTarget = doc(
+        firestore,
+        this.USERS_COLLECTION,
+        targetUserId,
+        'blockedUsers',
+        userId
+      );
+
+      const [userBlocked, targetBlocked] = await Promise.all([
+        getDoc(blockedByUser),
+        getDoc(blockedByTarget),
+      ]);
+
+      return userBlocked.exists() || targetBlocked.exists();
+    } catch (error: any) {
+      console.error('❌ Failed to check if user is blocked:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get existing friend request between two users
+   */
+  private static async getExistingRequest(
+    fromUserId: string,
+    toUserId: string
+  ): Promise<FriendRequest | null> {
+    try {
+      const requestsRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
+      const q = query(
+        requestsRef,
+        where('fromUserId', '==', fromUserId),
+        where('toUserId', '==', toUserId)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        return null;
+      }
+
+      const doc = querySnapshot.docs[0];
+      const data = doc.data();
+
+      return {
+        id: doc.id,
+        fromUserId: data.fromUserId,
+        toUserId: data.toUserId,
+        status: data.status,
+        createdAt: data.createdAt,
+        respondedAt: data.respondedAt,
+      };
+    } catch (error: any) {
+      console.error('❌ Failed to get existing request:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Cancel a sent friend request (before it's accepted)
+   */
+  static async cancelFriendRequest(
+    requestId: string,
+    userId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const requestRef = doc(firestore, this.FRIEND_REQUESTS_COLLECTION, requestId);
+      const requestSnap = await getDoc(requestRef);
+
+      if (!requestSnap.exists()) {
+        return { success: false, error: 'Friend request not found' };
+      }
+
+      const requestData = requestSnap.data();
+
+      // Verify user is the sender
+      if (requestData.fromUserId !== userId) {
+        return { success: false, error: 'Unauthorized to cancel this request' };
+      }
+
+      // Verify request is pending
+      if (requestData.status !== 'pending') {
+        return { success: false, error: 'Can only cancel pending requests' };
+      }
+
+      // Delete the request
+      await deleteDoc(requestRef);
+
+      console.log('✅ Friend request cancelled:', requestId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ Failed to cancel friend request:', error);
+      return { success: false, error: error.message };
+    }
+  }
+}
+

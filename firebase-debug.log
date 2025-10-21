@@ -111,3 +111,327 @@ You're about to initialize a Firebase project in this directory:
 [info] +  Deploy complete! 
 [info] 
 [info] Project Console: https://console.firebase.google.com/project/messageai-46de9/overview
+[debug] [2025-10-21T02:32:02.067Z] ----------------------------------------------------------------------
+[debug] [2025-10-21T02:32:02.073Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\murad\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:indexes
+[debug] [2025-10-21T02:32:02.074Z] CLI Version:   14.19.1
+[debug] [2025-10-21T02:32:02.074Z] Platform:      win32
+[debug] [2025-10-21T02:32:02.074Z] Node Version:  v22.14.0
+[debug] [2025-10-21T02:32:02.075Z] Time:          Mon Oct 20 2025 22:32:02 GMT-0400 (Eastern Daylight Time)
+[debug] [2025-10-21T02:32:02.075Z] ----------------------------------------------------------------------
+[debug] 
+[error] 
+[error] Error: No currently active project.
+To run this command, you need to specify a project. You have two options:
+- Run this command with --project <alias_or_project_id>.
+- Set an active project by running firebase use --add, then rerun this command.
+To list all the Firebase projects to which you have access, run firebase projects:list.
+To learn about active projects for the CLI, visit https://firebase.google.com/docs/cli#project_aliases
+
+
+[debug] [2025-10-21T02:32:23.413Z] ----------------------------------------------------------------------
+[debug] [2025-10-21T02:32:23.418Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\murad\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js use messageai-46de9
+[debug] [2025-10-21T02:32:23.419Z] CLI Version:   14.19.1
+[debug] [2025-10-21T02:32:23.419Z] Platform:      win32
+[debug] [2025-10-21T02:32:23.419Z] Node Version:  v22.14.0
+[debug] [2025-10-21T02:32:23.420Z] Time:          Mon Oct 20 2025 22:32:23 GMT-0400 (Eastern Daylight Time)
+[debug] [2025-10-21T02:32:23.420Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-21T02:32:23.823Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-21T02:32:23.824Z] > authorizing via signed-in user (muradaleskerov99@gmail.com)
+[debug] [2025-10-21T02:32:23.828Z] Checked if tokens are valid: false, expires at: 1761012650204
+[debug] [2025-10-21T02:32:23.828Z] Checked if tokens are valid: false, expires at: 1761012650204
+[debug] [2025-10-21T02:32:23.829Z] > refreshing access token with scopes: []
+[debug] [2025-10-21T02:32:23.831Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-10-21T02:32:23.832Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-10-21T02:32:23.989Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-10-21T02:32:23.989Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-10-21T02:32:24.009Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/messageai-46de9/services/cloudresourcemanager.googleapis.com [none]
+[debug] [2025-10-21T02:32:24.009Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/messageai-46de9/services/cloudresourcemanager.googleapis.com x-goog-quota-user=projects/messageai-46de9
+[debug] [2025-10-21T02:32:24.419Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/messageai-46de9/services/cloudresourcemanager.googleapis.com 200
+[debug] [2025-10-21T02:32:24.419Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/messageai-46de9/services/cloudresourcemanager.googleapis.com [omitted]
+[debug] [2025-10-21T02:32:24.433Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:24.434Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:24.434Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9 [none]
+[debug] [2025-10-21T02:32:24.678Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9 200
+[debug] [2025-10-21T02:32:24.679Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9 {"projectNumber":"749484708019","projectId":"messageai-46de9","lifecycleState":"ACTIVE","name":"MessageAI","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-10-20T17:05:20.354530Z"}
+[info] Now using project messageai-46de9
+[debug] [2025-10-21T02:32:42.490Z] ----------------------------------------------------------------------
+[debug] [2025-10-21T02:32:42.495Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\murad\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:indexes
+[debug] [2025-10-21T02:32:42.496Z] CLI Version:   14.19.1
+[debug] [2025-10-21T02:32:42.496Z] Platform:      win32
+[debug] [2025-10-21T02:32:42.496Z] Node Version:  v22.14.0
+[debug] [2025-10-21T02:32:42.496Z] Time:          Mon Oct 20 2025 22:32:42 GMT-0400 (Eastern Daylight Time)
+[debug] [2025-10-21T02:32:42.497Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-21T02:32:42.831Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-21T02:32:42.832Z] > authorizing via signed-in user (muradaleskerov99@gmail.com)
+[debug] [2025-10-21T02:32:42.832Z] [iam] checking project messageai-46de9 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-10-21T02:32:42.834Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:42.835Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:42.836Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions [none]
+[debug] [2025-10-21T02:32:42.837Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions x-goog-quota-user=projects/messageai-46de9
+[debug] [2025-10-21T02:32:42.837Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-10-21T02:32:43.087Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions 200
+[debug] [2025-10-21T02:32:43.089Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'messageai-46de9'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2025-10-21T02:32:43.096Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.096Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.097Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) [none]
+[debug] [2025-10-21T02:32:43.431Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) 200
+[debug] [2025-10-21T02:32:43.432Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) {"name":"projects/messageai-46de9/databases/(default)","uid":"badddfdf-1379-4719-a6ba-4d8f05f4a860","createTime":"2025-10-20T18:48:33.335782Z","updateTime":"2025-10-20T18:48:33.335782Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-10-21T01:32:42.580136Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"ILi8vJ2gtJADMLivx+XTs5AD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-10-21T02:32:43.434Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.434Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.434Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [none]
+[debug] [2025-10-21T02:32:43.435Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [omitted]
+[debug] [2025-10-21T02:32:43.619Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test 200
+[debug] [2025-10-21T02:32:43.619Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[info] i  firestore: deploying indexes... 
+[debug] [2025-10-21T02:32:43.622Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.622Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.623Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/-/indexes [none]
+[debug] [2025-10-21T02:32:43.733Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/-/indexes 200
+[debug] [2025-10-21T02:32:43.734Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/-/indexes {}
+[debug] [2025-10-21T02:32:43.735Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.736Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.736Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2025-10-21T02:32:43.831Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2025-10-21T02:32:43.831Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/messageai-46de9/databases/(default)/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[debug] [2025-10-21T02:32:43.831Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.832Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.832Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) [none]
+[debug] [2025-10-21T02:32:43.957Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) 200
+[debug] [2025-10-21T02:32:43.957Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) {"name":"projects/messageai-46de9/databases/(default)","uid":"badddfdf-1379-4719-a6ba-4d8f05f4a860","createTime":"2025-10-20T18:48:33.335782Z","updateTime":"2025-10-20T18:48:33.335782Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-10-21T01:32:43.094574Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IPLt252gtJADMLivx+XTs5AD"}
+[debug] [2025-10-21T02:32:43.958Z] Creating new index: {"collectionGroup":"friendRequests","queryScope":"COLLECTION","fields":[{"fieldPath":"toUserId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]}
+[debug] [2025-10-21T02:32:43.960Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.960Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:43.960Z] >>> [apiv2][query] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes [none]
+[debug] [2025-10-21T02:32:43.961Z] >>> [apiv2][body] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes {"fields":[{"fieldPath":"toUserId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}],"queryScope":"COLLECTION"}
+[debug] [2025-10-21T02:32:44.281Z] <<< [apiv2][status] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes 200
+[debug] [2025-10-21T02:32:44.281Z] <<< [apiv2][body] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes {"name":"projects/messageai-46de9/databases/(default)/operations/S0U0aFhqT2dBQ0lDDCoDIGY0ZGUxZjdiM2FkNS02NjA5LTJhOTQtYTk2NC0xOWMzNjNkZSQac2VuaWxlcGlwCQpBEg","metadata":{"@type":"type.googleapis.com/google.firestore.admin.v1.IndexOperationMetadata","startTime":"2025-10-21T02:32:43.284665Z","index":"projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes/CICAgOjXh4EK","state":"INITIALIZING"}}
+[debug] [2025-10-21T02:32:44.281Z] Creating new index: {"collectionGroup":"friendRequests","queryScope":"COLLECTION","fields":[{"fieldPath":"fromUserId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]}
+[debug] [2025-10-21T02:32:44.282Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:44.282Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:32:44.282Z] >>> [apiv2][query] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes [none]
+[debug] [2025-10-21T02:32:44.282Z] >>> [apiv2][body] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes {"fields":[{"fieldPath":"fromUserId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}],"queryScope":"COLLECTION"}
+[debug] [2025-10-21T02:32:44.500Z] <<< [apiv2][status] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes 200
+[debug] [2025-10-21T02:32:44.501Z] <<< [apiv2][body] POST https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes {"name":"projects/messageai-46de9/databases/(default)/operations/S0FKazNpT2dBQ0lDDCoDIDI3ZWQ2NDdjNGI1OS1iZjJiLWRlYTQtNmMzOS01OTg1NzRiNSQac2VuaWxlcGlwCQpBEg","metadata":{"@type":"type.googleapis.com/google.firestore.admin.v1.IndexOperationMetadata","startTime":"2025-10-21T02:32:43.578091Z","index":"projects/messageai-46de9/databases/(default)/collectionGroups/friendRequests/indexes/CICAgOi3kJAK","state":"INITIALIZING"}}
+[info] +  firestore: deployed indexes in firestore.indexes.json successfully for (default) database 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/messageai-46de9/overview
+[debug] [2025-10-21T02:39:01.526Z] ----------------------------------------------------------------------
+[debug] [2025-10-21T02:39:01.530Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\murad\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
+[debug] [2025-10-21T02:39:01.531Z] CLI Version:   14.19.1
+[debug] [2025-10-21T02:39:01.531Z] Platform:      win32
+[debug] [2025-10-21T02:39:01.531Z] Node Version:  v22.14.0
+[debug] [2025-10-21T02:39:01.531Z] Time:          Mon Oct 20 2025 22:39:01 GMT-0400 (Eastern Daylight Time)
+[debug] [2025-10-21T02:39:01.531Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-21T02:39:01.793Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-21T02:39:01.795Z] > authorizing via signed-in user (muradaleskerov99@gmail.com)
+[debug] [2025-10-21T02:39:01.795Z] [iam] checking project messageai-46de9 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-10-21T02:39:01.797Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:01.798Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:01.800Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions [none]
+[debug] [2025-10-21T02:39:01.800Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions x-goog-quota-user=projects/messageai-46de9
+[debug] [2025-10-21T02:39:01.801Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-10-21T02:39:02.006Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions 200
+[debug] [2025-10-21T02:39:02.007Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'messageai-46de9'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2025-10-21T02:39:02.011Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.011Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.011Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) [none]
+[debug] [2025-10-21T02:39:02.315Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) 200
+[debug] [2025-10-21T02:39:02.315Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) {"name":"projects/messageai-46de9/databases/(default)","uid":"badddfdf-1379-4719-a6ba-4d8f05f4a860","createTime":"2025-10-20T18:48:33.335782Z","updateTime":"2025-10-20T18:48:33.335782Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-10-21T01:39:01.461554Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IILHkdKhtJADMLivx+XTs5AD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-10-21T02:39:02.317Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.317Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.317Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [none]
+[debug] [2025-10-21T02:39:02.317Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [omitted]
+[debug] [2025-10-21T02:39:02.564Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test 200
+[debug] [2025-10-21T02:39:02.565Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2025-10-21T02:39:02.566Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.567Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.567Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases pageSize=10&pageToken=
+[debug] [2025-10-21T02:39:02.730Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases 200
+[debug] [2025-10-21T02:39:02.731Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases {"releases":[{"name":"projects/messageai-46de9/releases/cloud.firestore","rulesetName":"projects/messageai-46de9/rulesets/66ec4945-0143-4b68-a4bd-406db1008a88","createTime":"2025-10-20T18:48:34.930263Z","updateTime":"2025-10-21T01:10:52.396297Z"},{"name":"projects/messageai-46de9/releases/firebase.storage/messageai-46de9.firebasestorage.app","rulesetName":"projects/messageai-46de9/rulesets/d35cd232-751f-4a1a-93b0-1b07ac727f6b","createTime":"2025-10-20T20:35:02.246162Z","updateTime":"2025-10-20T20:35:02.246162Z"}]}
+[debug] [2025-10-21T02:39:02.741Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.742Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.742Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/66ec4945-0143-4b68-a4bd-406db1008a88 [none]
+[debug] [2025-10-21T02:39:02.852Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/66ec4945-0143-4b68-a4bd-406db1008a88 200
+[debug] [2025-10-21T02:39:02.853Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/66ec4945-0143-4b68-a4bd-406db1008a88 [omitted]
+[info] i  firestore: uploading rules firestore.rules... 
+[debug] [2025-10-21T02:39:02.855Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.855Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:02.855Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets [none]
+[debug] [2025-10-21T02:39:02.855Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets [omitted]
+[debug] [2025-10-21T02:39:03.160Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets 200
+[debug] [2025-10-21T02:39:03.160Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets {"name":"projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3","source":{"files":[{"content":"rules_version = '2';\r\n\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n    \r\n    // Helper functions\r\n    function isSignedIn() {\r\n      return request.auth != null;\r\n    }\r\n    \r\n    function isOwner(userId) {\r\n      return isSignedIn() && request.auth.uid == userId;\r\n    }\r\n    \r\n    // Users collection\r\n    match /users/{userId} {\r\n      // Anyone can read user profiles\r\n      allow read: if isSignedIn();\r\n      \r\n      // Users can only create/update their own profile\r\n      allow create, update: if isOwner(userId);\r\n      \r\n      // Users cannot delete profiles\r\n      allow delete: if false;\r\n      \r\n      // Contacts subcollection\r\n      match /contacts/{contactId} {\r\n        // Users can only read/write their own contacts\r\n        allow read, write: if isOwner(userId);\r\n      }\r\n      \r\n      // Blocked users subcollection\r\n      match /blockedUsers/{blockedUserId} {\r\n        // Users can read/write their own blocked users list\r\n        allow read, write: if isOwner(userId);\r\n        \r\n        // Also allow others to check if they are blocked (for friend request validation)\r\n        allow read: if isSignedIn() && request.auth.uid == blockedUserId;\r\n      }\r\n    }\r\n    \r\n    // Chats collection\r\n    match /chats/{chatId} {\r\n      // Users can read chats they are part of\r\n      allow read: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Users can create chats\r\n      allow create: if isSignedIn() && \r\n        request.auth.uid in request.resource.data.participants;\r\n      \r\n      // Users in the chat can update it\r\n      allow update: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Allow deletion by friend request service when blocking users\r\n      allow delete: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Participants subcollection\r\n      match /participants/{participantId} {\r\n        // Users in the chat can read/write participant data\r\n        allow read, write: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;\r\n      }\r\n      \r\n      // Messages subcollection\r\n      match /messages/{messageId} {\r\n        // Users in the chat can read messages\r\n        allow read: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;\r\n        \r\n        // Users in the chat can create messages\r\n        allow create: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&\r\n          request.auth.uid == request.resource.data.senderId;\r\n        \r\n        // Message sender can update their own messages (for edit/delete status)\r\n        allow update: if isSignedIn() && \r\n          request.auth.uid == resource.data.senderId;\r\n        \r\n        // Users cannot delete messages\r\n        allow delete: if false;\r\n      }\r\n    }\r\n    \r\n    // Friend requests collection\r\n    match /friendRequests/{requestId} {\r\n      // Users can read requests sent to them or by them\r\n      allow read: if isSignedIn() && \r\n        (request.auth.uid == resource.data.fromUserId || \r\n         request.auth.uid == resource.data.toUserId);\r\n      \r\n      // Users can create friend requests\r\n      allow create: if isSignedIn() && \r\n        request.auth.uid == request.resource.data.fromUserId;\r\n      \r\n      // Recipient or sender can update request (accept/reject/block)\r\n      allow update: if isSignedIn() && \r\n        (request.auth.uid == resource.data.toUserId || \r\n         request.auth.uid == resource.data.fromUserId);\r\n      \r\n      // Users can delete their own sent requests\r\n      allow delete: if isSignedIn() && \r\n        request.auth.uid == resource.data.fromUserId;\r\n    }\r\n    \r\n    // Default: deny all other access\r\n    match /{document=**} {\r\n      allow read, write: if false;\r\n    }\r\n  }\r\n}\r\n\r\n","name":"firestore.rules"}]},"createTime":"2025-10-21T02:39:02.279375Z","metadata":{"services":["cloud.firestore"]}}
+[debug] [2025-10-21T02:39:03.160Z] [rules] created ruleset projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3
+[debug] [2025-10-21T02:39:03.161Z] [rules] releasing cloud.firestore/(default) with ruleset projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3
+[debug] [2025-10-21T02:39:03.161Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:03.161Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:39:03.161Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) [none]
+[debug] [2025-10-21T02:39:03.161Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) {"release":{"name":"projects/messageai-46de9/releases/cloud.firestore/(default)","rulesetName":"projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3"}}
+[debug] [2025-10-21T02:39:03.490Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) 200
+[debug] [2025-10-21T02:39:03.491Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) {"name":"projects/messageai-46de9/releases/cloud.firestore","rulesetName":"projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3","createTime":"2025-10-20T18:48:34.930263Z","updateTime":"2025-10-21T02:39:02.616647Z"}
+[debug] [2025-10-21T02:39:03.491Z] [rules] updated release projects/messageai-46de9/releases/cloud.firestore
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/messageai-46de9/overview
+[debug] [2025-10-21T02:51:29.880Z] ----------------------------------------------------------------------
+[debug] [2025-10-21T02:51:29.883Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\murad\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
+[debug] [2025-10-21T02:51:29.884Z] CLI Version:   14.19.1
+[debug] [2025-10-21T02:51:29.884Z] Platform:      win32
+[debug] [2025-10-21T02:51:29.885Z] Node Version:  v22.14.0
+[debug] [2025-10-21T02:51:29.885Z] Time:          Mon Oct 20 2025 22:51:29 GMT-0400 (Eastern Daylight Time)
+[debug] [2025-10-21T02:51:29.885Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-21T02:51:30.161Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-21T02:51:30.163Z] > authorizing via signed-in user (muradaleskerov99@gmail.com)
+[debug] [2025-10-21T02:51:30.163Z] [iam] checking project messageai-46de9 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-10-21T02:51:30.165Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:30.165Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:30.166Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions [none]
+[debug] [2025-10-21T02:51:30.166Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions x-goog-quota-user=projects/messageai-46de9
+[debug] [2025-10-21T02:51:30.167Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-10-21T02:51:30.450Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions 200
+[debug] [2025-10-21T02:51:30.451Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'messageai-46de9'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2025-10-21T02:51:30.457Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:30.457Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:30.457Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) [none]
+[debug] [2025-10-21T02:51:30.756Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) 200
+[debug] [2025-10-21T02:51:30.757Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) {"name":"projects/messageai-46de9/databases/(default)","uid":"badddfdf-1379-4719-a6ba-4d8f05f4a860","createTime":"2025-10-20T18:48:33.335782Z","updateTime":"2025-10-20T18:48:33.335782Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-10-21T01:51:29.900200Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IOnPgrektJADMLivx+XTs5AD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-10-21T02:51:30.759Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:30.759Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:30.759Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [none]
+[debug] [2025-10-21T02:51:30.759Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [omitted]
+[debug] [2025-10-21T02:51:30.998Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test 200
+[debug] [2025-10-21T02:51:30.998Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2025-10-21T02:51:31.000Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.001Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.001Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases pageSize=10&pageToken=
+[debug] [2025-10-21T02:51:31.112Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases 200
+[debug] [2025-10-21T02:51:31.113Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases {"releases":[{"name":"projects/messageai-46de9/releases/cloud.firestore","rulesetName":"projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3","createTime":"2025-10-20T18:48:34.930263Z","updateTime":"2025-10-21T02:39:02.616647Z"},{"name":"projects/messageai-46de9/releases/firebase.storage/messageai-46de9.firebasestorage.app","rulesetName":"projects/messageai-46de9/rulesets/d35cd232-751f-4a1a-93b0-1b07ac727f6b","createTime":"2025-10-20T20:35:02.246162Z","updateTime":"2025-10-20T20:35:02.246162Z"}]}
+[debug] [2025-10-21T02:51:31.123Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.123Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.123Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3 [none]
+[debug] [2025-10-21T02:51:31.287Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3 200
+[debug] [2025-10-21T02:51:31.287Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/6156a46a-8f59-4f93-8d84-fcb137b44ca3 [omitted]
+[info] i  firestore: uploading rules firestore.rules... 
+[debug] [2025-10-21T02:51:31.288Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.288Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.289Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets [none]
+[debug] [2025-10-21T02:51:31.289Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets [omitted]
+[debug] [2025-10-21T02:51:31.593Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets 200
+[debug] [2025-10-21T02:51:31.593Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets {"name":"projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da","source":{"files":[{"content":"rules_version = '2';\r\n\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n    \r\n    // Helper functions\r\n    function isSignedIn() {\r\n      return request.auth != null;\r\n    }\r\n    \r\n    function isOwner(userId) {\r\n      return isSignedIn() && request.auth.uid == userId;\r\n    }\r\n    \r\n    // Users collection\r\n    match /users/{userId} {\r\n      // Anyone can read user profiles\r\n      allow read: if isSignedIn();\r\n      \r\n      // Users can only create/update their own profile\r\n      allow create, update: if isOwner(userId);\r\n      \r\n      // Users cannot delete profiles\r\n      allow delete: if false;\r\n      \r\n      // Contacts subcollection\r\n      match /contacts/{contactId} {\r\n        // Users can read their own contacts\r\n        allow read: if isOwner(userId);\r\n        \r\n        // Users can write their own contacts\r\n        // OR when adding themselves as a contact (friend request acceptance)\r\n        allow write: if isOwner(userId) || \r\n                        (isSignedIn() && request.auth.uid == contactId);\r\n      }\r\n      \r\n      // Blocked users subcollection\r\n      match /blockedUsers/{blockedUserId} {\r\n        // Users can read/write their own blocked users list\r\n        allow read, write: if isOwner(userId);\r\n        \r\n        // Also allow others to check if they are blocked (for friend request validation)\r\n        allow read: if isSignedIn() && request.auth.uid == blockedUserId;\r\n      }\r\n    }\r\n    \r\n    // Chats collection\r\n    match /chats/{chatId} {\r\n      // Users can read chats they are part of\r\n      allow read: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Users can create chats\r\n      allow create: if isSignedIn() && \r\n        request.auth.uid in request.resource.data.participants;\r\n      \r\n      // Users in the chat can update it\r\n      allow update: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Allow deletion by friend request service when blocking users\r\n      allow delete: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Participants subcollection\r\n      match /participants/{participantId} {\r\n        // Users in the chat can read/write participant data\r\n        allow read, write: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;\r\n      }\r\n      \r\n      // Messages subcollection\r\n      match /messages/{messageId} {\r\n        // Users in the chat can read messages\r\n        allow read: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;\r\n        \r\n        // Users in the chat can create messages\r\n        allow create: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&\r\n          request.auth.uid == request.resource.data.senderId;\r\n        \r\n        // Message sender can update their own messages (for edit/delete status)\r\n        allow update: if isSignedIn() && \r\n          request.auth.uid == resource.data.senderId;\r\n        \r\n        // Users cannot delete messages\r\n        allow delete: if false;\r\n      }\r\n    }\r\n    \r\n    // Friend requests collection\r\n    match /friendRequests/{requestId} {\r\n      // Users can read requests sent to them or by them\r\n      allow read: if isSignedIn() && \r\n        (request.auth.uid == resource.data.fromUserId || \r\n         request.auth.uid == resource.data.toUserId);\r\n      \r\n      // Users can create friend requests\r\n      allow create: if isSignedIn() && \r\n        request.auth.uid == request.resource.data.fromUserId;\r\n      \r\n      // Recipient or sender can update request (accept/reject/block)\r\n      allow update: if isSignedIn() && \r\n        (request.auth.uid == resource.data.toUserId || \r\n         request.auth.uid == resource.data.fromUserId);\r\n      \r\n      // Users can delete their own sent requests\r\n      allow delete: if isSignedIn() && \r\n        request.auth.uid == resource.data.fromUserId;\r\n    }\r\n    \r\n    // Default: deny all other access\r\n    match /{document=**} {\r\n      allow read, write: if false;\r\n    }\r\n  }\r\n}\r\n\r\n","name":"firestore.rules"}]},"createTime":"2025-10-21T02:51:30.711311Z","metadata":{"services":["cloud.firestore"]}}
+[debug] [2025-10-21T02:51:31.593Z] [rules] created ruleset projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da
+[debug] [2025-10-21T02:51:31.594Z] [rules] releasing cloud.firestore/(default) with ruleset projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da
+[debug] [2025-10-21T02:51:31.594Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.594Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T02:51:31.595Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) [none]
+[debug] [2025-10-21T02:51:31.595Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) {"release":{"name":"projects/messageai-46de9/releases/cloud.firestore/(default)","rulesetName":"projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da"}}
+[debug] [2025-10-21T02:51:31.938Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) 200
+[debug] [2025-10-21T02:51:31.939Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) {"name":"projects/messageai-46de9/releases/cloud.firestore","rulesetName":"projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da","createTime":"2025-10-20T18:48:34.930263Z","updateTime":"2025-10-21T02:51:31.059609Z"}
+[debug] [2025-10-21T02:51:31.939Z] [rules] updated release projects/messageai-46de9/releases/cloud.firestore
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/messageai-46de9/overview
+[debug] [2025-10-21T03:00:22.119Z] ----------------------------------------------------------------------
+[debug] [2025-10-21T03:00:22.123Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\murad\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
+[debug] [2025-10-21T03:00:22.124Z] CLI Version:   14.19.1
+[debug] [2025-10-21T03:00:22.124Z] Platform:      win32
+[debug] [2025-10-21T03:00:22.124Z] Node Version:  v22.14.0
+[debug] [2025-10-21T03:00:22.124Z] Time:          Mon Oct 20 2025 23:00:22 GMT-0400 (Eastern Daylight Time)
+[debug] [2025-10-21T03:00:22.124Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-21T03:00:22.513Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-21T03:00:22.515Z] > authorizing via signed-in user (muradaleskerov99@gmail.com)
+[debug] [2025-10-21T03:00:22.515Z] [iam] checking project messageai-46de9 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-10-21T03:00:22.517Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:22.518Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:22.520Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions [none]
+[debug] [2025-10-21T03:00:22.520Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions x-goog-quota-user=projects/messageai-46de9
+[debug] [2025-10-21T03:00:22.520Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-10-21T03:00:22.805Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions 200
+[debug] [2025-10-21T03:00:22.806Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/messageai-46de9:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'messageai-46de9'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2025-10-21T03:00:22.811Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:22.811Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:22.811Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) [none]
+[debug] [2025-10-21T03:00:23.148Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) 200
+[debug] [2025-10-21T03:00:23.148Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/messageai-46de9/databases/(default) {"name":"projects/messageai-46de9/databases/(default)","uid":"badddfdf-1379-4719-a6ba-4d8f05f4a860","createTime":"2025-10-20T18:48:33.335782Z","updateTime":"2025-10-20T18:48:33.335782Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-10-21T02:00:22.287495Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IJj88LSmtJADMLivx+XTs5AD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-10-21T03:00:23.155Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.155Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.155Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [none]
+[debug] [2025-10-21T03:00:23.156Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test [omitted]
+[debug] [2025-10-21T03:00:23.411Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test 200
+[debug] [2025-10-21T03:00:23.411Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2025-10-21T03:00:23.415Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.415Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.416Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases pageSize=10&pageToken=
+[debug] [2025-10-21T03:00:23.575Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases 200
+[debug] [2025-10-21T03:00:23.576Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases {"releases":[{"name":"projects/messageai-46de9/releases/cloud.firestore","rulesetName":"projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da","createTime":"2025-10-20T18:48:34.930263Z","updateTime":"2025-10-21T02:51:31.059609Z"},{"name":"projects/messageai-46de9/releases/firebase.storage/messageai-46de9.firebasestorage.app","rulesetName":"projects/messageai-46de9/rulesets/d35cd232-751f-4a1a-93b0-1b07ac727f6b","createTime":"2025-10-20T20:35:02.246162Z","updateTime":"2025-10-20T20:35:02.246162Z"}]}
+[debug] [2025-10-21T03:00:23.587Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.588Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.588Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da [none]
+[debug] [2025-10-21T03:00:23.745Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da 200
+[debug] [2025-10-21T03:00:23.745Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets/817f3957-3d86-4b22-bddf-7d6389f9a2da [omitted]
+[info] i  firestore: uploading rules firestore.rules... 
+[debug] [2025-10-21T03:00:23.746Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.747Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:23.747Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets [none]
+[debug] [2025-10-21T03:00:23.747Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets [omitted]
+[debug] [2025-10-21T03:00:24.052Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets 200
+[debug] [2025-10-21T03:00:24.053Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/messageai-46de9/rulesets {"name":"projects/messageai-46de9/rulesets/e0a945e1-900e-43a0-8433-e0c9e84dddb2","source":{"files":[{"content":"rules_version = '2';\r\n\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n    \r\n    // Helper functions\r\n    function isSignedIn() {\r\n      return request.auth != null;\r\n    }\r\n    \r\n    function isOwner(userId) {\r\n      return isSignedIn() && request.auth.uid == userId;\r\n    }\r\n    \r\n    // Users collection\r\n    match /users/{userId} {\r\n      // Anyone can read user profiles\r\n      allow read: if isSignedIn();\r\n      \r\n      // Users can only create/update their own profile\r\n      allow create, update: if isOwner(userId);\r\n      \r\n      // Users cannot delete profiles\r\n      allow delete: if false;\r\n      \r\n      // Contacts subcollection\r\n      match /contacts/{contactId} {\r\n        // Users can read their own contacts\r\n        allow read: if isOwner(userId);\r\n        \r\n        // Users can write their own contacts\r\n        // OR when adding themselves as a contact (friend request acceptance)\r\n        allow write: if isOwner(userId) || \r\n                        (isSignedIn() && request.auth.uid == contactId);\r\n      }\r\n      \r\n      // Blocked users subcollection\r\n      match /blockedUsers/{blockedUserId} {\r\n        // Users can read/write their own blocked users list\r\n        allow read, write: if isOwner(userId);\r\n        \r\n        // Also allow others to check if they are blocked (for friend request validation)\r\n        allow read: if isSignedIn() && request.auth.uid == blockedUserId;\r\n      }\r\n    }\r\n    \r\n    // Chats collection\r\n    match /chats/{chatId} {\r\n      // Users can read chats they are part of\r\n      allow read: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Users can create chats\r\n      allow create: if isSignedIn() && \r\n        request.auth.uid in request.resource.data.participants;\r\n      \r\n      // Users in the chat can update it\r\n      allow update: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Allow deletion by friend request service when blocking users\r\n      allow delete: if isSignedIn() && \r\n        request.auth.uid in resource.data.participants;\r\n      \r\n      // Participants subcollection\r\n      match /participants/{participantId} {\r\n        // Users can read their own participant document\r\n        allow read: if isSignedIn() && request.auth.uid == participantId;\r\n        \r\n        // Allow creating participant documents if the userId matches the participantId\r\n        // This is needed for initial chat creation via batch writes\r\n        allow create: if isSignedIn() && \r\n          (request.resource.data.userId == participantId);\r\n        \r\n        // Allow updating only your own participant document\r\n        allow update: if isSignedIn() && request.auth.uid == participantId;\r\n        \r\n        // No deletes\r\n        allow delete: if false;\r\n      }\r\n      \r\n      // Messages subcollection\r\n      match /messages/{messageId} {\r\n        // Users in the chat can read messages\r\n        allow read: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;\r\n        \r\n        // Users in the chat can create messages\r\n        allow create: if isSignedIn() && \r\n          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&\r\n          request.auth.uid == request.resource.data.senderId;\r\n        \r\n        // Message sender can update their own messages (for edit/delete status)\r\n        allow update: if isSignedIn() && \r\n          request.auth.uid == resource.data.senderId;\r\n        \r\n        // Users cannot delete messages\r\n        allow delete: if false;\r\n      }\r\n    }\r\n    \r\n    // Friend requests collection\r\n    match /friendRequests/{requestId} {\r\n      // Users can read requests sent to them or by them\r\n      allow read: if isSignedIn() && \r\n        (request.auth.uid == resource.data.fromUserId || \r\n         request.auth.uid == resource.data.toUserId);\r\n      \r\n      // Users can create friend requests\r\n      allow create: if isSignedIn() && \r\n        request.auth.uid == request.resource.data.fromUserId;\r\n      \r\n      // Recipient or sender can update request (accept/reject/block)\r\n      allow update: if isSignedIn() && \r\n        (request.auth.uid == resource.data.toUserId || \r\n         request.auth.uid == resource.data.fromUserId);\r\n      \r\n      // Users can delete their own sent requests\r\n      allow delete: if isSignedIn() && \r\n        request.auth.uid == resource.data.fromUserId;\r\n    }\r\n    \r\n    // Default: deny all other access\r\n    match /{document=**} {\r\n      allow read, write: if false;\r\n    }\r\n  }\r\n}\r\n\r\n","name":"firestore.rules"}]},"createTime":"2025-10-21T03:00:23.162111Z","metadata":{"services":["cloud.firestore"]}}
+[debug] [2025-10-21T03:00:24.053Z] [rules] created ruleset projects/messageai-46de9/rulesets/e0a945e1-900e-43a0-8433-e0c9e84dddb2
+[debug] [2025-10-21T03:00:24.054Z] [rules] releasing cloud.firestore/(default) with ruleset projects/messageai-46de9/rulesets/e0a945e1-900e-43a0-8433-e0c9e84dddb2
+[debug] [2025-10-21T03:00:24.055Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:24.056Z] Checked if tokens are valid: true, expires at: 1761017542989
+[debug] [2025-10-21T03:00:24.056Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) [none]
+[debug] [2025-10-21T03:00:24.056Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) {"release":{"name":"projects/messageai-46de9/releases/cloud.firestore/(default)","rulesetName":"projects/messageai-46de9/rulesets/e0a945e1-900e-43a0-8433-e0c9e84dddb2"}}
+[debug] [2025-10-21T03:00:24.404Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) 200
+[debug] [2025-10-21T03:00:24.405Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/messageai-46de9/releases/cloud.firestore/(default) {"name":"projects/messageai-46de9/releases/cloud.firestore","rulesetName":"projects/messageai-46de9/rulesets/e0a945e1-900e-43a0-8433-e0c9e84dddb2","createTime":"2025-10-20T18:48:34.930263Z","updateTime":"2025-10-21T03:00:23.522260Z"}
+[debug] [2025-10-21T03:00:24.405Z] [rules] updated release projects/messageai-46de9/releases/cloud.firestore
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/messageai-46de9/overview

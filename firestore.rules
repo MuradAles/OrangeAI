@@ -22,34 +22,72 @@ service cloud.firestore {
       
       // Users cannot delete profiles
       allow delete: if false;
+      
+      // Contacts subcollection
+      match /contacts/{contactId} {
+        // Users can read their own contacts
+        allow read: if isOwner(userId);
+        
+        // Users can write their own contacts
+        // OR when adding themselves as a contact (friend request acceptance)
+        allow write: if isOwner(userId) || 
+                        (isSignedIn() && request.auth.uid == contactId);
+      }
+      
+      // Blocked users subcollection
+      match /blockedUsers/{blockedUserId} {
+        // Users can read/write their own blocked users list
+        allow read, write: if isOwner(userId);
+        
+        // Also allow others to check if they are blocked (for friend request validation)
+        allow read: if isSignedIn() && request.auth.uid == blockedUserId;
+      }
     }
     
     // Chats collection
     match /chats/{chatId} {
       // Users can read chats they are part of
       allow read: if isSignedIn() && 
-        request.auth.uid in resource.data.participantIds;
+        request.auth.uid in resource.data.participants;
       
       // Users can create chats
       allow create: if isSignedIn() && 
-        request.auth.uid in request.resource.data.participantIds;
+        request.auth.uid in request.resource.data.participants;
       
       // Users in the chat can update it
       allow update: if isSignedIn() && 
-        request.auth.uid in resource.data.participantIds;
+        request.auth.uid in resource.data.participants;
       
-      // Users cannot delete chats
-      allow delete: if false;
+      // Allow deletion by friend request service when blocking users
+      allow delete: if isSignedIn() && 
+        request.auth.uid in resource.data.participants;
+      
+      // Participants subcollection
+      match /participants/{participantId} {
+        // Users can read their own participant document
+        allow read: if isSignedIn() && request.auth.uid == participantId;
+        
+        // Allow creating participant documents if the userId matches the participantId
+        // This is needed for initial chat creation via batch writes
+        allow create: if isSignedIn() && 
+          (request.resource.data.userId == participantId);
+        
+        // Allow updating only your own participant document
+        allow update: if isSignedIn() && request.auth.uid == participantId;
+        
+        // No deletes
+        allow delete: if false;
+      }
       
       // Messages subcollection
       match /messages/{messageId} {
         // Users in the chat can read messages
         allow read: if isSignedIn() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
         
         // Users in the chat can create messages
         allow create: if isSignedIn() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
           request.auth.uid == request.resource.data.senderId;
         
         // Message sender can update their own messages (for edit/delete status)
@@ -72,32 +110,14 @@ service cloud.firestore {
       allow create: if isSignedIn() && 
         request.auth.uid == request.resource.data.fromUserId;
       
-      // Recipient can update request (accept/reject)
+      // Recipient or sender can update request (accept/reject/block)
       allow update: if isSignedIn() && 
-        request.auth.uid == resource.data.toUserId;
+        (request.auth.uid == resource.data.toUserId || 
+         request.auth.uid == resource.data.fromUserId);
       
       // Users can delete their own sent requests
       allow delete: if isSignedIn() && 
         request.auth.uid == resource.data.fromUserId;
-    }
-    
-    // Contacts collection
-    match /contacts/{contactId} {
-      // Users can only read their own contacts
-      allow read: if isSignedIn() && 
-        request.auth.uid == resource.data.userId;
-      
-      // Users can create their own contacts
-      allow create: if isSignedIn() && 
-        request.auth.uid == request.resource.data.userId;
-      
-      // Users can update their own contacts
-      allow update: if isSignedIn() && 
-        request.auth.uid == resource.data.userId;
-      
-      // Users can delete their own contacts
-      allow delete: if isSignedIn() && 
-        request.auth.uid == resource.data.userId;
     }
     
     // Default: deny all other access
