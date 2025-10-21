@@ -165,7 +165,7 @@ export const Button: React.FC<ButtonProps> = ({
           container: {
             paddingVertical: theme.componentSpacing.buttonPaddingSmall,
             paddingHorizontal: theme.spacing.md,
-            height: 36,
+            minHeight: 36,
           },
           text: theme.typography.buttonSmall,
         };
@@ -175,7 +175,7 @@ export const Button: React.FC<ButtonProps> = ({
           container: {
             paddingVertical: theme.componentSpacing.buttonPadding,
             paddingHorizontal: theme.spacing.lg,
-            height: 48,
+            minHeight: 48,
           },
           text: theme.typography.button,
         };
@@ -185,7 +185,7 @@ export const Button: React.FC<ButtonProps> = ({
           container: {
             paddingVertical: theme.componentSpacing.buttonPaddingLarge,
             paddingHorizontal: theme.spacing.xl,
-            height: 56,
+            minHeight: 56,
           },
           text: theme.typography.buttonLarge,
         };
@@ -245,7 +245,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
   content: {
     flexDirection: 'row',

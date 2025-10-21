@@ -4,7 +4,7 @@
  * Handles user profile operations in Firestore
  */
 
-import { User, UsernameAvailability, UserProfileUpdate } from '@/shared/types';
+import { Contact, User, UsernameAvailability, UserProfileUpdate } from '@/shared/types';
 import {
     collection,
     doc,
@@ -197,6 +197,51 @@ export class UserService {
     } catch (error: any) {
       console.error('❌ Failed to get user by username:', error);
       return null;
+    }
+  }
+
+  /**
+   * Get user's contacts (friends)
+   */
+  static async getContacts(userId: string): Promise<Contact[]> {
+    try {
+      // Get contacts subcollection
+      const contactsRef = collection(
+        firestore,
+        this.USERS_COLLECTION,
+        userId,
+        'contacts'
+      );
+
+      const querySnapshot = await getDocs(contactsRef);
+      const contacts: Contact[] = [];
+
+      // Fetch full profile for each contact
+      for (const contactDoc of querySnapshot.docs) {
+        const contactData = contactDoc.data();
+        const contactProfile = await this.getProfile(contactDoc.id);
+
+        if (contactProfile) {
+          contacts.push({
+            userId: contactProfile.id,
+            username: contactProfile.username,
+            displayName: contactProfile.displayName,
+            profilePictureUrl: contactProfile.profilePictureUrl,
+            isOnline: contactProfile.isOnline,
+            lastSeen: contactProfile.lastSeen,
+            addedAt: contactData.addedAt,
+          });
+        }
+      }
+
+      // Sort by display name
+      contacts.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+      console.log(`✅ Loaded ${contacts.length} contacts for user ${userId}`);
+      return contacts;
+    } catch (error: any) {
+      console.error('❌ Failed to get contacts:', error);
+      return [];
     }
   }
 

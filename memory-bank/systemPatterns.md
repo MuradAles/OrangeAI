@@ -240,6 +240,58 @@ Start real-time listener
 
 ## Real-Time Features
 
+### Real-Time Listeners Pattern
+**Pattern:** Use Firestore `onSnapshot()` for push-based updates instead of polling.
+
+**Implementation:**
+```typescript
+// In Service Layer
+static subscribeFriendRequests(
+  userId: string,
+  onUpdate: (requests: FriendRequest[]) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  const q = query(
+    collection(firestore, 'friendRequests'),
+    where('toUserId', '==', userId),
+    where('status', '==', 'pending')
+  );
+
+  return onSnapshot(q, 
+    async (snapshot) => {
+      const requests = await processSnapshot(snapshot);
+      onUpdate(requests);
+    },
+    (error) => onError(error)
+  );
+}
+
+// In Store
+subscribeFriendRequests: (userId: string) => {
+  const unsubscribe = FriendRequestService.subscribeFriendRequests(
+    userId,
+    (requests) => set({ friendRequests: requests }),
+    (error) => console.error(error)
+  );
+  set({ friendRequestsUnsubscribe: unsubscribe });
+}
+
+// In Component
+useEffect(() => {
+  if (user) {
+    subscribeFriendRequests(user.id);
+  }
+  return () => unsubscribeAll(); // Cleanup!
+}, [user]);
+```
+
+**Why:**
+- Instant updates pushed from server
+- No polling overhead
+- Automatic reconnection handling
+- Battery efficient
+- Proper cleanup prevents memory leaks
+
 ### Presence System
 **Pattern:** Update Firestore presence document with `.onDisconnect()` handler.
 

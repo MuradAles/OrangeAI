@@ -217,10 +217,10 @@ class SQLiteServiceClass {
   async saveChat(chat: ChatRow): Promise<void> {
     await this.db!.runAsync(
       `INSERT OR REPLACE INTO chats 
-       (id, type, participants, lastMessageText, lastMessageTime, lastMessageSenderId,
+       (id, type, participants, lastMessageText, lastMessageTime, lastMessageSenderId, lastMessageStatus,
         unreadCount, groupName, groupIcon, groupDescription, groupAdminId, inviteCode,
         createdAt, createdBy) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         chat.id,
         chat.type,
@@ -228,6 +228,7 @@ class SQLiteServiceClass {
         chat.lastMessageText,
         chat.lastMessageTime,
         chat.lastMessageSenderId,
+        chat.lastMessageStatus || null,
         chat.unreadCount || 0,
         chat.groupName,
         chat.groupIcon,
@@ -243,7 +244,18 @@ class SQLiteServiceClass {
   /**
    * Get all chats (ordered by last message time)
    */
-  async getChats(): Promise<ChatRow[]> {
+  async getChats(userId?: string): Promise<ChatRow[]> {
+    if (userId) {
+      // Filter by user in participants array
+      const result = await this.db!.getAllAsync<ChatRow>(
+        `SELECT * FROM chats 
+         WHERE participants LIKE ? 
+         ORDER BY lastMessageTime DESC`,
+        [`%${userId}%`]
+      );
+      return result;
+    }
+    
     const result = await this.db!.getAllAsync<ChatRow>(
       'SELECT * FROM chats ORDER BY lastMessageTime DESC'
     );
@@ -409,6 +421,37 @@ class SQLiteServiceClass {
     );
   }
 
+  /**
+   * Get a single message by ID
+   */
+  async getMessageById(messageId: string): Promise<MessageRow | null> {
+    const result = await this.db!.getFirstAsync<MessageRow>(
+      'SELECT * FROM messages WHERE id = ?',
+      [messageId]
+    );
+    return result || null;
+  }
+
+  /**
+   * Delete message for a specific user (adds to deletedFor array)
+   * Note: SQLite stores deletedFor as part of the message, 
+   * handled by deletedForMe field
+   */
+  async deleteMessage(messageId: string, userId: string): Promise<void> {
+    // In our simplified schema, we just mark deletedForMe
+    await this.deleteMessageForMe(messageId);
+  }
+
+  /**
+   * Update message reactions
+   */
+  async updateReactions(messageId: string, reactions: any): Promise<void> {
+    await this.db!.runAsync(
+      'UPDATE messages SET reactions = ? WHERE id = ?',
+      [JSON.stringify(reactions), messageId]
+    );
+  }
+
   // ==================== SCROLL POSITION OPERATIONS ====================
 
   /**
@@ -437,38 +480,6 @@ class SQLiteServiceClass {
       [chatId]
     );
     return result || null;
-  }
-
-  // ==================== FRIEND REQUEST OPERATIONS ====================
-
-  /**
-   * Save friend request
-   */
-  async saveFriendRequest(request: FriendRequestRow): Promise<void> {
-    await this.db!.runAsync(
-      `INSERT OR REPLACE INTO friend_requests 
-       (id, fromUserId, toUserId, status, createdAt, respondedAt) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        request.id,
-        request.fromUserId,
-        request.toUserId,
-        request.status,
-        request.createdAt,
-        request.respondedAt,
-      ]
-    );
-  }
-
-  /**
-   * Get friend requests for a user
-   */
-  async getFriendRequests(userId: string): Promise<FriendRequestRow[]> {
-    const result = await this.db!.getAllAsync<FriendRequestRow>(
-      "SELECT * FROM friend_requests WHERE toUserId = ? AND status = 'pending'",
-      [userId]
-    );
-    return result;
   }
 
   /**
@@ -528,6 +539,165 @@ class SQLiteServiceClass {
       this.db = null;
       this.isInitialized = false;
       await this.initialize();
+    }
+  }
+
+  // ==================== FRIEND REQUEST OPERATIONS ====================
+
+  /**
+   * Ensure database is initialized before operations
+   */
+  private ensureInitialized(): void {
+    if (!this.isInitialized || !this.db) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+  }
+
+  /**
+   * Save friend request to SQLite
+   */
+  async saveFriendRequest(request: FriendRequestRow): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      await this.db!.runAsync(
+        `INSERT OR REPLACE INTO friend_requests 
+        (id, fromUserId, toUserId, status, createdAt, respondedAt) 
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          request.id,
+          request.fromUserId,
+          request.toUserId,
+          request.status,
+          request.createdAt,
+          request.respondedAt || null,
+        ]
+      );
+    } catch (error) {
+      console.error('Error saving friend request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all friend requests for a user (incoming)
+   */
+  async getFriendRequests(userId: string): Promise<FriendRequestRow[]> {
+    this.ensureInitialized();
+    
+    try {
+      const result = await this.db!.getAllAsync<FriendRequestRow>(
+        `SELECT * FROM friend_requests 
+        WHERE toUserId = ? AND status = 'pending' 
+        ORDER BY createdAt DESC`,
+        [userId]
+      );
+      
+      return result || [];
+    } catch (error) {
+      console.error('Error getting friend requests:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get sent friend requests (outgoing)
+   */
+  async getSentFriendRequests(userId: string): Promise<FriendRequestRow[]> {
+    this.ensureInitialized();
+    
+    try {
+      const result = await this.db!.getAllAsync<FriendRequestRow>(
+        `SELECT * FROM friend_requests 
+        WHERE fromUserId = ? AND status = 'pending' 
+        ORDER BY createdAt DESC`,
+        [userId]
+      );
+      
+      return result || [];
+    } catch (error) {
+      console.error('Error getting sent friend requests:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Update friend request status
+   */
+  async updateFriendRequestStatus(
+    requestId: string,
+    status: string,
+    respondedAt: number
+  ): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      await this.db!.runAsync(
+        `UPDATE friend_requests 
+        SET status = ?, respondedAt = ? 
+        WHERE id = ?`,
+        [status, respondedAt, requestId]
+      );
+    } catch (error) {
+      console.error('Error updating friend request status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete friend request
+   */
+  async deleteFriendRequest(requestId: string): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      await this.db!.runAsync(
+        'DELETE FROM friend_requests WHERE id = ?',
+        [requestId]
+      );
+    } catch (error) {
+      console.error('Error deleting friend request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if friend request exists
+   */
+  async friendRequestExists(
+    fromUserId: string,
+    toUserId: string
+  ): Promise<boolean> {
+    this.ensureInitialized();
+    
+    try {
+      const result = await this.db!.getFirstAsync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM friend_requests 
+        WHERE fromUserId = ? AND toUserId = ? AND status = 'pending'`,
+        [fromUserId, toUserId]
+      );
+      
+      return result ? result.count > 0 : false;
+    } catch (error) {
+      console.error('Error checking friend request exists:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Clear all friend requests for a user (on logout)
+   */
+  async clearFriendRequests(userId: string): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      await this.db!.runAsync(
+        'DELETE FROM friend_requests WHERE fromUserId = ? OR toUserId = ?',
+        [userId, userId]
+      );
+    } catch (error) {
+      console.error('Error clearing friend requests:', error);
+      throw error;
     }
   }
 }

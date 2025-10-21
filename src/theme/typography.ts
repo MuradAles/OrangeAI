@@ -62,16 +62,17 @@ export const fontSize = {
 
 /**
  * Line heights (calculated based on font size)
+ * Using 1.4-1.5x multiplier to prevent text clipping on all devices
  */
 export const lineHeight = {
-  xs: 16,
-  sm: 20,
-  md: 22,
-  lg: 24,
-  xl: 28,
-  xxl: 32,
-  xxxl: 40,
-  huge: 48,
+  xs: 18,   // 12 * 1.5
+  sm: 20,   // 14 * 1.43
+  md: 24,   // 16 * 1.5
+  lg: 26,   // 18 * 1.44
+  xl: 30,   // 20 * 1.5
+  xxl: 36,  // 24 * 1.5
+  xxxl: 44, // 32 * 1.375
+  huge: 56, // 40 * 1.4
 };
 
 /**
