@@ -15,8 +15,8 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import { format, isToday, isYesterday } from 'date-fns';
-import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface MessageBubbleProps {
   message: Message;
@@ -42,6 +42,8 @@ export const MessageBubble = memo(({
   const theme = useTheme();
   const isSent = message.senderId === currentUserId;
   const isDeleted = message.deletedForEveryone || (message.deletedFor || []).includes(currentUserId);
+  const [showFullImage, setShowFullImage] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
 
   // Format timestamp
   const formatTimestamp = (timestamp: Date | number): string => {
@@ -129,7 +131,7 @@ export const MessageBubble = memo(({
           </Text>
         )}
 
-        {/* Message Text */}
+        {/* Message Content */}
         {isDeleted ? (
           <Text style={[
             styles.deletedText, 
@@ -138,12 +140,47 @@ export const MessageBubble = memo(({
             {message.deletedForEveryone ? '🚫 This message was deleted' : '🚫 You deleted this message'}
           </Text>
         ) : (
-          <Text style={[
-            theme.typography.body, 
-            { color: isSent ? '#fff' : theme.colors.text }
-          ]}>
-            {message.text}
-          </Text>
+          <>
+            {/* Image Message */}
+            {message.type === 'image' && message.thumbnailUrl && (
+              <Pressable onPress={() => setShowFullImage(true)}>
+                <View style={styles.imageContainer}>
+                  {imageLoading && (
+                    <View style={styles.imageLoader}>
+                      <ActivityIndicator color={isSent ? '#fff' : theme.colors.primary} />
+                    </View>
+                  )}
+                  <Image
+                    source={{ uri: message.thumbnailUrl }}
+                    style={styles.thumbnail}
+                    onLoadStart={() => setImageLoading(true)}
+                    onLoadEnd={() => setImageLoading(false)}
+                    resizeMode="cover"
+                  />
+                </View>
+                {/* Caption */}
+                {message.caption && (
+                  <Text style={[
+                    theme.typography.body,
+                    styles.caption,
+                    { color: isSent ? '#fff' : theme.colors.text }
+                  ]}>
+                    {message.caption}
+                  </Text>
+                )}
+              </Pressable>
+            )}
+            
+            {/* Text Message */}
+            {message.type === 'text' && message.text && (
+              <Text style={[
+                theme.typography.body, 
+                { color: isSent ? '#fff' : theme.colors.text }
+              ]}>
+                {message.text}
+              </Text>
+            )}
+          </>
         )}
 
         {/* Timestamp and Status */}
@@ -178,6 +215,37 @@ export const MessageBubble = memo(({
           </View>
         )}
       </Pressable>
+
+      {/* Full-Screen Image Modal */}
+      {message.type === 'image' && message.imageUrl && (
+        <Modal
+          visible={showFullImage}
+          transparent
+          onRequestClose={() => setShowFullImage(false)}
+          animationType="fade"
+        >
+          <Pressable 
+            style={styles.fullImageModal}
+            onPress={() => setShowFullImage(false)}
+          >
+            <View style={styles.fullImageHeader}>
+              <Pressable onPress={() => setShowFullImage(false)}>
+                <Ionicons name="close" size={32} color="#fff" />
+              </Pressable>
+            </View>
+            <Image
+              source={{ uri: message.imageUrl }}
+              style={styles.fullImage}
+              resizeMode="contain"
+            />
+            {message.caption && (
+              <View style={styles.fullImageCaptionContainer}>
+                <Text style={styles.fullImageCaption}>{message.caption}</Text>
+              </View>
+            )}
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }, (prevProps, nextProps) => {
@@ -186,6 +254,9 @@ export const MessageBubble = memo(({
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.status === nextProps.message.status &&
     prevProps.message.text === nextProps.message.text &&
+    prevProps.message.imageUrl === nextProps.message.imageUrl &&
+    prevProps.message.thumbnailUrl === nextProps.message.thumbnailUrl &&
+    prevProps.message.caption === nextProps.message.caption &&
     prevProps.showAvatar === nextProps.showAvatar &&
     prevProps.showTimestamp === nextProps.showTimestamp &&
     JSON.stringify(prevProps.message.reactions || {}) === JSON.stringify(nextProps.message.reactions || {}) &&
@@ -224,6 +295,61 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 2,
+  },
+  imageContainer: {
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
+    maxWidth: 300,
+    width: '100%',
+  },
+  thumbnail: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
+  imageLoader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    zIndex: 1,
+  },
+  caption: {
+    marginTop: 4,
+  },
+  fullImageModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullImageHeader: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+  },
+  fullImage: {
+    width: '100%',
+    height: '80%',
+  },
+  fullImageCaptionContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 12,
+    borderRadius: 12,
+  },
+  fullImageCaption: {
+    color: '#fff',
+    fontSize: 16,
   },
   footer: {
     flexDirection: 'row',

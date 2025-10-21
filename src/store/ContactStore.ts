@@ -42,6 +42,7 @@ interface ContactStoreState {
 
   // Actions
   loadContacts: (userId: string) => Promise<void>;
+  loadBlockedUsers: (userId: string) => Promise<void>;
   subscribeFriendRequests: (userId: string) => void;
   subscribeSentRequests: (userId: string) => void;
   unsubscribeAll: () => void;
@@ -171,8 +172,15 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     const unsubscribe = FriendRequestService.subscribeSentFriendRequests(
       userId,
       (requests) => {
+        // Merge optimistic updates with real data
+        // Remove any temporary requests that now have real data
+        const currentRequests = get().sentRequests;
+        const tempRequests = currentRequests.filter(req => 
+          req.id.startsWith('temp_') && !requests.some(r => r.toUserId === req.toUserId)
+        );
+        
         set({ 
-          sentRequests: requests, 
+          sentRequests: [...requests, ...tempRequests], 
           sentRequestsLoading: false 
         });
       },
@@ -229,7 +237,22 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
   sendFriendRequest: async (fromUserId: string, toUserId: string) => {
     const result = await FriendRequestService.sendFriendRequest(fromUserId, toUserId);
     
-    // Sent requests will auto-update via listener
+    if (result.success) {
+      // Optimistically update sent requests immediately for instant UI feedback
+      // The real-time listener will sync the actual state shortly after
+      const tempRequest: FriendRequest = {
+        id: `temp_${toUserId}`, // Temporary ID until listener updates
+        fromUserId,
+        toUserId,
+        status: 'pending',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      set(state => ({
+        sentRequests: [...state.sentRequests, tempRequest]
+      }));
+    }
     
     return result;
   },
@@ -241,7 +264,12 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     const result = await FriendRequestService.acceptFriendRequest(requestId, userId);
     
     if (result.success) {
-      // Reload contacts (friend requests auto-update via listener)
+      // Optimistically remove from friend requests list
+      set(state => ({
+        friendRequests: state.friendRequests.filter(req => req.id !== requestId)
+      }));
+      
+      // Reload contacts to include the new friend
       get().loadContacts(userId);
     }
     

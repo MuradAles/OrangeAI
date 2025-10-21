@@ -112,8 +112,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       set({
         firebaseUser,
+        isAuthenticated: true,
         isLoading: false,
       });
+      
+      // Try to load user profile (will be null for new users)
+      await get().loadUserProfile(firebaseUser.uid);
       
     } catch (error: any) {
       // Don't log auth credential errors - they're expected user scenarios
@@ -162,6 +166,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     try {
       set({ isLoading: true, error: null });
+      
+      // Set user offline BEFORE signing out (while auth token still valid)
+      const currentUser = get().user;
+      if (currentUser?.id && currentUser?.displayName) {
+        try {
+          const { PresenceService } = await import('@/services/firebase');
+          await PresenceService.setOffline(currentUser.id, currentUser.displayName);
+          console.log('✅ User marked offline before logout');
+        } catch (presenceError) {
+          console.warn('⚠️ Failed to set offline status during logout:', presenceError);
+          // Continue with logout even if presence update fails
+        }
+      }
+      
+      // Clean up all presence subscriptions BEFORE logout
+      try {
+        const { usePresenceStore } = await import('@/store');
+        const presenceStore = usePresenceStore.getState();
+        presenceStore.cleanup();
+        console.log('✅ Presence subscriptions cleaned up');
+      } catch (cleanupError) {
+        console.warn('⚠️ Failed to cleanup presence subscriptions:', cleanupError);
+      }
       
       await AuthService.signOut();
       

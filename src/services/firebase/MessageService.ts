@@ -33,19 +33,38 @@ import { firestore } from './FirebaseConfig';
 
 export class MessageService {
   /**
-   * Send a new text message
+   * Send a new text or image message
    */
   static async sendMessage(
     chatId: string,
     senderId: string,
     text: string,
-    messageId?: string
+    messageId?: string,
+    imageData?: {
+      type: 'image';
+      imageUrl: string;
+      thumbnailUrl: string;
+      caption: string | null;
+    }
   ): Promise<string> {
     try {
       const newMessageId = messageId || doc(collection(firestore, 'chats', chatId, 'messages')).id;
       const messageRef = doc(firestore, 'chats', chatId, 'messages', newMessageId);
 
-      const messageData = {
+      const messageData = imageData ? {
+        senderId,
+        text: '',
+        timestamp: serverTimestamp(),
+        status: 'sent' as MessageStatus,
+        type: imageData.type,
+        imageUrl: imageData.imageUrl,
+        thumbnailUrl: imageData.thumbnailUrl,
+        caption: imageData.caption,
+        reactions: {},
+        deletedFor: [],
+        deletedForEveryone: false,
+        deletedAt: null,
+      } : {
         senderId,
         text,
         timestamp: serverTimestamp(),

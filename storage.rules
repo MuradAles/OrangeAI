@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Helper function to check file size (max 10MB)
+    function isValidSize() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+    
+    // Helper function to check if file is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // Profile pictures: users/{userId}/profile.jpg
+    match /users/{userId}/{fileName} {
+      // Allow user to read their own profile picture
+      // Allow anyone authenticated to read profile pictures (for displaying in chats)
+      allow read: if isAuthenticated();
+      
+      // Allow user to write only their own profile picture
+      allow write: if isAuthenticated() 
+                   && isOwner(userId) 
+                   && isValidSize() 
+                   && isImage();
+    }
+    
+    // Chat images: chats/{chatId}/{messageId}/image.jpg and thumbnail.jpg
+    match /chats/{chatId}/{messageId}/{fileName} {
+      // Allow authenticated users to read chat images
+      // TODO: In production, add check if user is participant of the chat
+      allow read: if isAuthenticated();
+      
+      // Allow authenticated users to upload chat images
+      // TODO: In production, add check if user is participant of the chat
+      allow write: if isAuthenticated() 
+                   && isValidSize() 
+                   && isImage();
+    }
+    
+    // Group icons: groups/{chatId}/icon.jpg
+    match /groups/{chatId}/{fileName} {
+      // Allow authenticated users to read group icons
+      allow read: if isAuthenticated();
+      
+      // Allow authenticated users to upload group icons
+      // TODO: In production, add check if user is admin of the group
+      allow write: if isAuthenticated() 
+                   && isValidSize() 
+                   && isImage();
+    }
+    
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

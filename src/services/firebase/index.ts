@@ -9,11 +9,11 @@ export * from './ChatService';
 export * from './FirebaseConfig';
 export * from './FriendRequestService';
 export * from './MessageService';
+export * from './PresenceService';
+export * from './StorageService';
 export * from './UserService';
 
 // Services to be added later:
-// export * from './StorageService';
-// export * from './PresenceService';
 // export * from './GroupService';
 
 
