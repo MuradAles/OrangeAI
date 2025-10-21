@@ -8,5 +8,6 @@ export * from './DateSeparator';
 export * from './MessageBubble';
 export * from './MessageInput';
 export * from './NewChatModal';
+export * from './TypingIndicator';
 export * from './UnreadSeparator';
 

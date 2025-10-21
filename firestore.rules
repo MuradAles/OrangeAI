@@ -118,9 +118,10 @@ service cloud.firestore {
         (request.auth.uid == resource.data.toUserId || 
          request.auth.uid == resource.data.fromUserId);
       
-      // Users can delete their own sent requests
+      // Sender can cancel their sent request, recipient can delete when accepting/ignoring
       allow delete: if isSignedIn() && 
-        request.auth.uid == resource.data.fromUserId;
+        (request.auth.uid == resource.data.fromUserId ||
+         request.auth.uid == resource.data.toUserId);
     }
     
     // Default: deny all other access

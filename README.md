@@ -39,7 +39,8 @@ A modern React Native messaging application built with Expo, Firebase, and TypeS
 
 - **Node.js** 18+ (LTS recommended)
 - **npm** or **yarn**
-- **Expo Go** app (for testing on physical device)
+- **Android Studio** (for Android development builds)
+- **Expo Go** app (for quick testing on physical device)
 - **Firebase Project** (see setup below)
 
 ## 🚀 Getting Started
@@ -93,18 +94,63 @@ EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 **Important:** Never commit the `.env` file to Git. It's already in `.gitignore`.
 
-### 5. Run the App
+### 5. Android Development Setup (Required for development builds)
+
+#### Option A: Set Environment Variables Permanently (Recommended - One-time setup)
+
+1. Open **System Properties** → **Advanced** → **Environment Variables**
+2. Add these **User Variables**:
+   - `JAVA_HOME`: `C:\Program Files\Android\Android Studio\jbr`
+   - `ANDROID_HOME`: `C:\Users\YourUsername\AppData\Local\Android\Sdk`
+3. Edit **Path** variable, add:
+   - `%JAVA_HOME%\bin`
+   - `%ANDROID_HOME%\platform-tools`
+4. Restart your terminal
+
+#### Option B: Use Setup Script (Quick temporary setup)
+
+Run this in PowerShell before building:
+
+\`\`\`powershell
+.\setup-env.ps1
+\`\`\`
+
+This sets environment variables for the current session only.
+
+### 6. Run the App
+
+#### For Development & Testing (Recommended)
+
+\`\`\`bash
+# First time: Build and install development build
+npm run android
+
+# Daily development: Use dev client with fast refresh
+npx expo start --dev-client
+\`\`\`
+
+**Why development build?**
+- ✅ Proper AppState detection (screen lock/unlock)
+- ✅ Reliable Firebase presence with onDisconnect()
+- ✅ Full native module support (notifications, etc.)
+- ✅ Better debugging and performance
+
+#### For Quick Testing (Expo Go - Limited features)
 
 \`\`\`bash
 # Start Expo development server
 npm start
 
-# Run on specific platform
-npm run ios      # iOS Simulator
-npm run android  # Android Emulator
-npm run web      # Web browser
+# Or scan QR code with Expo Go app
+\`\`\`
 
-# Or scan QR code with Expo Go app for physical device testing
+**Note:** Expo Go has limitations with background tasks and AppState, so presence indicators may not work correctly.
+
+#### Other Platforms
+
+\`\`\`bash
+npm run ios      # iOS Simulator
+npm run web      # Web browser
 \`\`\`
 
 ## 📁 Project Structure
@@ -301,11 +347,41 @@ eas build --platform android
 
 ## 🐛 Troubleshooting
 
+### Development Build Issues
+
+#### `JAVA_HOME is not set`
+
+- Set environment variables (see Android Development Setup above)
+- Restart your terminal after setting
+- Verify: `echo $env:JAVA_HOME` (PowerShell)
+
+#### `SDK location not found`
+
+- Ensure `ANDROID_HOME` is set correctly
+- Check `android/local.properties` exists with correct SDK path
+- Run `.\setup-env.ps1` if variables aren't permanent
+
+#### Build Cache Issues (C++ compilation errors)
+
+\`\`\`bash
+# Clean all build artifacts
+Remove-Item -Recurse -Force android\.cxx,android\build,android\app\build -ErrorAction SilentlyContinue
+
+# Rebuild
+npm run android
+\`\`\`
+
 ### Firebase Not Initializing
 
 - Check that all `EXPO_PUBLIC_FIREBASE_*` variables are set in `.env`
 - Ensure Firebase services are enabled in Firebase Console
 - Verify `app.json` includes the `extra` config section
+
+### Presence Indicators Not Working
+
+- **Use development build**, not Expo Go (Expo Go has limitations)
+- Check Firebase Realtime Database rules are deployed: `firebase deploy --only database`
+- Verify you're testing on real devices or emulators (not Expo Go)
 
 ### SQLite Errors
 

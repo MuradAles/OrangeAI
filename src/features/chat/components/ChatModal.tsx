@@ -4,12 +4,14 @@
  */
 
 import { Avatar } from '@/components/common';
-import { DateSeparator, MessageBubble, MessageInput } from '@/features/chat/components';
+import { DateSeparator, MessageBubble, MessageInput, TypingIndicator } from '@/features/chat/components';
+import { PresenceService, TypingUser } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
-import { useAuthStore, useChatStore } from '@/store';
+import { useAuthStore, useChatStore, usePresenceStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
+import * as Clipboard from 'expo-clipboard';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 
@@ -33,14 +35,40 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     loadMessagesFromSQLite,
     subscribeToMessages,
     sendMessage,
+    sendImageMessage,
     getUserProfile,
     markChatAsRead,
+    deleteMessageForMe,
+    deleteMessageForEveryone,
+    addReaction,
   } = useChatStore();
 
   const [isSending, setIsSending] = useState(false);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const flashListRef = useRef<any>(null);
   const hasScrolledInitially = useRef(false);
+
+  const { subscribeToUser } = usePresenceStore();
+  const presenceMap = usePresenceStore(state => state.presenceMap);
+  const presenceVersion = usePresenceStore(state => state.version); // Subscribe to version for reactivity
+
+  // Get current chat and other user info
+  const { chats } = useChatStore();
+  
+  const currentChat = useMemo(() => {
+    return chats.find(chat => chat.id === chatId);
+  }, [chats, chatId]);
+
+  const otherUser = useMemo(() => {
+    if (!user || !currentChat) return null;
+    
+    // Find the other user ID from participants
+    const otherUserId = currentChat.participants.find(id => id !== user.id);
+    if (!otherUserId) return null;
+    
+    return getUserProfile(otherUserId);
+  }, [currentChat, user, getUserProfile]);
 
   // Load messages when modal opens
   useEffect(() => {
@@ -69,22 +97,40 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, chatId, user?.id]);
 
-  // Get current chat and other user info
-  const { chats } = useChatStore();
-  
-  const currentChat = useMemo(() => {
-    return chats.find(chat => chat.id === chatId);
-  }, [chats, chatId]);
+  // Subscribe to typing indicators
+  useEffect(() => {
+    if (!visible || !chatId || !user?.id) {
+      setTypingUsers([]);
+      return;
+    }
 
-  const otherUser = useMemo(() => {
-    if (!user || !currentChat) return null;
-    
-    // Find the other user ID from participants
+    const unsubscribe = PresenceService.subscribeToTyping(
+      chatId,
+      user.id,
+      (users) => setTypingUsers(users),
+      (error) => console.error('Error subscribing to typing:', error)
+    );
+
+    return () => {
+      unsubscribe();
+      setTypingUsers([]);
+    };
+  }, [visible, chatId, user?.id]);
+
+  // Subscribe to other user's presence (online/offline status)
+  // Using centralized PresenceStore - only subscribes once per user globally
+  useEffect(() => {
+    if (!visible || !currentChat || !user?.id) return;
+
+    // Get the other user's ID
     const otherUserId = currentChat.participants.find(id => id !== user.id);
-    if (!otherUserId) return null;
-    
-    return getUserProfile(otherUserId);
-  }, [currentChat, user, getUserProfile]);
+    if (!otherUserId) return;
+
+    // Subscribe via PresenceStore (handles deduplication)
+    subscribeToUser(otherUserId);
+
+    // No cleanup needed - PresenceStore manages subscriptions globally
+  }, [visible, currentChat, user?.id, subscribeToUser]);
 
   // Process messages into list items (with date separators)
   const listItems = useMemo(() => {
@@ -201,41 +247,184 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     }
   };
 
-  // Handle long press (for delete, react, copy)
-  const handleLongPress = (message: Message) => {
+  // Handle send image message
+  const handleSendImage = async (imageUri: string, caption?: string) => {
+    if (!user?.id || !chatId) return;
+    
+    setIsSending(true);
+    try {
+      await sendImageMessage(chatId, user.id, imageUri, caption);
+      
+      // Scroll to bottom after sending (newest message)
+      setTimeout(() => {
+        if (flashListRef.current) {
+          flashListRef.current.scrollToEnd({ animated: true });
+          setShowJumpToBottom(false);
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Failed to send image:', error);
+      Alert.alert('Error', 'Failed to send image. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Handle copy message to clipboard
+  const handleCopyMessage = async (message: Message) => {
+    try {
+      const textToCopy = message.type === 'image' && message.caption 
+        ? message.caption 
+        : message.text;
+      
+      if (textToCopy) {
+        await Clipboard.setStringAsync(textToCopy);
+        Alert.alert('Copied', 'Message copied to clipboard');
+      }
+    } catch (error) {
+      console.error('Failed to copy message:', error);
+      Alert.alert('Error', 'Failed to copy message');
+    }
+  };
+
+  // Handle delete message for current user
+  const handleDeleteForMe = async (message: Message) => {
+    if (!user?.id || !chatId) return;
+    
     Alert.alert(
-      'Message Options',
-      'What would you like to do?',
+      'Delete Message',
+      'Delete this message for yourself? Others will still see it.',
       [
         {
-          text: 'Copy',
-          onPress: () => {
-            // TODO: Copy to clipboard
-            console.log('Copy message:', message.text);
-          },
-        },
-        {
-          text: 'Delete for Me',
-          onPress: () => {
-            // TODO: Delete message for current user
-            console.log('Delete for me:', message.id);
-          },
-          style: 'destructive',
-        },
-        ...(message.senderId === user?.id ? [{
-          text: 'Delete for Everyone',
-          onPress: () => {
-            // TODO: Delete message for everyone
-            console.log('Delete for everyone:', message.id);
-          },
-          style: 'destructive' as const,
-        }] : []),
-        {
           text: 'Cancel',
-          style: 'cancel' as const,
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMessageForMe(chatId, message.id, user.id);
+            } catch (error) {
+              console.error('Failed to delete message:', error);
+              Alert.alert('Error', 'Failed to delete message');
+            }
+          },
         },
       ]
     );
+  };
+
+  // Handle delete message for everyone
+  const handleDeleteForEveryone = async (message: Message) => {
+    if (!chatId) return;
+    
+    Alert.alert(
+      'Delete for Everyone',
+      'This message will be deleted for everyone in this chat.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete for Everyone',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMessageForEveryone(chatId, message.id);
+            } catch (error) {
+              console.error('Failed to delete message:', error);
+              Alert.alert('Error', 'Failed to delete message');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle add emoji reaction
+  const handleAddReaction = (message: Message) => {
+    if (!user?.id || !chatId) return;
+    
+    // Show alert with input for emoji
+    if (Platform.OS === 'ios') {
+      // On iOS, use prompt
+      Alert.prompt(
+        'Add Reaction',
+        'Type an emoji to react with:',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Add',
+            onPress: async (emoji?: string) => {
+              if (emoji && emoji.trim()) {
+                try {
+                  await addReaction(chatId, message.id, emoji.trim(), user.id);
+                } catch (error) {
+                  console.error('Failed to add reaction:', error);
+                  Alert.alert('Error', 'Failed to add reaction');
+                }
+              }
+            },
+          },
+        ],
+        'plain-text'
+      );
+    } else {
+      // On Android, show common emoji options
+      Alert.alert(
+        'Add Reaction',
+        'Choose an emoji:',
+        [
+          { text: '❤️', onPress: () => addReaction(chatId, message.id, '❤️', user.id) },
+          { text: '👍', onPress: () => addReaction(chatId, message.id, '👍', user.id) },
+          { text: '😂', onPress: () => addReaction(chatId, message.id, '😂', user.id) },
+          { text: '😮', onPress: () => addReaction(chatId, message.id, '😮', user.id) },
+          { text: '😢', onPress: () => addReaction(chatId, message.id, '😢', user.id) },
+          { text: '🙏', onPress: () => addReaction(chatId, message.id, '🙏', user.id) },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
+  // Handle long press (for delete, react, copy)
+  const handleLongPress = (message: Message) => {
+    const isDeleted = message.deletedForEveryone || (message.deletedFor || []).includes(user?.id || '');
+    
+    // Don't show menu for deleted messages
+    if (isDeleted) return;
+    
+    const options = [
+      {
+        text: 'React',
+        onPress: () => handleAddReaction(message),
+      },
+      {
+        text: 'Copy',
+        onPress: () => handleCopyMessage(message),
+      },
+      {
+        text: 'Delete for Me',
+        onPress: () => handleDeleteForMe(message),
+        style: 'destructive' as const,
+      },
+      ...(message.senderId === user?.id ? [{
+        text: 'Delete for Everyone',
+        onPress: () => handleDeleteForEveryone(message),
+        style: 'destructive' as const,
+      }] : []),
+      {
+        text: 'Cancel',
+        style: 'cancel' as const,
+      },
+    ];
+    
+    Alert.alert('Message Options', 'What would you like to do?', options);
   };
 
   // Render list item
@@ -309,17 +498,24 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               </Pressable>
 
               <View style={styles.headerInfo}>
-                <Avatar
-                  name={otherUser?.displayName || 'User'}
-                  imageUrl={otherUser?.profilePictureUrl}
-                  size={36}
-                />
+                <View style={styles.avatarWithIndicator}>
+                  <Avatar
+                    name={otherUser?.displayName || 'User'}
+                    imageUrl={otherUser?.profilePictureUrl}
+                    size={36}
+                  />
+                  {/* Green dot for online status - from centralized PresenceStore */}
+                  {(() => {
+                    const otherUserId = currentChat?.participants.find(id => id !== user?.id);
+                    const presence = otherUserId ? presenceMap.get(otherUserId) : null;
+                    return presence?.isOnline && (
+                      <View style={[styles.onlineDot, { backgroundColor: theme.colors.success }]} />
+                    );
+                  })()}
+                </View>
                 <View style={styles.headerText}>
                   <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]} numberOfLines={1}>
                     {otherUser?.displayName || 'Chat'}
-                  </Text>
-                  <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                    {otherUser?.isOnline ? 'Online' : 'Offline'}
                   </Text>
                 </View>
               </View>
@@ -364,10 +560,19 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               </Pressable>
             )}
 
+            {/* Typing Indicator */}
+            {typingUsers.length > 0 && (
+              <TypingIndicator typingUserNames={typingUsers.map(u => u.userName)} />
+            )}
+
             {/* Message Input */}
             <MessageInput
               onSend={handleSend}
+              onSendImage={handleSendImage}
               isSending={isSending}
+              chatId={chatId || undefined}
+              userId={user?.id}
+              userName={user?.displayName}
             />
           </View>
       </KeyboardAvoidingView>
@@ -396,6 +601,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  avatarWithIndicator: {
+    position: 'relative',
+  },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   headerText: {
     flex: 1,

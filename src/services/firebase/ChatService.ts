@@ -398,16 +398,29 @@ export class ChatService {
   }
 
   /**
-   * Delete a chat (for blocking)
+   * Delete a chat completely (hard delete for blocking)
+   * Deletes chat document and all messages subcollection
    */
   static async deleteChat(chatId: string): Promise<void> {
     try {
-      const chatRef = doc(firestore, 'chats', chatId);
-      // Note: In production, you'd want to delete messages subcollection too
-      // For now, we'll just mark it as deleted by removing participants
-      await updateDoc(chatRef, {
-        participants: [],
+      const batch = writeBatch(firestore);
+      
+      // Delete all messages in the chat
+      const messagesRef = collection(firestore, 'chats', chatId, 'messages');
+      const messagesSnapshot = await getDocs(messagesRef);
+      
+      messagesSnapshot.forEach((messageDoc) => {
+        batch.delete(messageDoc.ref);
       });
+      
+      // Delete the chat document itself
+      const chatRef = doc(firestore, 'chats', chatId);
+      batch.delete(chatRef);
+      
+      // Commit all deletes in one batch
+      await batch.commit();
+      
+      console.log(`✅ Chat ${chatId} and all messages deleted successfully`);
     } catch (error) {
       console.error('Error deleting chat:', error);
       throw error;

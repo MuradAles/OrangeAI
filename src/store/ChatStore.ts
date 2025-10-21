@@ -46,12 +46,14 @@ interface ChatState {
   loadMessagesFromSQLite: (chatId: string) => Promise<void>;
   subscribeToMessages: (chatId: string, currentUserId?: string) => void;
   sendMessage: (chatId: string, senderId: string, text: string) => Promise<void>;
+  sendImageMessage: (chatId: string, senderId: string, imageUri: string, caption?: string) => Promise<void>;
   updateMessageStatus: (chatId: string, messageId: string, status: MessageStatus) => Promise<void>;
   deleteMessageForMe: (chatId: string, messageId: string, userId: string) => Promise<void>;
   deleteMessageForEveryone: (chatId: string, messageId: string) => Promise<void>;
   addReaction: (chatId: string, messageId: string, emoji: string, userId: string) => Promise<void>;
   removeReaction: (chatId: string, messageId: string, emoji: string, userId: string) => Promise<void>;
   markChatAsRead: (chatId: string, userId: string) => Promise<void>;
+  blockUserAndDeleteChat: (chatId: string) => Promise<void>;
 
   // Cleanup
   unsubscribeAll: () => void;
@@ -559,6 +561,143 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  // Send image message with optional caption
+  sendImageMessage: async (chatId: string, senderId: string, imageUri: string, caption?: string) => {
+    try {
+      const { StorageService } = await import('@/services/firebase');
+      
+      // Generate unique message ID
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create optimistic message with placeholder image
+      const optimisticMessage: Message = {
+        id: messageId,
+        chatId,
+        senderId,
+        text: '', // Empty text for image messages
+        timestamp: Date.now(),
+        status: 'sending',
+        type: 'image',
+        imageUrl: imageUri, // Use local URI temporarily
+        thumbnailUrl: imageUri, // Use local URI temporarily
+        caption: caption || null,
+        reactions: {},
+        deletedFor: [],
+        deletedForEveryone: false,
+        deletedAt: null,
+        syncStatus: 'pending',
+      };
+
+      // Add to state immediately (optimistic update)
+      const { messages } = get();
+      set({ messages: [...messages, optimisticMessage] });
+
+      // Save to SQLite with pending status
+      const messageRow: any = {
+        id: optimisticMessage.id,
+        chatId: optimisticMessage.chatId,
+        senderId: optimisticMessage.senderId,
+        text: optimisticMessage.text,
+        timestamp: optimisticMessage.timestamp,
+        status: optimisticMessage.status,
+        type: optimisticMessage.type,
+        imageUrl: optimisticMessage.imageUrl,
+        thumbnailUrl: optimisticMessage.thumbnailUrl,
+        caption: optimisticMessage.caption,
+        reactions: JSON.stringify(optimisticMessage.reactions || {}),
+        deletedForMe: 0,
+        deletedForEveryone: 0,
+        syncStatus: optimisticMessage.syncStatus,
+      };
+      await SQLiteService.saveMessage(messageRow);
+
+      // Upload image to Storage in background
+      try {
+        console.log('📸 Uploading image to Firebase Storage...');
+        const { imageUrl, thumbnailUrl } = await StorageService.uploadMessageImage(
+          chatId,
+          messageId,
+          imageUri
+        );
+        console.log('✅ Image uploaded successfully');
+
+        // Send message to Firestore with real image URLs
+        await MessageService.sendMessage(chatId, senderId, '', messageId, {
+          type: 'image',
+          imageUrl,
+          thumbnailUrl,
+          caption: caption || null,
+        });
+        
+        // Increment unread count for other participants
+        const { chats } = get();
+        const currentChat = chats.find(c => c.id === chatId);
+        if (currentChat) {
+          const otherParticipants = currentChat.participants.filter(id => id !== senderId);
+          for (const participantId of otherParticipants) {
+            try {
+              await ChatService.incrementUnreadCount(chatId, participantId);
+            } catch (error) {
+              console.error('❌ Error incrementing unread count:', error);
+            }
+          }
+        }
+        
+        // Update last message in chat
+        const lastMessageText = caption || '📷 Photo';
+        await ChatService.updateChatLastMessage(chatId, lastMessageText, senderId, 'sent');
+        
+        // Update optimistic message with real URLs in state
+        set((state) => ({
+          messages: state.messages.map(msg => 
+            msg.id === messageId 
+              ? { ...msg, imageUrl, thumbnailUrl, syncStatus: 'synced' as const }
+              : msg
+          ),
+        }));
+
+        // Update in SQLite with real URLs
+        const syncedRow: any = {
+          ...messageRow,
+          imageUrl,
+          thumbnailUrl,
+          syncStatus: 'synced',
+        };
+        await SQLiteService.saveMessage(syncedRow);
+        
+      } catch (uploadError) {
+        console.error('❌ Error uploading image:', uploadError);
+        
+        // Mark as failed
+        const failedMessage: Message = {
+          ...optimisticMessage,
+          status: 'sending',
+          syncStatus: 'failed',
+        };
+        
+        // Update state
+        set((state) => ({
+          messages: state.messages.map(msg => 
+            msg.id === messageId ? failedMessage : msg
+          ),
+        }));
+        
+        // Update SQLite
+        const failedRow: any = {
+          ...messageRow,
+          syncStatus: 'failed',
+        };
+        await SQLiteService.saveMessage(failedRow);
+        
+        throw uploadError;
+      }
+    } catch (error) {
+      console.error('Error sending image message:', error);
+      set({ error: (error as Error).message });
+      throw error;
+    }
+  },
+
   // Update message status (sent → delivered → read)
   updateMessageStatus: async (chatId: string, messageId: string, status: MessageStatus) => {
     try {
@@ -752,6 +891,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.log(`✅ Chat marked as read successfully`);
     } catch (error) {
       console.error('Error marking chat as read:', error);
+    }
+  },
+
+  // Block user and delete chat completely (hard delete from Firebase and SQLite)
+  blockUserAndDeleteChat: async (chatId: string) => {
+    try {
+      console.log(`🚫 Blocking user and deleting chat: ${chatId}`);
+      
+      // Delete chat from Firestore (including all messages)
+      await ChatService.deleteChat(chatId);
+      
+      // Delete all messages from SQLite
+      await SQLiteService.deleteMessagesByChatId(chatId);
+      
+      // Delete chat from SQLite
+      await SQLiteService.deleteChatById(chatId);
+      
+      // Remove from state
+      const { chats, messages } = get();
+      set({
+        chats: chats.filter(c => c.id !== chatId),
+        messages: messages.filter(m => m.chatId !== chatId),
+      });
+      
+      console.log(`✅ Chat ${chatId} blocked and deleted successfully`);
+    } catch (error) {
+      console.error('Error blocking user and deleting chat:', error);
+      set({ error: (error as Error).message });
+      throw error;
     }
   },
 

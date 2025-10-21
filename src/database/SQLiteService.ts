@@ -700,6 +700,42 @@ class SQLiteServiceClass {
       throw error;
     }
   }
+
+  /**
+   * Delete all messages for a chat (for blocking user)
+   */
+  async deleteMessagesByChatId(chatId: string): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      await this.db!.runAsync(
+        'DELETE FROM messages WHERE chatId = ?',
+        [chatId]
+      );
+      console.log(`✅ Deleted all messages for chat: ${chatId}`);
+    } catch (error) {
+      console.error('Error deleting messages by chatId:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a chat by ID (for blocking user)
+   */
+  async deleteChatById(chatId: string): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      await this.db!.runAsync(
+        'DELETE FROM chats WHERE id = ?',
+        [chatId]
+      );
+      console.log(`✅ Deleted chat: ${chatId}`);
+    } catch (error) {
+      console.error('Error deleting chat by ID:', error);
+      throw error;
+    }
+  }
 }
 
 /**

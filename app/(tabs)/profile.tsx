@@ -31,7 +31,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               await signOut();
-              router.replace('/(auth)/sign-in');
+              // Navigation handled automatically by _layout.tsx
             } catch (error) {
               console.error('Sign out failed:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');
@@ -64,9 +64,8 @@ export default function ProfileScreen() {
                   {
                     text: 'OK',
                     onPress: () => {
-                      // Optionally sign out to refresh everything
+                      // Sign out to refresh everything - navigation handled by _layout.tsx
                       signOut();
-                      router.replace('/(auth)/sign-in');
                     },
                   },
                 ]
@@ -200,7 +199,7 @@ export default function ProfileScreen() {
           variant="outline"
           onPress={handleClearLocalData}
           icon={<Ionicons name="trash-outline" size={20} color={theme.colors.warning} />}
-          style={[styles.clearDataButton, { borderColor: theme.colors.warning }]}
+          style={{ marginBottom: 12, borderColor: theme.colors.warning }}
           textStyle={{ color: theme.colors.warning }}
         />
         
@@ -209,7 +208,7 @@ export default function ProfileScreen() {
           variant="outline"
           onPress={handleSignOut}
           icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.error} />}
-          style={[styles.signOutButton, { borderColor: theme.colors.error }]}
+          style={{ marginBottom: 16, borderColor: theme.colors.error }}
           textStyle={{ color: theme.colors.error }}
         />
       </View>
@@ -248,12 +247,6 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 32,
-  },
-  clearDataButton: {
-    marginBottom: 12,
-  },
-  signOutButton: {
-    marginBottom: 16,
   },
 });
 

@@ -16,7 +16,6 @@ import {
     orderBy,
     query,
     Unsubscribe,
-    updateDoc,
     where,
     writeBatch
 } from 'firebase/firestore';
@@ -133,68 +132,11 @@ export class FriendRequestService {
 
       const batch = writeBatch(firestore);
 
-      // Update friend request status
-      batch.update(requestRef, {
-        status: 'accepted',
-        respondedAt: Date.now(),
-      });
-
-      // Create 1-on-1 chat
-      const chatRef = doc(collection(firestore, this.CHATS_COLLECTION));
-      const chatId = chatRef.id;
-
-      batch.set(chatRef, {
-        type: 'one-on-one',
-        participants: [requestData.fromUserId, requestData.toUserId],
-        lastMessageText: '',
-        lastMessageTime: Date.now(),
-        lastMessageSenderId: null,
-        createdAt: Date.now(),
-        createdBy: requestData.fromUserId,
-        // Group-specific fields (null for one-on-one)
-        groupName: null,
-        groupIcon: null,
-        groupDescription: null,
-        groupAdminId: null,
-        inviteCode: null,
-      });
-
-      // Create participant documents for both users
-      const fromUserParticipantRef = doc(
-        firestore,
-        this.CHATS_COLLECTION,
-        chatId,
-        'participants',
-        requestData.fromUserId
-      );
-
-      const toUserParticipantRef = doc(
-        firestore,
-        this.CHATS_COLLECTION,
-        chatId,
-        'participants',
-        requestData.toUserId
-      );
-
-      batch.set(fromUserParticipantRef, {
-        userId: requestData.fromUserId,
-        role: 'member',
-        joinedAt: Date.now(),
-        lastReadMessageId: null,
-        lastReadTimestamp: null,
-        unreadCount: 0,
-      });
-
-      batch.set(toUserParticipantRef, {
-        userId: requestData.toUserId,
-        role: 'member',
-        joinedAt: Date.now(),
-        lastReadMessageId: null,
-        lastReadTimestamp: null,
-        unreadCount: 0,
-      });
+      // Delete the friend request (no longer needed once accepted)
+      batch.delete(requestRef);
 
       // Add to each user's contacts subcollection
+      // NOTE: Chat will be created when first message is sent
       const fromUserContactRef = doc(
         firestore,
         this.USERS_COLLECTION,
@@ -224,8 +166,8 @@ export class FriendRequestService {
       // Commit all changes
       await batch.commit();
 
-      console.log('✅ Friend request accepted, chat created:', chatId);
-      return { success: true, chatId };
+      console.log('✅ Friend request accepted, contacts added');
+      return { success: true };
     } catch (error: any) {
       console.error('❌ Failed to accept friend request:', error);
       return { success: false, error: error.message };
@@ -255,13 +197,10 @@ export class FriendRequestService {
         return { success: false, error: 'Unauthorized to ignore this request' };
       }
 
-      // Update status to ignored
-      await updateDoc(requestRef, {
-        status: 'ignored',
-        respondedAt: Date.now(),
-      });
+      // Delete the friend request (no longer needed once ignored)
+      await deleteDoc(requestRef);
 
-      console.log('✅ Friend request ignored:', requestId);
+      console.log('✅ Friend request ignored and deleted:', requestId);
       return { success: true };
     } catch (error: any) {
       console.error('❌ Failed to ignore friend request:', error);

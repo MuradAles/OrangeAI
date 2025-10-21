@@ -7,7 +7,7 @@ import { Avatar } from '@/components/common';
 import { ChatModal } from '@/features/chat/components';
 import { ChatService } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
-import { useAuthStore, useContactStore } from '@/store';
+import { useAuthStore, useContactStore, usePresenceStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -35,6 +35,10 @@ export default function FriendsScreen() {
     cancelFriendRequest,
   } = useContactStore();
 
+  const { subscribeToUser } = usePresenceStore();
+  const presenceMap = usePresenceStore(state => state.presenceMap);
+  const presenceVersion = usePresenceStore(state => state.version); // Subscribe to version for reactivity
+
   const [activeTab, setActiveTab] = useState<TabType>('friends');
   const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
@@ -55,6 +59,19 @@ export default function FriendsScreen() {
       unsubscribeAll();
     };
   }, [user]);
+
+  // Subscribe to presence updates for all contacts
+  // Using centralized PresenceStore - only subscribes once per user globally
+  useEffect(() => {
+    if (!user?.id || contacts.length === 0) return;
+
+    // Subscribe to each contact's presence (PresenceStore handles deduplication)
+    contacts.forEach(contact => {
+      subscribeToUser(contact.userId);
+    });
+
+    // No cleanup needed - PresenceStore manages subscriptions globally
+  }, [contacts.map(c => c.userId).join(','), user?.id, subscribeToUser]);
 
   if (!user) {
     return null;
@@ -146,30 +163,38 @@ export default function FriendsScreen() {
     }
   };
 
-  const renderFriendItem = ({ item }: any) => (
-    <Pressable
-      style={[styles.listItem, { borderBottomColor: theme.colors.border }]}
-      onPress={() => handleStartChat(item.userId)}
-    >
-      <Avatar
-        name={item.displayName}
-        imageUrl={item.profilePictureUrl}
-        size={50}
-      />
-      <View style={styles.itemInfo}>
-        <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]}>
-          {item.displayName}
-        </Text>
-        <Text style={[theme.typography.bodySmall, { color: theme.colors.textSecondary }]}>
-          @{item.username}
-        </Text>
-      </View>
-      {item.isOnline && (
-        <View style={[styles.onlineIndicator, { backgroundColor: theme.colors.success }]} />
-      )}
-      <Ionicons name="chatbubble-outline" size={20} color={theme.colors.textSecondary} />
-    </Pressable>
-  );
+  const renderFriendItem = ({ item }: any) => {
+    // Get presence from centralized store (subscribed to presenceMap for reactivity)
+    const presence = presenceMap.get(item.userId);
+    const isOnline = presence?.isOnline || false;
+
+    return (
+      <Pressable
+        style={[styles.listItem, { borderBottomColor: theme.colors.border }]}
+        onPress={() => handleStartChat(item.userId)}
+      >
+        <View style={styles.avatarWithIndicator}>
+          <Avatar
+            name={item.displayName}
+            imageUrl={item.profilePictureUrl}
+            size={50}
+          />
+          {isOnline && (
+            <View style={[styles.onlineIndicator, { backgroundColor: theme.colors.success }]} />
+          )}
+        </View>
+        <View style={styles.itemInfo}>
+          <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]}>
+            {item.displayName}
+          </Text>
+          <Text style={[theme.typography.bodySmall, { color: theme.colors.textSecondary }]}>
+            @{item.username}
+          </Text>
+        </View>
+        <Ionicons name="chatbubble-outline" size={20} color={theme.colors.textSecondary} />
+      </Pressable>
+    );
+  };
 
   const renderRequestItem = ({ item }: any) => {
     const isProcessing = processingRequests.has(item.id);
@@ -405,9 +430,10 @@ export default function FriendsScreen() {
         <View style={styles.emptyContainer}>{renderEmptyState()}</View>
       ) : (
         <FlatList
-          data={getTabData()}
+          data={getTabData() as any[]}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id || item.userId}
+          keyExtractor={(item: any) => item.id || item.userId}
+          extraData={presenceVersion}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -501,15 +527,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
+  avatarWithIndicator: {
+    position: 'relative',
+  },
   itemInfo: {
     flex: 1,
     marginLeft: 12,
   },
   onlineIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginLeft: 8,
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   requestActions: {
     flexDirection: 'row',
