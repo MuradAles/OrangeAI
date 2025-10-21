@@ -25,18 +25,6 @@ export const migrations: Migration[] = [
       'DROP TABLE IF EXISTS metadata;',
     ],
   },
-  
-  // Future migrations will be added here as schema evolves:
-  // {
-  //   version: 2,
-  //   name: 'Add bio field to users',
-  //   up: [
-  //     'ALTER TABLE users ADD COLUMN bio TEXT;'
-  //   ],
-  //   down: [
-  //     'ALTER TABLE users DROP COLUMN bio;'
-  //   ],
-  // },
 ];
 
 /**
