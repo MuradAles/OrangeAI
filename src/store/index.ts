@@ -5,6 +5,7 @@
  */
 
 export * from './AuthStore';
+export * from './ChatStore';
 export * from './ContactStore';
 
 // Additional stores will be added here:

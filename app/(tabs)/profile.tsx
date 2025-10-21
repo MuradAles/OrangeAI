@@ -4,6 +4,7 @@
  */
 
 import { Avatar, Button, Card } from '@/components/common';
+import { SQLiteService } from '@/database/SQLiteService';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { useAuthStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +35,45 @@ export default function ProfileScreen() {
             } catch (error) {
               console.error('Sign out failed:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearLocalData = async () => {
+    Alert.alert(
+      'Clear Local Data',
+      'This will delete all local data (chats, messages, contacts) from your device. Your account data on the server will NOT be affected. Continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Clear Data',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await SQLiteService.reset();
+              Alert.alert(
+                'Success',
+                'Local data has been cleared. The app will refresh.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Optionally sign out to refresh everything
+                      signOut();
+                      router.replace('/(auth)/sign-in');
+                    },
+                  },
+                ]
+              );
+            } catch (error) {
+              console.error('Clear data failed:', error);
+              Alert.alert('Error', 'Failed to clear local data. Please try again.');
             }
           },
         },
@@ -156,6 +196,15 @@ export default function ProfileScreen() {
       {/* Actions */}
       <View style={styles.actions}>
         <Button
+          title="Clear Local Data"
+          variant="outline"
+          onPress={handleClearLocalData}
+          icon={<Ionicons name="trash-outline" size={20} color={theme.colors.warning} />}
+          style={[styles.clearDataButton, { borderColor: theme.colors.warning }]}
+          textStyle={{ color: theme.colors.warning }}
+        />
+        
+        <Button
           title="Sign Out"
           variant="outline"
           onPress={handleSignOut}
@@ -199,6 +248,9 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 32,
+  },
+  clearDataButton: {
+    marginBottom: 12,
   },
   signOutButton: {
     marginBottom: 16,

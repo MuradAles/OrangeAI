@@ -24,6 +24,7 @@ export interface Chat {
   lastMessageText: string;          // Preview text of last message
   lastMessageTime: number;          // Timestamp of last message
   lastMessageSenderId: string;      // Who sent the last message
+  lastMessageStatus?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed'; // Status of last message
   createdAt: number;                // Chat creation timestamp
   createdBy: string;                // User ID who created the chat
   

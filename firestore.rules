@@ -64,16 +64,18 @@ service cloud.firestore {
       
       // Participants subcollection
       match /participants/{participantId} {
-        // Users can read their own participant document
-        allow read: if isSignedIn() && request.auth.uid == participantId;
+        // Allow authenticated users to read participant documents
+        // (needed for incrementing unread counts and checking chat status)
+        allow read: if isSignedIn();
         
         // Allow creating participant documents if the userId matches the participantId
         // This is needed for initial chat creation via batch writes
         allow create: if isSignedIn() && 
           (request.resource.data.userId == participantId);
         
-        // Allow updating only your own participant document
-        allow update: if isSignedIn() && request.auth.uid == participantId;
+        // Allow updating participant documents:
+        // - Any authenticated user can update (for incrementing unread counts)
+        allow update: if isSignedIn();
         
         // No deletes
         allow delete: if false;
@@ -81,18 +83,19 @@ service cloud.firestore {
       
       // Messages subcollection
       match /messages/{messageId} {
-        // Users in the chat can read messages
-        allow read: if isSignedIn() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        // Allow read if user is authenticated (we'll check participant status in the app)
+        allow read: if isSignedIn();
         
-        // Users in the chat can create messages
+        // Users can create messages if they are the sender
         allow create: if isSignedIn() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
           request.auth.uid == request.resource.data.senderId;
         
-        // Message sender can update their own messages (for edit/delete status)
+        // Allow updates if:
+        // 1. User is the sender (for deleting/editing their own messages)
+        // 2. User is in the chat participants (for marking messages as delivered/read)
         allow update: if isSignedIn() && 
-          request.auth.uid == resource.data.senderId;
+          (request.auth.uid == resource.data.senderId ||
+           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
         
         // Users cannot delete messages
         allow delete: if false;

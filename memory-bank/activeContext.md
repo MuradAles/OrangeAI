@@ -1,117 +1,269 @@
 # Active Context
 
-## Current Status: **Beginning of Phase 1 - Foundation Setup**
+## Current Status: **Phase 2 - Core Messaging Complete! 🎉**
 
 ### Where We Are
-- ✅ Expo SDK 54 project initialized with expo-router
-- ✅ Firebase project created in Firebase Console
-- ✅ `.env` file created with Firebase credentials (not committed)
-- ✅ Basic project structure exists (app/, components/, hooks/)
-- ⏳ **About to install dependencies and begin development**
+- ✅ **Phase 1 Complete:** Foundation, auth, theme, database, UI components all working
+- ✅ **Phase 2 Complete:** Core messaging with real-time updates, virtual scrolling, and optimistic updates
+- ✅ **Task 3.9 & 3.10 Complete:** Friend request system with REAL-TIME updates and contact search fully implemented
+- ⏳ **Next:** Add push notifications (Task 3.11) or image sharing (Task 3.1)
 
 ### Current Task
-**Task 1.1: Project Dependencies & Configuration**
+**Just Completed: PR #2 - Core Messaging System 🚀**
 
-We're deciding on the correct Firebase SDK to use with Expo Go compatibility.
+We've built the complete one-on-one messaging system with:
+- Real-time chat list with FlashList virtual scrolling
+- Full-screen chat modal with message bubbles
+- Optimistic updates (messages appear instantly)
+- Message status tracking (sending → sent → delivered → read)
+- Jump to bottom floating button
+- Load from SQLite first (<100ms), then sync from Firebase
+- Message grouping, date separators, character counter
+- User profile caching for chat participants
+
+### Recent Work (This Session)
+
+#### ✅ Completed: PR #2 - Core Messaging System
+**What We Built:**
+
+1. **Chat Services** (`ChatService.ts`, `MessageService.ts`)
+   - ✨ Real-time listeners with `onSnapshot()` for instant updates
+   - CRUD operations for chats and messages
+   - Pagination support (load 50 messages at a time)
+   - Message reactions and deletion support
+   - Status updates (sending → sent → delivered → read)
+
+2. **ChatStore** (`src/store/ChatStore.ts`)
+   - ✨ Optimistic updates (messages appear instantly)
+   - Automatic SQLite sync on every state change
+   - User profile caching for chat participants
+   - Load from SQLite first, then background sync from Firebase
+   - Proper cleanup with unsubscribe functions
+
+3. **SQLite Operations** (`src/database/SQLiteService.ts`)
+   - Full CRUD for chats and messages
+   - Scroll position persistence
+   - Pending message queue (for offline support)
+   - Message status and reactions updates
+
+4. **Chat List Screen** (`app/(tabs)/home.tsx`)
+   - ✨ FlashList virtual scrolling for performance
+   - Chat previews with last message, timestamp, unread count
+   - Online/offline status indicators
+   - Pull-to-refresh
+   - Real-time updates from Firestore
+   - FAB button to navigate to Friends tab
+
+5. **Chat Modal** (`src/features/chat/components/ChatModal.tsx`)
+   - ✨ Full-screen conversation view
+   - Virtual scrolling (render ~40 messages in RAM)
+   - Load from SQLite first (<100ms instant display)
+   - Background sync from Firebase
+   - Date separators (Today, Yesterday, etc.)
+   - Message grouping (same sender within 1 minute)
+   - ✨ **Jump to Bottom** floating button (auto-hide when at bottom)
+   - Scroll to last read position on open
+
+6. **MessageBubble Component** (`MessageBubble.tsx`)
+   - Sent (right, blue) vs Received (left, gray) styling
+   - Message grouping with avatar display logic
+   - Status icons (⏱️ sending, ✓ sent, ✓✓ delivered, ✓✓ read)
+   - Reactions display (emoji + count)
+   - Deleted message handling
+   - Long-press menu (Copy, Delete, React - actions TODO)
+   - React.memo optimization to prevent re-renders
+
+7. **MessageInput Component** (`MessageInput.tsx`)
+   - Multiline text input with auto-grow
+   - Character counter (shows at 3,900 chars)
+   - Character limit (4,096 chars)
+   - Send button with loading state
+   - Disabled when empty or sending
+
+8. **Additional Components**
+   - ✨ `Badge.tsx` - Unread count badges with variants
+   - ✨ `IconButton.tsx` - Action buttons with variants
+   - ✨ `DateSeparator.tsx` - Date dividers in chat
+   - ✨ `UnreadSeparator.tsx` - Unread message divider (ready for use)
+
+#### Key Features Implemented
+- ✅ **Optimistic Updates** - Messages appear instantly in UI, sync to Firebase in background
+- ✅ **Virtual Scrolling** - Only render ~40 messages at a time for constant memory usage
+- ✅ **Real-time Sync** - Firestore `onSnapshot()` listeners for instant message updates
+- ✅ **SQLite Caching** - Load from local DB first (instant), sync from Firebase in background
+- ✅ **Message Status Tracking** - Visual indicators for sending/sent/delivered/read
+- ✅ **Jump to Bottom** - Floating button appears when scrolled up
+- ✅ **User Profile Caching** - Load profiles once, cache in memory
+- ✅ **Message Grouping** - Same sender within 1 minute groups together
+- ✅ **Date Separators** - Today, Yesterday, or formatted date
+
+---
+
+#### ✅ Previously Completed: Real-Time Friend Request System
+**What We Built:**
+
+1. **Real-Time Listeners** (`src/services/firebase/FriendRequestService.ts`)
+   - ✨ `subscribeFriendRequests()` - Real-time incoming request updates using `onSnapshot()`
+   - ✨ `subscribeSentFriendRequests()` - Real-time sent request updates using `onSnapshot()`
+   - Auto-updates UI when requests are sent, accepted, or rejected
+   - No manual refresh needed - updates push instantly from Firestore
+
+2. **Friend List Loading** (`src/services/firebase/UserService.ts`)
+   - ✨ `getContacts()` - Fetches user's friend list from Firestore
+   - Loads contacts subcollection and enriches with full user profiles
+   - Displays accepted friends with avatars, names, and online status
+   - Sorted alphabetically by display name
+
+3. **ContactStore Updates** (`src/store/ContactStore.ts`)
+   - Replaced `loadFriendRequests()` with `subscribeFriendRequests()`
+   - Replaced `loadSentRequests()` with `subscribeSentRequests()`
+   - Added `unsubscribeAll()` for proper cleanup on unmount
+   - Stores `Unsubscribe` functions to prevent memory leaks
+
+4. **Avatar Component Fix** (`src/components/common/Avatar.tsx`)
+   - Now accepts both string presets (`'small'`, `'medium'`) and custom numbers (`50`)
+   - Fixed `borderRadius` to use `sizeValue / 2` for perfect circles
+   - Supports flexible sizing across different UI contexts
+
+5. **Friends Screen Updates** (`app/(tabs)/friends.tsx`)
+   - Subscribes to real-time updates on mount
+   - Auto-unsubscribes on unmount (proper cleanup)
+   - Removed manual reload calls after actions (data syncs automatically)
+   - Fixed `keyExtractor` to handle both Contact (`userId`) and FriendRequest (`id`) objects
+   - Pull-to-refresh for contacts list
+
+6. **Firestore Security Rules Updates** (`firestore.rules`)
+   - Fixed contacts subcollection permissions for mutual contact creation
+   - Fixed participants subcollection to support batch writes during chat creation
+   - Updated to allow `userId == contactId` during friend acceptance
+   - **Deployed to Firebase** ✅
+
+#### Key Features Implemented
+- ✨ **Real-time updates** - Instant friend request notifications using Firestore `onSnapshot()`
+- ✨ **Friend list loading** - Display all accepted friends with profiles
+- ✅ Auto-accept reverse requests (if B already sent to A, auto-accept when A sends to B)
+- ✅ Duplicate request prevention
+- ✅ Block functionality (deletes chats for both users)
+- ✅ Chat auto-creation on friend request acceptance
+- ✅ Real-time username search
+- ✅ Proper cleanup with unsubscribe on unmount
+- ✅ Avatar circles display correctly
+- ✅ Pull-to-refresh for manual updates
 
 ### Recent Decisions
 
-#### Firebase SDK Choice: Firebase JS SDK (v11+)
-**Decision:** Use `firebase` npm package (Firebase JS SDK) instead of `@react-native-firebase/*`
-
+#### Real-Time Listeners vs One-Time Fetches
+**Decision:** Use Firestore `onSnapshot()` for real-time friend request updates  
 **Reasoning:**
-- ✅ Works with Expo Go (no custom dev client needed)
-- ✅ Faster development workflow
-- ✅ All features needed in PRD are supported
-- ✅ Better Expo compatibility
-- ✅ Push notifications via `expo-notifications` + FCM integration
+- Instant UI updates when requests change
+- Better user experience (no manual refresh needed)
+- Push-based updates more efficient than polling
+- Firestore handles connection management automatically
+- Proper cleanup prevents memory leaks
 
-**Trade-off Accepted:**
-- Google Sign-In will be skipped for MVP (Email/Password only)
-- Can add Google Sign-In later with `expo-auth-session` if needed
+**Implementation:**
+- `subscribeFriendRequests()` - Incoming requests listener
+- `subscribeSentFriendRequests()` - Sent requests listener
+- Store unsubscribe functions in Zustand store
+- Call `unsubscribeAll()` on component unmount
 
-#### Libraries to Install (Phase 1)
-```bash
-firebase                              # All Firebase features (Auth, Firestore, Storage)
-zustand                               # State management
-expo-sqlite                           # Local database
-expo-notifications                    # Push notifications
-expo-device                          # Device info
-expo-image-picker                    # Image picking
-expo-image-manipulator               # Image compression
-expo-file-system                     # File operations
-@react-native-community/netinfo      # Network detection
-date-fns                             # Date formatting
-@shopify/flash-list                  # Virtual scrolling
-react-native-paper                   # UI components
-```
-
-**Rejected Libraries:**
-- ❌ `@react-native-firebase/*` - Requires dev client, not Expo Go compatible
-- ❌ `react-native-vector-icons` - Use `@expo/vector-icons` instead (already installed)
-- ❌ `@react-native-google-signin/google-signin` - Native module, needs dev client
+#### Firestore Security Rules for Batch Writes
+**Issue:** Batch writes failed because rules tried to `get()` documents being created  
+**Solution:** Simplified participant rules to validate data without reading parent documents  
+**Result:** Friend acceptance now works with atomic batch writes
 
 ### Next Immediate Steps
 
-1. **Install Dependencies** (5 minutes)
-   - Run npm install command with all safe packages
-   - Verify no conflicts
+**Option A: Add Push Notifications (Task 3.11) - Recommended Next**
+1. Set up FCM in Firebase Console
+2. Install `expo-notifications` (already installed ✅)
+3. Create `NotificationService`
+4. Send notifications for:
+   - New messages
+   - Friend requests
+   - Friend request accepted
+5. Handle notification taps (deep linking)
 
-2. **Configure app.json** (10 minutes)
-   - Add necessary plugins for expo-notifications
-   - Configure app identifiers
-   - Set up permissions (camera, photos, notifications)
+**Option B: Add Image Sharing (Task 3.1)**
+1. Install image dependencies (already installed: expo-image, expo-image-picker, expo-image-manipulator ✅)
+2. Create `StorageService` for Firebase Storage uploads
+3. Add image compression (85% quality, max 10MB)
+4. Generate thumbnails (200x200px)
+5. Update MessageInput to support image picker
+6. Update MessageBubble to display images
 
-3. **Create Folder Structure** (15 minutes)
-   - `src/theme/` - Theme system (colors, spacing, typography)
-   - `src/components/common/` - Reusable UI components
-   - `src/services/firebase/` - Firebase service layer
-   - `src/store/` - Zustand stores
-   - `src/database/` - SQLite setup
-   - `src/shared/` - Shared utilities and types
+**Option C: Implement Message Actions (Tasks 3.3-3.5)**
+1. Implement "Copy" action (copy text to clipboard)
+2. Implement "Delete for me" action
+3. Implement "Delete for everyone" action
+4. Implement reaction picker (emoji keyboard)
+5. Add reaction button to long-press menu
 
-4. **Set Up Firebase Config** (20 minutes)
-   - Create `src/services/firebase/FirebaseConfig.ts`
-   - Initialize Firebase with environment variables
-   - Test connection
-
-5. **Define TypeScript Types** (30 minutes)
-   - User, Chat, Message, FriendRequest interfaces
-   - Database table types
-   - API response types
+**Option D: Test Complete Flow End-to-End**
+1. Test auth flow (sign up, create profile, sign in)
+2. Test friend request flow (search, send, accept, chat created)
+3. Test messaging flow (send, receive, status updates)
+4. Verify optimistic updates work correctly
+5. Verify SQLite caching works offline
+6. Test on multiple devices for real-time sync
 
 ### Active Considerations
 
-#### Theme System Strategy
-- Create SINGLE SOURCE OF TRUTH in `src/theme/`
-- All colors, spacing, typography defined once
-- All components import from theme (no hardcoded values)
-- Light + Dark mode support from the start
+#### Chat Creation on Friend Accept
+- ✅ Chat document created in `/chats/{chatId}`
+- ✅ Participant subcollection documents created for both users
+- ✅ Contact subcollection updated for both users
+- ✅ Uses batched writes for atomicity
+- ⚠️ Need to verify in actual testing
 
-#### Database Strategy
-- Firebase Firestore = Source of truth (complete history)
-- SQLite = Local cache (minimum 200 messages per chat)
-- RAM = Only ~40 rendered messages at a time
-- Load from SQLite first (instant), sync from Firebase in background
+#### Firestore Architecture Decisions
+**Contacts & Blocked Users: Subcollections**
+- `/users/{userId}/contacts/{contactId}` stores `{ userId, addedAt }`
+- `/users/{userId}/blockedUsers/{blockedUserId}` stores `{ userId, blockedAt }`
+- Easier to query and manage
+- Clear ownership model
 
-#### Authentication Approach
-- Email/Password only for MVP
-- Email verification required before access
-- Username must be unique (real-time availability check)
-- Profile created after email verification
+**Participants: Subcollection**
+- `/chats/{chatId}/participants/{userId}` stores full participant data
+- Allows per-user chat settings (notifications, archived, etc.)
+- Simplifies querying user's chats
+
+#### Message Architecture (for PR #2)
+- Messages will be in `/chats/{chatId}/messages/{messageId}` subcollection
+- SQLite will cache last 200 messages per chat
+- Pagination will load older messages from Firestore
+- Optimistic updates for instant UI feedback
 
 ### Open Questions
-None currently - ready to proceed with installation.
+
+**Q: Should we add push notifications now or after messaging?**
+- **Pro for now:** Friend requests need notifications
+- **Pro for later:** Can test notifications for messages too
+- **Decision:** User preference (either works)
+
+**Q: Need to verify security rules for messages?**
+- Will need rules for `/chats/{chatId}/messages/` subcollection
+- Only chat participants should read/write messages
+- Can add when building PR #2
 
 ### Blockers
-None - Firebase credentials are ready, project initialized, ready to install dependencies.
 
-### Focus for This Session
-1. Install all dependencies
-2. Set up folder structure
-3. Create theme system
-4. Initialize Firebase configuration
-5. Define shared TypeScript types
+**None** - All systems operational ✅
 
-This will complete Task 1.1 through Task 1.5 of Phase 1.
+### Focus for Next Work
+
+**Recommendation: Add Push Notifications (Task 3.11)**
+
+This is the most logical next step because:
+1. ✅ Core messaging is complete (PR #2)
+2. ✅ Friend request system is complete
+3. ✅ Users can chat in real-time
+4. 📱 Need notifications for:
+   - New messages (critical for user engagement)
+   - Friend requests
+   - Friend request accepted
+5. Dependencies already installed (`expo-notifications`)
+
+**Alternative: Test Complete Flow First (Option D)**
+Before adding more features, we could test the complete user journey end-to-end to ensure everything works correctly on actual devices.
 

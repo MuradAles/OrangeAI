@@ -4,6 +4,8 @@
  */
 
 import { Avatar } from '@/components/common';
+import { ChatModal } from '@/features/chat/components';
+import { ChatService } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { useAuthStore, useContactStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +38,7 @@ export default function FriendsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('friends');
   const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -122,14 +125,31 @@ export default function FriendsScreen() {
     }
   };
 
+  const handleStartChat = async (friendUserId: string) => {
+    if (!user) return;
+
+    try {
+      // Check if chat already exists
+      const existingChatId = await ChatService.findExistingChat(user.id, friendUserId);
+
+      if (existingChatId) {
+        // Chat exists, open modal
+        setSelectedChatId(existingChatId);
+      } else {
+        // Create new chat and open modal
+        const chatId = await ChatService.createChat(user.id, friendUserId);
+        setSelectedChatId(chatId);
+      }
+    } catch (error) {
+      console.error('Error starting chat:', error);
+      Alert.alert('Error', 'Failed to start chat. Please try again.');
+    }
+  };
+
   const renderFriendItem = ({ item }: any) => (
     <Pressable
       style={[styles.listItem, { borderBottomColor: theme.colors.border }]}
-      onPress={() => {
-        // Navigate to chat with this friend
-        // TODO: Implement navigation to chat
-        console.log('Open chat with:', item.username);
-      }}
+      onPress={() => handleStartChat(item.userId)}
     >
       <Avatar
         name={item.displayName}
@@ -147,6 +167,7 @@ export default function FriendsScreen() {
       {item.isOnline && (
         <View style={[styles.onlineIndicator, { backgroundColor: theme.colors.success }]} />
       )}
+      <Ionicons name="chatbubble-outline" size={20} color={theme.colors.textSecondary} />
     </Pressable>
   );
 
@@ -398,6 +419,13 @@ export default function FriendsScreen() {
           }
         />
       )}
+
+      {/* Chat Modal */}
+      <ChatModal
+        visible={selectedChatId !== null}
+        chatId={selectedChatId}
+        onClose={() => setSelectedChatId(null)}
+      />
     </View>
   );
 }
