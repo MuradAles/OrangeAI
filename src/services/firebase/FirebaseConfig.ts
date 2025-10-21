@@ -1,0 +1,116 @@
+/**
+ * Firebase Configuration
+ * 
+ * Initializes Firebase services using environment variables.
+ * All Firebase credentials should be stored in .env file with EXPO_PUBLIC_ prefix.
+ */
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
+import { Auth, getAuth, initializeAuth } from 'firebase/auth';
+// @ts-ignore - getReactNativePersistence exists at runtime in Firebase 12.x but TypeScript defs may be outdated
+import { getReactNativePersistence } from 'firebase/auth';
+import { Firestore, getFirestore } from 'firebase/firestore';
+import { FirebaseStorage, getStorage } from 'firebase/storage';
+import { Platform } from 'react-native';
+
+// Firebase configuration from environment variables
+// In Expo SDK 54+, EXPO_PUBLIC_* variables are automatically available via process.env
+const firebaseConfig = {
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+};
+
+// Validate Firebase configuration
+const validateConfig = () => {
+  const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+  const missingKeys = requiredKeys.filter(key => !firebaseConfig[key as keyof typeof firebaseConfig]);
+  
+  if (missingKeys.length > 0) {
+    throw new Error(
+      `Missing Firebase configuration keys: ${missingKeys.join(', ')}. ` +
+      'Please ensure all EXPO_PUBLIC_FIREBASE_* variables are set in your .env file and app.json extra config.'
+    );
+  }
+};
+
+// Validate configuration on import
+validateConfig();
+
+// Initialize Firebase App (singleton pattern)
+let app: FirebaseApp;
+let auth: Auth;
+let firestore: Firestore;
+let storage: FirebaseStorage;
+
+/**
+ * Initialize Firebase services
+ * Call this once at app startup
+ */
+export const initializeFirebase = () => {
+  try {
+    // Check if Firebase is already initialized
+    if (getApps().length === 0) {
+      // Initialize Firebase App
+      app = initializeApp(firebaseConfig);
+      console.log('✅ Firebase App initialized successfully');
+      
+      // Initialize Auth with AsyncStorage persistence
+      if (Platform.OS !== 'web') {
+        auth = initializeAuth(app, {
+          persistence: getReactNativePersistence(AsyncStorage)
+        });
+      } else {
+        auth = getAuth(app);
+      }
+      console.log('✅ Firebase Auth initialized with persistence');
+      
+      // Initialize Firestore
+      // Note: React Native doesn't support persistentLocalCache (requires IndexedDB)
+      // Using default cache which works for both platforms
+      firestore = getFirestore(app);
+      console.log('✅ Firestore initialized');
+      
+      // Initialize Storage
+      storage = getStorage(app);
+      console.log('✅ Firebase Storage initialized');
+      
+    } else {
+      // Use existing Firebase app
+      app = getApp();
+      auth = getAuth(app);
+      firestore = getFirestore(app);
+      storage = getStorage(app);
+      console.log('✅ Using existing Firebase instance');
+    }
+    
+    return { app, auth, firestore, storage };
+    
+  } catch (error) {
+    console.error('❌ Error initializing Firebase:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get Firebase services (use after initialization)
+ */
+export const getFirebaseServices = () => {
+  if (!app) {
+    throw new Error('Firebase not initialized. Call initializeFirebase() first.');
+  }
+  return { app, auth, firestore, storage };
+};
+
+// Export Firebase services for direct import
+export { app, auth, firestore, storage };
+
+// Export Firebase SDK modules for use in services
+  export * from 'firebase/app';
+  export type { User as FirebaseUser } from 'firebase/auth';
+  export type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+

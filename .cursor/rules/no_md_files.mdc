@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+
+# Rule: Avoid Markdown File Creation
+
+USE WHEN: The AI is about to create a new file.
+ACTION: Do not create any new files with the `.md` extension, including documentation, project plans, or usage guides, unless explicitly requested by the user. Prioritize providing code directly or integrating comments within existing files for explanations.

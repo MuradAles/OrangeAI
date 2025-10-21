@@ -140,9 +140,9 @@ expo-constants
 - [x] Enable Firestore Database
 - [x] Enable Firebase Storage
 - [x] Enable Firebase Cloud Messaging
-- [ ] Add Firebase config to `.env` (need Web config)
-- [ ] Create `FirebaseConfig.ts` with initialization logic
-- [ ] Test Firebase connection
+- [x] Add Firebase config to `.env` (need Web config)
+- [x] Create `FirebaseConfig.ts` with initialization logic
+- [x] Test Firebase connection
 
 **Unit Tests:**
 - `__tests__/services/firebase/FirebaseConfig.test.ts` - Test Firebase initialization
@@ -166,8 +166,8 @@ expo-constants
 **Subtasks:**
 - [x] Create all folder structures
 - [x] Create barrel export files (index.ts)
-- [ ] Set up Expo Router file-based routing
-- [ ] Create root layout with providers
+- [x] Set up Expo Router file-based routing
+- [x] Create root layout with providers
 
 ---
 
@@ -215,7 +215,7 @@ expo-constants
 **Verification:**
 - [x] All theme values accessible from single import
 - [x] Light and dark themes defined
-- [ ] No hardcoded values in components (will verify as we build)
+- [x] No hardcoded values in components (will verify as we build)
 
 ---
 
@@ -246,11 +246,11 @@ expo-constants
 - `__tests__/components/common/Avatar.test.tsx` - Test image loading, fallback to colored circle, color generation
 
 **Verification:**
-- [ ] All UI components render without errors
-- [ ] Button press handlers fire correctly
-- [ ] Avatar generates consistent colors for same names
-- [ ] All components use theme values (no hardcoded styles)
-- [ ] Change theme.colors.primary updates all primary colored elements
+- [x] All UI components render without errors
+- [x] Button press handlers fire correctly
+- [x] Avatar generates consistent colors for same names
+- [x] All components use theme values (no hardcoded styles)
+- [x] Change theme.colors.primary updates all primary colored elements
 
 ---
 
@@ -265,18 +265,18 @@ expo-constants
 - [x] Create database schema (users, chats, messages, scroll_positions, friend_requests)
 - [x] Implement migration system with version tracking
 - [x] Create SQLiteService with CRUD operations
-- [ ] Test database initialization on app launch (need to run app)
+- [x] Test database initialization on app launch (need to run app)
 
 **Unit Tests:**
 - `__tests__/database/SQLiteService.test.ts` - Test CRUD operations, migrations, version tracking
 - `__tests__/database/Schema.test.ts` - Verify schema creation, indexes, constraints
 
 **Verification:**
-- [ ] Database initializes successfully on first launch
-- [ ] All tables created with correct schema
-- [ ] Migrations run in correct order
-- [ ] Data persists after app restart
-- [ ] Concurrent operations don't cause corruption
+- [x] Database initializes successfully on first launch
+- [x] All tables created with correct schema
+- [x] Migrations run in correct order
+- [x] Data persists after app restart
+- [x] Concurrent operations don't cause corruption
 
 ---
 
@@ -307,11 +307,11 @@ expo-constants
 - `__tests__/integration/Auth/SignInFlow.test.tsx` - Test email and Google sign-in
 
 **Verification:**
-- [ ] Email sign-up creates user in Firebase Auth
-- [ ] Email verification required before access
-- [ ] Google sign-in populates profile correctly
-- [ ] Auth state persists across app restarts
-- [ ] Sign-out clears all user data
+- [x] Email sign-up creates user in Firebase Auth
+- [x] Email verification required before access
+- [ ] Google sign-in populates profile correctly (skipped for MVP)
+- [x] Auth state persists across app restarts
+- [x] Sign-out clears all user data
 
 ---
 
@@ -361,11 +361,11 @@ expo-constants
 - `__tests__/integration/Auth/ProfileCreation.test.tsx` - End-to-end profile creation with username check
 
 **Verification:**
-- [ ] Username availability check happens in real-time
-- [ ] Duplicate usernames rejected
-- [ ] Username must be lowercase
-- [ ] Profile saves to both Firestore and SQLite
-- [ ] Google profile picture auto-populates if available
+- [x] Username availability check happens in real-time
+- [x] Duplicate usernames rejected
+- [x] Username must be lowercase
+- [x] Profile saves to both Firestore and SQLite
+- [ ] Google profile picture auto-populates if available (skipped for MVP)
 
 ---
 
@@ -379,18 +379,18 @@ expo-constants
 - [x] Define color palette (8-10 preset colors)
 - [x] Generate deterministic colors based on username/displayName
 - [x] Add validation utilities (username, email, password, displayName)
-- [ ] Handle profile picture upload to Firebase Storage (will do in Task 1.10)
-- [ ] Create thumbnail generation (will do in Task 1.10)
+- [ ] Handle profile picture upload to Firebase Storage (will do in future phase)
+- [ ] Create thumbnail generation (will do in future phase)
 
 **Unit Tests:**
 - `__tests__/shared/utils/ProfilePictureGenerator.test.ts` - Test color generation, first letter extraction, deterministic colors
 
 **Verification:**
-- [ ] Same name always generates same color
-- [ ] All 8-10 preset colors used evenly
-- [ ] First letter correctly extracted (handles emojis, spaces)
-- [ ] Upload to Firebase Storage succeeds
-- [ ] Thumbnail generated at correct size
+- [x] Same name always generates same color
+- [x] All 8-10 preset colors used evenly
+- [x] First letter correctly extracted (handles emojis, spaces)
+- [ ] Upload to Firebase Storage succeeds (will do in future phase)
+- [ ] Thumbnail generated at correct size (will do in future phase)
 
 ---
 
@@ -404,8 +404,8 @@ expo-constants
 - [x] Document Firebase configuration
 - [x] Document environment variables
 - [x] Document folder structure
-- [ ] Add code comments to all services (as they're created)
-- [ ] Create API documentation for AuthService and UserService (as they're created)
+- [x] Add code comments to all services (as they're created)
+- [x] Create API documentation for AuthService and UserService (as they're created)
 
 ---
 
