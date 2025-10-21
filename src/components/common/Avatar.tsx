@@ -9,7 +9,7 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import React from 'react';
 import { Image, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 
-export type AvatarSize = 'small' | 'medium' | 'large' | 'xlarge';
+export type AvatarSize = 'small' | 'medium' | 'large' | 'xlarge' | number;
 
 export interface AvatarProps {
   /**
@@ -23,7 +23,7 @@ export interface AvatarProps {
   imageUrl?: string | null;
   
   /**
-   * Avatar size
+   * Avatar size (preset string or custom number)
    */
   size?: AvatarSize;
   
@@ -58,15 +58,22 @@ export const Avatar: React.FC<AvatarProps> = ({
   
   // Get size value
   const getSizeValue = (): number => {
+    // If size is a number, use it directly
+    if (typeof size === 'number') {
+      return size;
+    }
+    
+    // Otherwise use preset sizes
     switch (size) {
       case 'small':
         return theme.componentSpacing.avatarSizeSmall;
-      case 'medium':
-        return theme.componentSpacing.avatarSizeMedium;
       case 'large':
         return theme.componentSpacing.avatarSizeLarge;
       case 'xlarge':
         return theme.componentSpacing.avatarSizeXLarge;
+      case 'medium':
+      default:
+        return theme.componentSpacing.avatarSizeMedium;
     }
   };
   
@@ -87,7 +94,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   const containerStyle: ViewStyle = {
     width: sizeValue,
     height: sizeValue,
-    borderRadius: theme.componentBorderRadius.avatar,
+    borderRadius: sizeValue / 2, // Always circular (half of size)
     backgroundColor: imageUrl ? 'transparent' : backgroundColor,
     alignItems: 'center',
     justifyContent: 'center',

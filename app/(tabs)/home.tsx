@@ -64,7 +64,7 @@ export default function HomeScreen() {
               },
             ]}
           >
-            Start a new conversation to begin messaging
+            Start a new conversation
           </Text>
 
           {/* New Chat Button */}

@@ -5,10 +5,11 @@
  */
 
 export * from './FirebaseConfig';
+export * from './FriendRequestService';
+export * from './UserService';
 
 // Services will be added here as they are created:
 // export * from './AuthService';
-// export * from './UserService';
 // export * from './ChatService';
 // export * from './MessageService';
 // export * from './StorageService';
