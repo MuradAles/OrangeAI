@@ -6,7 +6,7 @@
 import { ChatListItem, ChatModal } from '@/features/chat/components';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Chat } from '@/shared/types';
-import { useAuthStore, useChatStore } from '@/store';
+import { useAuthStore, useChatStore, usePresenceStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
@@ -24,8 +24,12 @@ export default function HomeScreen() {
     subscribeToChats, 
     unsubscribeAll,
     getUserProfile,
-    userProfiles  // Subscribe to profiles to trigger re-render when they load
   } = useChatStore();
+
+  const { subscribeToUser } = usePresenceStore();
+  const presenceMap = usePresenceStore(state => state.presenceMap);
+  const presenceVersion = usePresenceStore(state => state.version); // Subscribe to version for reactivity
+
   const [refreshing, setRefreshing] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
@@ -44,6 +48,36 @@ export default function HomeScreen() {
       unsubscribeAll();
     };
   }, [user?.id, loadChatsFromSQLite, subscribeToChats, unsubscribeAll]);
+
+  // Subscribe to presence updates for all chat participants
+  // Using centralized PresenceStore - only subscribes once per user globally
+  useEffect(() => {
+    if (!user?.id || chats.length === 0) return;
+
+    console.log('📡 HOME: Setting up presence subscriptions for', chats.length, 'chats');
+
+    // Get all unique participant IDs (excluding current user)
+    const participantIds = new Set<string>();
+    chats.forEach(chat => {
+      chat.participants.forEach(participantId => {
+        if (participantId !== user.id) {
+          participantIds.add(participantId);
+        }
+      });
+    });
+
+    console.log('📡 HOME: Current user:', user.id.substring(0, 8));
+    console.log('📡 HOME: Subscribing to', participantIds.size, 'users:', 
+      Array.from(participantIds).map(id => id.substring(0, 8)).join(', '));
+
+    // Subscribe to each participant's presence (PresenceStore handles deduplication)
+    participantIds.forEach(participantId => {
+      subscribeToUser(participantId);
+    });
+
+    // No cleanup needed - PresenceStore manages subscriptions globally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chats.map(c => c.participants.join(',')).join('|'), user?.id]);
 
   // Pull to refresh
   const handleRefresh = async () => {
@@ -76,17 +110,24 @@ export default function HomeScreen() {
     // Get user profile from cache
     const otherUserProfile = otherUserId ? getUserProfile(otherUserId) : null;
     
+    // Get presence from centralized store (subscribed to presenceMap for reactivity)
+    const presence = otherUserId ? presenceMap.get(otherUserId) : null;
+    const isOnline = presence?.isOnline || false;
+    
     return (
       <ChatListItem
         chat={item}
         currentUserId={user!.id}
         otherUserName={otherUserProfile?.displayName}
         otherUserAvatar={otherUserProfile?.profilePictureUrl}
-        isOnline={otherUserProfile?.isOnline}
+        isOnline={isOnline}
         onPress={handleChatPress}
       />
     );
   };
+
+  // Filter out chats with no messages (only show chats that have at least one message)
+  const chatsWithMessages = chats.filter(chat => chat.lastMessageText && chat.lastMessageText.trim() !== '');
 
   // Empty state
   const renderEmptyState = () => (
@@ -173,9 +214,10 @@ export default function HomeScreen() {
         </View>
       ) : (
         <FlashList
-          data={chats}
+          data={chatsWithMessages}
           renderItem={renderChatItem}
           keyExtractor={(item) => item.id}
+          extraData={presenceVersion}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl

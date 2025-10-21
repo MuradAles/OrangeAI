@@ -201,10 +201,32 @@ npm run web      # Web browser
 ```
 
 ### Testing Strategy
-- **Unit Tests:** Jest for services and utilities
-- **Integration Tests:** Test complete user flows
-- **Performance Tests:** Verify performance targets
+- **Unit Tests:** ✅ Jest + React Native Testing Library configured
+  - 88 tests passing for core services and stores
+  - Comprehensive mocks for Firebase and Expo modules
+  - Test coverage includes optimistic updates and state management
+- **Integration Tests:** Test complete user flows (Phase 5)
+- **Performance Tests:** Verify performance targets (Phase 5)
 - **Manual Testing:** Two physical devices for real-time features
+
+### Testing Infrastructure
+**Framework:** Jest 29.x with `jest-expo` preset
+**Libraries:**
+- `@testing-library/react-native` - Component testing
+- `react-test-renderer` - Snapshot testing
+- `ts-jest` - TypeScript support
+
+**Test Scripts:**
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
+```
+
+**Coverage:**
+- Services: AuthService, MessageService, ChatService, StorageService, PresenceService
+- Stores: AuthStore, ChatStore, ContactStore
+- Total: 88 passing tests, 2 skipped (mock config complexity)
 
 ### Code Quality
 - **ESLint:** Already configured (expo linting)

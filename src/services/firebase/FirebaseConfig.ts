@@ -10,6 +10,7 @@ import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, getAuth, initializeAuth } from 'firebase/auth';
 // @ts-ignore - getReactNativePersistence exists at runtime in Firebase 12.x but TypeScript defs may be outdated
 import { getReactNativePersistence } from 'firebase/auth';
+import { Database, getDatabase } from 'firebase/database';
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
@@ -23,6 +24,7 @@ const firebaseConfig = {
   storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  databaseURL: process.env.EXPO_PUBLIC_DATABASE_URL,
 };
 
 // Validate Firebase configuration
@@ -46,6 +48,7 @@ let app: FirebaseApp;
 let auth: Auth;
 let firestore: Firestore;
 let storage: FirebaseStorage;
+let database: Database;
 
 /**
  * Initialize Firebase services
@@ -79,16 +82,21 @@ export const initializeFirebase = () => {
       storage = getStorage(app);
       console.log('✅ Firebase Storage initialized');
       
+      // Initialize Realtime Database
+      database = getDatabase(app);
+      console.log('✅ Firebase Realtime Database initialized');
+      
     } else {
       // Use existing Firebase app
       app = getApp();
       auth = getAuth(app);
       firestore = getFirestore(app);
       storage = getStorage(app);
+      database = getDatabase(app);
       console.log('✅ Using existing Firebase instance');
     }
     
-    return { app, auth, firestore, storage };
+    return { app, auth, firestore, storage, database };
     
   } catch (error) {
     console.error('❌ Error initializing Firebase:', error);
@@ -103,14 +111,14 @@ export const getFirebaseServices = () => {
   if (!app) {
     throw new Error('Firebase not initialized. Call initializeFirebase() first.');
   }
-  return { app, auth, firestore, storage };
+  return { app, auth, firestore, storage, database };
 };
 
 // Export Firebase services for direct import
-export { app, auth, firestore, storage };
+export { app, auth, database, firestore, storage };
 
 // Export Firebase SDK modules for use in services
   export * from 'firebase/app';
-  export type { User as FirebaseUser } from 'firebase/auth';
-  export type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+    export type { User as FirebaseUser } from 'firebase/auth';
+    export type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 
