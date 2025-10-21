@@ -34,6 +34,7 @@ export interface UserRow {
   profilePictureUrl: string | null;
   isOnline: number;                 // SQLite boolean (0 or 1)
   lastSeen: number | null;
+  createdAt: number;
 }
 
 /**
@@ -46,6 +47,7 @@ export interface ChatRow {
   lastMessageText: string;
   lastMessageTime: number;
   lastMessageSenderId: string;
+  lastMessageStatus?: string | null; // 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
   unreadCount: number;
   groupName: string | null;
   groupIcon: string | null;

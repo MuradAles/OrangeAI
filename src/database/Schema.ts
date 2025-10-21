@@ -42,6 +42,7 @@ export const CREATE_CHATS_TABLE = `
     lastMessageText TEXT,
     lastMessageTime INTEGER,
     lastMessageSenderId TEXT,
+    lastMessageStatus TEXT,
     unreadCount INTEGER DEFAULT 0,
     groupName TEXT,
     groupIcon TEXT,
