@@ -20,6 +20,7 @@ interface ChatState {
   // State
   chats: Chat[];
   currentChatId: string | null;
+  activeChatId: string | null; // Currently open/viewing chat (for notifications)
   messages: Message[];
   isLoadingChats: boolean;
   isLoadingMessages: boolean;
@@ -36,6 +37,7 @@ interface ChatState {
   loadChatsFromSQLite: (userId: string) => Promise<void>;
   subscribeToChats: (userId: string) => void;
   selectChat: (chatId: string) => void;
+  setActiveChatId: (chatId: string | null) => void;
   createChat: (userId1: string, userId2: string) => Promise<string>;
   
   // Actions - User Profiles
@@ -64,6 +66,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Initial State
   chats: [],
   currentChatId: null,
+  activeChatId: null,
   messages: [],
   isLoadingChats: false,
   isLoadingMessages: false,
@@ -191,9 +194,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       chatsUnsubscribe();
     }
 
+    // Keep track of previous chat states to detect new messages
+    let previousChats = new Map<string, { lastMessageTime: number, lastMessageText: string }>();
+
     const unsubscribe = ChatService.subscribeToChats(
       userId,
       async (chats) => {
+        console.log('💬 Chat updates received, checking for new messages...');
+        
         // Load unread counts for each chat BEFORE updating state
         try {
           // Longer delay to ensure participant documents are updated
@@ -216,6 +224,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
               if (unreadCount > 0) {
                 console.log(`🔴 Chat "${chat.lastMessageText?.substring(0, 30)}..." has ${unreadCount} UNREAD messages!`);
               }
+              
+              // 🔔 CHECK FOR NEW MESSAGES: Compare with previous state
+              const previousChat = previousChats.get(chat.id);
+              const isNewMessage = previousChat && (
+                chat.lastMessageTime > previousChat.lastMessageTime ||
+                chat.lastMessageText !== previousChat.lastMessageText
+              );
+              
+              // If new message AND it's not from current user AND not currently viewing this chat
+              if (isNewMessage && 
+                  chat.lastMessageSenderId !== userId && 
+                  get().activeChatId !== chat.id) {
+                
+                console.log('🆕 NEW MESSAGE detected in chat list!', {
+                  chatId: chat.id,
+                  from: chat.lastMessageSenderId,
+                  text: chat.lastMessageText?.substring(0, 50),
+                  activeChatId: get().activeChatId,
+                });
+                
+                // Trigger notification
+                try {
+                  const { triggerInAppNotification } = await import('@/services/NotificationHelper');
+                  
+                  // Get sender profile (may already be cached)
+                  let sender = get().getUserProfile(chat.lastMessageSenderId);
+                  
+                  // If not cached, try to load it
+                  if (!sender) {
+                    sender = await get().loadUserProfile(chat.lastMessageSenderId);
+                  }
+                  
+                  triggerInAppNotification({
+                    id: `${chat.id}_${chat.lastMessageTime}`,
+                    senderName: sender?.displayName || chat.groupName || 'Someone',
+                    messageText: chat.lastMessageText || '',
+                    senderAvatar: sender?.profilePictureUrl || chat.groupIcon,
+                    chatId: chat.id,
+                    isImage: false, // We don't know from chat list, assume text
+                  });
+                  
+                  console.log('✅ Notification triggered from chat list update');
+                } catch (error) {
+                  console.error('❌ Error triggering notification from chat list:', error);
+                }
+              }
+              
+              // Update previous chats map
+              previousChats.set(chat.id, {
+                lastMessageTime: chat.lastMessageTime,
+                lastMessageText: chat.lastMessageText || '',
+              });
               
               // Return new chat object with unread count
               return {
@@ -286,6 +346,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Select a chat to view
   selectChat: (chatId: string) => {
     set({ currentChatId: chatId, messages: [] });
+  },
+
+  // Set active chat ID (when chat is actually being viewed)
+  setActiveChatId: (chatId: string | null) => {
+    set({ activeChatId: chatId });
   },
 
   // Create a new one-on-one chat
@@ -384,6 +449,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 console.log(`   ✅ Marked as DELIVERED`);
               } catch (error) {
                 console.error('Error marking message as delivered:', error);
+              }
+            }
+
+            // 🔔 Trigger in-app notification if message is from someone else
+            if (currentUserId && msg.senderId !== currentUserId) {
+              try {
+                const { triggerInAppNotification } = await import('@/services/NotificationHelper');
+                const sender = get().getUserProfile(msg.senderId);
+                
+                // Trigger direct in-app notification (works on emulator!)
+                triggerInAppNotification({
+                  id: msg.id,
+                  senderName: sender?.displayName || 'Someone',
+                  messageText: msg.text || '',
+                  senderAvatar: sender?.profilePictureUrl,
+                  chatId,
+                  isImage: msg.type === 'image',
+                });
+                console.log(`   🔔 In-app notification triggered`);
+              } catch (error) {
+                console.error('   ❌ Error triggering notification:', error);
               }
             }
           }

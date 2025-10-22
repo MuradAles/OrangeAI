@@ -10,6 +10,7 @@
 
 import { Modal } from '@/components/common';
 import { Contact } from '@/shared/types';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { ChatTypeSelector } from './ChatTypeSelector';
 import { ContactPicker } from './ContactPicker';
@@ -34,6 +35,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   onCreateGroupChat,
   isCreating = false,
 }) => {
+  const router = useRouter();
   const [step, setStep] = React.useState<Step>('select-type');
   const [chatType, setChatType] = React.useState<'one-on-one' | 'group'>('one-on-one');
   const [selectedContactIds, setSelectedContactIds] = React.useState<Set<string>>(new Set());
@@ -58,7 +60,15 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   const handleSelectChatType = (type: 'one-on-one' | 'group') => {
     setChatType(type);
     setSelectedContactIds(new Set());
-    setStep('select-contacts');
+    
+    if (type === 'one-on-one') {
+      // For one-on-one, close modal and navigate to Friends tab
+      onClose();
+      router.push('/(tabs)/friends');
+    } else {
+      // For group, continue with contact selection
+      setStep('select-contacts');
+    }
   };
 
   const handleToggleContact = (contactId: string) => {

@@ -101,9 +101,9 @@ export const lightColors: ColorPalette = {
   textOnPrimary: '#FFFFFF',
   
   // Message bubbles
-  messageSent: '#0084FF',
+  messageSent: '#FFC107', // Yellow/golden for sent messages
   messageReceived: '#F0F0F0',
-  messageText: '#FFFFFF',
+  messageText: '#000000', // Dark text on yellow
   messageTextReceived: '#000000',
   
   // Status
@@ -171,9 +171,9 @@ export const darkColors: ColorPalette = {
   textOnPrimary: '#FFFFFF',
   
   // Message bubbles
-  messageSent: '#0A84FF',
+  messageSent: '#FFC107', // Yellow/golden for sent messages
   messageReceived: '#1C1C1E',
-  messageText: '#FFFFFF',
+  messageText: '#000000', // Dark text on yellow
   messageTextReceived: '#FFFFFF',
   
   // Status

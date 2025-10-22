@@ -9,6 +9,7 @@ export * from './Badge';
 export * from './Button';
 export * from './Card';
 export * from './IconButton';
+export * from './InAppNotification';
 export * from './Input';
 export * from './LoadingSpinner';
 export * from './Modal';

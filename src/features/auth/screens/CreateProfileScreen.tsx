@@ -9,13 +9,11 @@ import { UserService } from '@/services/firebase/UserService';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { validateDisplayName, validateUsername } from '@/shared/utils';
 import { useAuthStore } from '@/store';
-import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export const CreateProfileScreen: React.FC = () => {
   const theme = useTheme();
-  const router = useRouter();
   const { firebaseUser, setUser, isLoading } = useAuthStore();
 
   const [username, setUsername] = useState('');
@@ -102,9 +100,8 @@ export const CreateProfileScreen: React.FC = () => {
       });
 
       setUser(profile);
-      Alert.alert('Success', 'Profile created successfully!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') },
-      ]);
+      // Navigation is handled automatically by app/index.tsx
+      // User will be redirected to home once profile is complete
     } catch (error: any) {
       Alert.alert('Error', error.message);
     }
