@@ -7,15 +7,13 @@
 import { SQLiteService } from '@/database/SQLiteService';
 import { initializeFirebase, PresenceService } from '@/services/firebase';
 import { useAuthStore } from '@/store';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, AppStateStatus, Text, View } from 'react-native';
 
 export default function RootLayout() {
   const [isAppReady, setIsAppReady] = useState(false);
   const { isAuthenticated, user, isInitialized, initialize } = useAuthStore();
-  const segments = useSegments();
-  const router = useRouter();
   const appState = useRef(AppState.currentState);
 
   // Initialize app (Firebase + SQLite + Auth)
@@ -52,41 +50,8 @@ export default function RootLayout() {
     initializeApp();
   }, []);
 
-  // Handle navigation based on auth state
-  useEffect(() => {
-    if (!isAppReady || !isInitialized) return;
-
-    const inAuthGroup = segments[0] === '(auth)';
-    const isOnCreateProfile = segments[1] === 'create-profile';
-
-    if (!isAuthenticated) {
-      // User not authenticated, redirect to sign-in
-      if (!inAuthGroup) {
-        router.replace('/(auth)/sign-in');
-      }
-    } else {
-      // User authenticated
-      // Check if user has completed profile
-      const hasCompletedProfile = user?.username && user?.displayName;
-      
-      if (!hasCompletedProfile) {
-        // No profile yet, redirect to create-profile
-        if (!isOnCreateProfile) {
-          // Only log if user is not null (profile loaded but incomplete)
-          // If user is null, profile is still loading - don't log warning
-          if (user) {
-            console.log('ℹ️  No profile found - redirecting to profile creation');
-          }
-          router.replace('/(auth)/create-profile');
-        }
-      } else {
-        // Profile complete, navigate to home
-        if (inAuthGroup) {
-          router.replace('/(tabs)/home');
-        }
-      }
-    }
-  }, [isAuthenticated, isAppReady, isInitialized, segments, user?.username, user?.displayName]);
+  // Navigation is handled by app/index.tsx
+  // This layout just manages global state and presence
 
   // Handle online/offline presence (optimized - no heartbeat!)
   useEffect(() => {
@@ -162,6 +127,7 @@ export default function RootLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
     </Stack>

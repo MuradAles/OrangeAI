@@ -16,6 +16,7 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import { Chat } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import { format, isToday, isYesterday } from 'date-fns';
+import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface ChatListItemProps {
@@ -27,7 +28,7 @@ interface ChatListItemProps {
   onPress: (chatId: string) => void;
 }
 
-export const ChatListItem = ({
+export const ChatListItem = React.memo(({
   chat,
   currentUserId,
   otherUserName,
@@ -42,9 +43,17 @@ export const ChatListItem = ({
     ? (otherUserName || 'Unknown User')
     : (chat.groupName || 'Group Chat');
 
-  // Format timestamp
-  const formatTimestamp = (date: Date): string => {
-    const dateObj = date instanceof Date ? date : new Date(date);
+  // Format timestamp - memoize to prevent recalculation on every render
+  const formattedTimestamp = React.useMemo(() => {
+    // If lastMessageTime is 0 or falsy, don't show timestamp
+    if (!chat.lastMessageTime || chat.lastMessageTime === 0) {
+      return '';
+    }
+    
+    const dateObj = chat.lastMessageTime instanceof Date 
+      ? chat.lastMessageTime 
+      : new Date(chat.lastMessageTime);
+    
     if (isToday(dateObj)) {
       return format(dateObj, 'h:mm a');
     } else if (isYesterday(dateObj)) {
@@ -52,7 +61,7 @@ export const ChatListItem = ({
     } else {
       return format(dateObj, 'MMM d');
     }
-  };
+  }, [chat.lastMessageTime]);
 
   // Truncate last message
   const truncateMessage = (text: string, maxLength: number = 50): string => {
@@ -62,6 +71,23 @@ export const ChatListItem = ({
 
   // Check if last message was sent by current user
   const isLastMessageMine = chat.lastMessageSenderId === currentUserId;
+
+  // Get display text for last message
+  const getLastMessageDisplay = (): string => {
+    // If we have lastMessageText and it's not empty, use it
+    if (chat.lastMessageText && chat.lastMessageText.trim() !== '') {
+      return chat.lastMessageText;
+    }
+    
+    // If chat exists and has a timestamp, assume there's at least one message
+    // This handles cases where lastMessageText might be empty (like image-only messages)
+    if (chat.lastMessageTime && chat.lastMessageTime > 0) {
+      return '📷 Photo'; // Default to photo icon for messages without text
+    }
+    
+    // No messages yet
+    return 'No messages yet';
+  };
 
   // Get status icon for sent messages
   const getStatusIcon = () => {
@@ -140,7 +166,7 @@ export const ChatListItem = ({
               { color: theme.colors.textSecondary },
             ]}
           >
-            {formatTimestamp(chat.lastMessageTime)}
+            {formattedTimestamp}
           </Text>
         </View>
 
@@ -159,7 +185,7 @@ export const ChatListItem = ({
             ]}
             numberOfLines={1}
           >
-            {chat.lastMessageText || 'No messages yet'}
+            {getLastMessageDisplay()}
           </Text>
           
           {/* Unread count badge */}
@@ -176,7 +202,18 @@ export const ChatListItem = ({
       </View>
     </Pressable>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  return (
+    prevProps.chat.id === nextProps.chat.id &&
+    prevProps.chat.lastMessageTime === nextProps.chat.lastMessageTime &&
+    prevProps.chat.lastMessageText === nextProps.chat.lastMessageText &&
+    prevProps.chat.unreadCount === nextProps.chat.unreadCount &&
+    prevProps.chat.lastMessageStatus === nextProps.chat.lastMessageStatus &&
+    prevProps.otherUserName === nextProps.otherUserName &&
+    prevProps.isOnline === nextProps.isOnline
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

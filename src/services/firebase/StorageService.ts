@@ -182,6 +182,69 @@ export class StorageService {
   }
 
   /**
+   * Upload group icon
+   * Returns download URL
+   */
+  static async uploadGroupIcon(
+    imageUri: string,
+    groupName: string,
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<string> {
+    try {
+      // Compress image
+      const compressedUri = await this.compressImage(imageUri);
+
+      // Check size after compression
+      const isWithinLimit = await this.checkImageSize(compressedUri);
+      if (!isWithinLimit) {
+        throw new Error('Image size exceeds 10MB even after compression');
+      }
+
+      // Read file as blob
+      const response = await fetch(compressedUri);
+      const blob = await response.blob();
+
+      // Generate unique ID for group icon (use timestamp + random)
+      const groupId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+      // Upload to Firebase Storage
+      const storageRef = ref(storage, `groups/${groupId}/icon.jpg`);
+      
+      if (onProgress) {
+        // Upload with progress tracking
+        const uploadTask = uploadBytesResumable(storageRef, blob);
+        
+        return new Promise((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = {
+                bytesTransferred: snapshot.bytesTransferred,
+                totalBytes: snapshot.totalBytes,
+                progress: (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
+              };
+              onProgress(progress);
+            },
+            (error) => reject(error),
+            async () => {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(downloadURL);
+            }
+          );
+        });
+      } else {
+        // Simple upload without progress
+        await uploadBytes(storageRef, blob);
+        const downloadURL = await getDownloadURL(storageRef);
+        return downloadURL;
+      }
+    } catch (error) {
+      console.error('Error uploading group icon:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Upload message image with full resolution and thumbnail
    * Returns { imageUrl, thumbnailUrl }
    */
@@ -254,61 +317,6 @@ export class StorageService {
     }
   }
 
-  /**
-   * Upload group icon
-   * Returns download URL
-   */
-  static async uploadGroupIcon(
-    chatId: string,
-    imageUri: string,
-    onProgress?: (progress: UploadProgress) => void
-  ): Promise<string> {
-    try {
-      // Compress image
-      const compressedUri = await this.compressImage(imageUri);
-
-      // Check size
-      const isWithinLimit = await this.checkImageSize(compressedUri);
-      if (!isWithinLimit) {
-        throw new Error('Image size exceeds 10MB even after compression');
-      }
-
-      // Upload
-      const response = await fetch(compressedUri);
-      const blob = await response.blob();
-      const storageRef = ref(storage, `groups/${chatId}/icon.jpg`);
-
-      if (onProgress) {
-        const uploadTask = uploadBytesResumable(storageRef, blob);
-        
-        return new Promise((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const progress = {
-                bytesTransferred: snapshot.bytesTransferred,
-                totalBytes: snapshot.totalBytes,
-                progress: (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
-              };
-              onProgress(progress);
-            },
-            (error) => reject(error),
-            async () => {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(downloadURL);
-            }
-          );
-        });
-      } else {
-        await uploadBytes(storageRef, blob);
-        const downloadURL = await getDownloadURL(storageRef);
-        return downloadURL;
-      }
-    } catch (error) {
-      console.error('Error uploading group icon:', error);
-      throw error;
-    }
-  }
 
   /**
    * Delete an image from Firebase Storage

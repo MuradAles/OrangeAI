@@ -4,7 +4,10 @@
 
 export * from './ChatListItem';
 export * from './ChatModal';
+export * from './ChatTypeSelector';
+export * from './ContactPicker';
 export * from './DateSeparator';
+export * from './GroupDetailsForm';
 export * from './MessageBubble';
 export * from './MessageInput';
 export * from './NewChatModal';
