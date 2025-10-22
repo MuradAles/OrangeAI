@@ -323,6 +323,49 @@ Each update triggers Firestore listener
 Listener updates SQLite and UI
 ```
 
+### In-App Notifications
+**Pattern:** Non-intrusive notification banners within the app (not push notifications).
+
+**When to Show:**
+- User receives message while app is open
+- User is NOT currently in that specific chat
+- Suppressed if user is actively chatting with sender
+
+**Implementation:**
+```
+New message arrives → ChatStore listener detects
+    ↓
+Check if message is from another user (not self)
+    ↓
+Check if user is in different chat or not in chat
+    ↓
+Trigger NotificationHelper.showNotification()
+    ↓
+useNotifications hook updates state
+    ↓
+InAppNotification component renders
+    ↓
+Slide in from RIGHT → LEFT (spring animation)
+    ↓
+Display for 5 seconds
+    ↓
+Slide out LEFT (off-screen)
+```
+
+**Components:**
+- `InAppNotification.tsx` - Banner UI with horizontal animation
+- `useNotifications.ts` - State management hook
+- `NotificationHelper.ts` - Trigger function
+- `ChatStore.ts` - Triggers on new messages
+
+**Animation:**
+- **Slide In:** `translateX` from `SCREEN_WIDTH` → `0` (300ms spring)
+- **Slide Out:** `translateX` from `0` → `-SCREEN_WIDTH` (300ms timing)
+- **Visibility:** 5 seconds, then auto-dismiss
+- **Manual Dismiss:** Tap close button or tap banner to open chat
+
+**Why:** Instant in-app awareness without leaving app, no FCM setup needed, works on emulators.
+
 ## Performance Patterns
 
 ### Memory Management

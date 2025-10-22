@@ -4,7 +4,6 @@
  */
 
 import { Avatar } from '@/components/common';
-import { DateSeparator, MessageBubble, MessageInput, TypingIndicator } from '@/features/chat/components';
 import { PresenceService, TypingUser } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
@@ -14,6 +13,10 @@ import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { DateSeparator } from './DateSeparator';
+import { MessageBubble } from './MessageBubble';
+import { MessageInput } from './MessageInput';
+import { TypingIndicator } from './TypingIndicator';
 
 interface ChatModalProps {
   visible: boolean;
@@ -41,6 +44,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     deleteMessageForMe,
     deleteMessageForEveryone,
     addReaction,
+    setActiveChatId,
   } = useChatStore();
 
   const [isSending, setIsSending] = useState(false);
@@ -60,21 +64,39 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     return chats.find(chat => chat.id === chatId);
   }, [chats, chatId]);
 
+  // Check if this is a group chat
+  const isGroupChat = currentChat?.type === 'group';
+
+  // For one-on-one chats, get the other user
   const otherUser = useMemo(() => {
-    if (!user || !currentChat) return null;
+    if (!user || !currentChat || isGroupChat) return null;
     
     // Find the other user ID from participants
     const otherUserId = currentChat.participants.find(id => id !== user.id);
     if (!otherUserId) return null;
     
     return getUserProfile(otherUserId);
-  }, [currentChat, user, getUserProfile]);
+  }, [currentChat, user, getUserProfile, isGroupChat]);
 
   // Load messages when modal opens
   useEffect(() => {
     if (visible && chatId && user?.id) {
       // Reset scroll flag when opening chat
       hasScrolledInitially.current = false;
+      
+      // Set active chat ID for notification routing (in Zustand store)
+      setActiveChatId(chatId);
+      
+      // Save active chat ID to Firestore (for push notification filtering)
+      const updateActiveChatInFirestore = async () => {
+        try {
+          const { UserService } = await import('@/services/firebase');
+          await UserService.updateActiveChatId(user.id, chatId);
+        } catch (error) {
+          console.error('Failed to update active chat ID in Firestore:', error);
+        }
+      };
+      updateActiveChatInFirestore();
       
       // PRD Flow: Load from SQLite FIRST (instant <100ms), then sync from Firebase in background
       const loadMessages = async () => {
@@ -92,7 +114,41 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       };
       
       loadMessages();
+    } else if (!visible) {
+      // Clear active chat ID when modal closes
+      setActiveChatId(null);
+      
+      // Clear active chat ID in Firestore
+      if (user?.id) {
+        const clearActiveChatInFirestore = async () => {
+          try {
+            const { UserService } = await import('@/services/firebase');
+            await UserService.updateActiveChatId(user.id, null);
+          } catch (error) {
+            console.error('Failed to clear active chat ID in Firestore:', error);
+          }
+        };
+        clearActiveChatInFirestore();
+      }
     }
+    
+    return () => {
+      // Clear active chat ID on unmount
+      if (visible && user?.id) {
+        setActiveChatId(null);
+        
+        // Clear active chat ID in Firestore
+        const clearActiveChatInFirestore = async () => {
+          try {
+            const { UserService } = await import('@/services/firebase');
+            await UserService.updateActiveChatId(user.id, null);
+          } catch (error) {
+            console.error('Failed to clear active chat ID in Firestore:', error);
+          }
+        };
+        clearActiveChatInFirestore();
+      }
+    };
     // Note: Don't clear messages on cleanup - keep them for quick reopening
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, chatId, user?.id]);
@@ -118,11 +174,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   }, [visible, chatId, user?.id]);
 
   // Subscribe to other user's presence (online/offline status)
-  // Using centralized PresenceStore - only subscribes once per user globally
+  // Using centralized PresenceStore - only for one-on-one chats
   useEffect(() => {
-    if (!visible || !currentChat || !user?.id) return;
+    if (!visible || !currentChat || !user?.id || isGroupChat) return;
 
-    // Get the other user's ID
+    // Get the other user's ID (one-on-one only)
     const otherUserId = currentChat.participants.find(id => id !== user.id);
     if (!otherUserId) return;
 
@@ -130,7 +186,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     subscribeToUser(otherUserId);
 
     // No cleanup needed - PresenceStore manages subscriptions globally
-  }, [visible, currentChat, user?.id, subscribeToUser]);
+  }, [visible, currentChat, user?.id, isGroupChat, subscribeToUser]);
 
   // Process messages into list items (with date separators)
   const listItems = useMemo(() => {
@@ -450,6 +506,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         senderAvatar={senderProfile?.profilePictureUrl}
         showAvatar={showAvatar}
         showTimestamp={true}
+        isGroupChat={isGroupChat}
         onLongPress={handleLongPress}
       />
     );
@@ -475,7 +532,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       <KeyboardAvoidingView 
         style={{ flex: 1, backgroundColor: theme.colors.background }} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <StatusBar 
           barStyle={theme.colors.background === '#000000' ? 'light-content' : 'dark-content'} 
@@ -498,26 +555,72 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               </Pressable>
 
               <View style={styles.headerInfo}>
-                <View style={styles.avatarWithIndicator}>
-                  <Avatar
-                    name={otherUser?.displayName || 'User'}
-                    imageUrl={otherUser?.profilePictureUrl}
-                    size={36}
-                  />
-                  {/* Green dot for online status - from centralized PresenceStore */}
-                  {(() => {
-                    const otherUserId = currentChat?.participants.find(id => id !== user?.id);
-                    const presence = otherUserId ? presenceMap.get(otherUserId) : null;
-                    return presence?.isOnline && (
-                      <View style={[styles.onlineDot, { backgroundColor: theme.colors.success }]} />
-                    );
-                  })()}
-                </View>
-                <View style={styles.headerText}>
-                  <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]} numberOfLines={1}>
-                    {otherUser?.displayName || 'Chat'}
-                  </Text>
-                </View>
+                {isGroupChat ? (
+                  // Group Chat Header
+                  <>
+                    <View style={styles.avatarWithIndicator}>
+                      <Avatar
+                        name={currentChat?.groupName || 'Group'}
+                        imageUrl={currentChat?.groupIcon}
+                        size={36}
+                      />
+                    </View>
+                    <View style={styles.headerText}>
+                      <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]} numberOfLines={1}>
+                        {currentChat?.groupName || 'Group Chat'}
+                      </Text>
+                      <Text style={[theme.typography.bodySmall, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                        {currentChat?.participants.length || 0} members
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  // One-on-One Chat Header
+                  <>
+                    <View style={styles.avatarWithIndicator}>
+                      <Avatar
+                        name={otherUser?.displayName || 'User'}
+                        imageUrl={otherUser?.profilePictureUrl}
+                        size={36}
+                      />
+                      {/* Green dot for online status - from centralized PresenceStore */}
+                      {(() => {
+                        const otherUserId = currentChat?.participants.find(id => id !== user?.id);
+                        const presence = otherUserId ? presenceMap.get(otherUserId) : null;
+                        return presence?.isOnline && (
+                          <View style={[styles.onlineDot, { backgroundColor: theme.colors.success }]} />
+                        );
+                      })()}
+                    </View>
+                    <View style={styles.headerText}>
+                      <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]} numberOfLines={1}>
+                        {otherUser?.displayName || 'Chat'}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.headerActions}>
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={() => {
+                    // Video call - placeholder for future functionality
+                    console.log('Video call pressed');
+                  }}
+                >
+                  <Ionicons name="videocam" size={24} color={theme.colors.text} />
+                </Pressable>
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={() => {
+                    // Phone call - placeholder for future functionality
+                    console.log('Phone call pressed');
+                  }}
+                >
+                  <Ionicons name="call" size={24} color={theme.colors.text} />
+                </Pressable>
               </View>
 
             </View>
@@ -538,8 +641,10 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                     : `${item.type}-${index}`
                 }
                 getItemType={getItemType}
-                contentContainerStyle={styles.messagesList}
+                estimatedItemSize={100}
+                contentContainerStyle={styles.messagesListContent}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
                 onScroll={(event) => {
                   // Show jump to bottom button if user scrolls up
                   const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -618,12 +723,20 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionButton: {
+    padding: 4,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  messagesList: {
+  messagesListContent: {
     paddingVertical: 8,
   },
   jumpToBottomButton: {

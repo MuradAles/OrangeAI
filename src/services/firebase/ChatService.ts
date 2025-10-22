@@ -10,18 +10,18 @@
 
 import { Chat } from '@/shared/types';
 import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    Unsubscribe,
-    updateDoc,
-    where,
-    writeBatch
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Unsubscribe,
+  updateDoc,
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { firestore } from './FirebaseConfig';
 
@@ -76,7 +76,7 @@ export class ChatService {
         type: 'one-on-one',
         participants: [userId1, userId2],
         lastMessageText: '',
-        lastMessageTime: serverTimestamp(),
+        lastMessageTime: null, // No message yet, so no time
         lastMessageSenderId: '',
         createdAt: serverTimestamp(),
         createdBy: userId1,
@@ -130,15 +130,23 @@ export class ChatService {
 
       const data = chatSnap.data();
       
-      // Handle Firestore Timestamps safely
-      let lastMessageTime = new Date();
-      if (data.lastMessageTime && typeof data.lastMessageTime.toDate === 'function') {
-        lastMessageTime = data.lastMessageTime.toDate();
+      // Handle Firestore Timestamps safely - convert to number (timestamp)
+      let lastMessageTime: number = 0;
+      if (data.lastMessageTime) {
+        if (typeof data.lastMessageTime.toDate === 'function') {
+          lastMessageTime = data.lastMessageTime.toDate().getTime();
+        } else if (typeof data.lastMessageTime === 'number') {
+          lastMessageTime = data.lastMessageTime;
+        }
       }
       
-      let createdAt = new Date();
-      if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-        createdAt = data.createdAt.toDate();
+      let createdAt: number = 0;
+      if (data.createdAt) {
+        if (typeof data.createdAt.toDate === 'function') {
+          createdAt = data.createdAt.toDate().getTime();
+        } else if (typeof data.createdAt === 'number') {
+          createdAt = data.createdAt;
+        }
       }
       
       return {
@@ -180,15 +188,23 @@ export class ChatService {
       for (const doc of snapshot.docs) {
         const data = doc.data();
         
-        // Handle Firestore Timestamps safely
-        let lastMessageTime = new Date();
-        if (data.lastMessageTime && typeof data.lastMessageTime.toDate === 'function') {
-          lastMessageTime = data.lastMessageTime.toDate();
+        // Handle Firestore Timestamps safely - convert to number (timestamp)
+        let lastMessageTime: number = 0;
+        if (data.lastMessageTime) {
+          if (typeof data.lastMessageTime.toDate === 'function') {
+            lastMessageTime = data.lastMessageTime.toDate().getTime();
+          } else if (typeof data.lastMessageTime === 'number') {
+            lastMessageTime = data.lastMessageTime;
+          }
         }
         
-        let createdAt = new Date();
-        if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-          createdAt = data.createdAt.toDate();
+        let createdAt: number = 0;
+        if (data.createdAt) {
+          if (typeof data.createdAt.toDate === 'function') {
+            createdAt = data.createdAt.toDate().getTime();
+          } else if (typeof data.createdAt === 'number') {
+            createdAt = data.createdAt;
+          }
         }
         
         chats.push({
@@ -224,13 +240,14 @@ export class ChatService {
     chatId: string,
     messageText: string,
     senderId: string,
-    status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
+    status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed',
+    timestamp?: number
   ): Promise<void> {
     try {
       const chatRef = doc(firestore, 'chats', chatId);
       const updateData: any = {
         lastMessageText: messageText,
-        lastMessageTime: serverTimestamp(),
+        lastMessageTime: timestamp !== undefined ? timestamp : serverTimestamp(),
         lastMessageSenderId: senderId,
       };
       
@@ -269,15 +286,24 @@ export class ChatService {
           for (const doc of snapshot.docs) {
             const data = doc.data();
             
-            // Handle Firestore Timestamps safely
-            let lastMessageTime = new Date();
-            if (data.lastMessageTime && typeof data.lastMessageTime.toDate === 'function') {
-              lastMessageTime = data.lastMessageTime.toDate();
+            // Handle Firestore Timestamps safely - DO NOT default to current time
+            // Convert to number (timestamp) for consistency
+            let lastMessageTime: number = 0;
+            if (data.lastMessageTime) {
+              if (typeof data.lastMessageTime.toDate === 'function') {
+                lastMessageTime = data.lastMessageTime.toDate().getTime();
+              } else if (typeof data.lastMessageTime === 'number') {
+                lastMessageTime = data.lastMessageTime;
+              }
             }
             
-            let createdAt = new Date();
-            if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-              createdAt = data.createdAt.toDate();
+            let createdAt: number = 0;
+            if (data.createdAt) {
+              if (typeof data.createdAt.toDate === 'function') {
+                createdAt = data.createdAt.toDate().getTime();
+              } else if (typeof data.createdAt === 'number') {
+                createdAt = data.createdAt;
+              }
             }
             
             chats.push({

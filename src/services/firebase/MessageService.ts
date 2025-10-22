@@ -10,7 +10,8 @@
  * - Pagination
  */
 
-import { Message, MessageStatus } from '@/shared/types';
+import { Message, MessageStatus, User } from '@/shared/types';
+import { Logger } from '@/shared/utils/Logger';
 import {
     arrayUnion,
     collection,
@@ -29,7 +30,9 @@ import {
     Unsubscribe,
     updateDoc
 } from 'firebase/firestore';
+import { NotificationHelper } from '../NotificationHelper';
 import { firestore } from './FirebaseConfig';
+import { MessagingService } from './MessagingService';
 
 export class MessageService {
   /**
@@ -80,6 +83,109 @@ export class MessageService {
       };
 
       await setDoc(messageRef, messageData);
+
+      // 🔔 Send push notification to other participants (only if they're offline or not in this chat)
+      try {
+        // Get chat to find participants
+        const chatDoc = await getDoc(doc(firestore, 'chats', chatId));
+        if (chatDoc.exists()) {
+          const chatData = chatDoc.data();
+          const participants = chatData.participants || [];
+          const isGroup = chatData.type === 'group';
+          
+          // Get recipients (all participants except sender)
+          const recipients = participants.filter((id: string) => id !== senderId);
+          
+          if (recipients.length > 0) {
+            // Get sender info
+            const senderDoc = await getDoc(doc(firestore, 'users', senderId));
+            if (senderDoc.exists()) {
+              const sender = { id: senderId, ...senderDoc.data() } as User;
+              
+              // Filter recipients: Only send push notifications to users who are OFFLINE or NOT in this chat
+              const { PresenceService } = await import('./PresenceService');
+              const recipientsToNotify: string[] = [];
+              const recipientNames: string[] = [];
+              
+              for (const recipientId of recipients) {
+                const recipientDoc = await getDoc(doc(firestore, 'users', recipientId));
+                if (recipientDoc.exists()) {
+                  const recipientData = recipientDoc.data();
+                  const recipientUsername = recipientData.username || 'Unknown';
+                  
+                  // Check if user is online using Firebase Realtime Database presence
+                  const presence = await PresenceService.getUserPresence(recipientId);
+                  const isOnline = presence?.isOnline || false;
+                  
+                  // Only send push notification if user is OFFLINE
+                  // In-app notifications will handle the case when user is online
+                  if (!isOnline) {
+                    recipientsToNotify.push(recipientId);
+                    recipientNames.push(recipientUsername);
+                    console.log(`📱 Queuing push notification for ${recipientUsername} (offline)`);
+                  } else {
+                    // User is online - skip push notification (in-app notification will show instead)
+                    console.log(`📱 Skipping push notification for ${recipientUsername} (online - using in-app notification)`);
+                  }
+                } else {
+                  recipientNames.push('Unknown');
+                }
+              }
+              
+              // Log message sent (all recipients)
+              const messagePreview = imageData 
+                ? `📷 ${imageData.caption || 'Image'}` 
+                : text;
+              Logger.messageSent(
+                senderId,
+                sender.username,
+                recipients,
+                recipients.map((id, i) => recipientNames[i] || 'Unknown'),
+                messagePreview.substring(0, 50) + (messagePreview.length > 50 ? '...' : '')
+              );
+              
+              // Only send push notifications to filtered recipients
+              if (recipientsToNotify.length > 0) {
+                // Format notification
+                let notificationConfig;
+                if (imageData) {
+                  notificationConfig = NotificationHelper.formatImageNotification(
+                    sender,
+                    imageData.caption || '',
+                    chatId,
+                    isGroup,
+                    chatData.groupName
+                  );
+                } else {
+                  notificationConfig = NotificationHelper.formatMessageNotification(
+                    sender,
+                    text,
+                    chatId,
+                    isGroup,
+                    chatData.groupName
+                  );
+                }
+                
+                // Send notification only to offline users or users not in this chat
+                await MessagingService.sendNotificationToUsers(
+                  recipientsToNotify,
+                  notificationConfig.title,
+                  notificationConfig.body,
+                  notificationConfig.data,
+                  senderId,
+                  sender.username
+                );
+              } else {
+                console.log('📱 No push notifications needed (all recipients are online and in chat)');
+              }
+            }
+          }
+        }
+      } catch (notifError) {
+        // Don't fail message send if notification fails
+        console.warn('⚠️  Push notification failed (message still sent):', (notifError as Error).message);
+      }
+
       return newMessageId;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -405,6 +511,35 @@ export class MessageService {
     } catch (error) {
       console.error('Error getting message:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get the last message's real status from the actual message document
+   * This is more accurate than using chat.lastMessageStatus which can be stale
+   */
+  static async getLastMessageStatus(
+    chatId: string
+  ): Promise<MessageStatus | null> {
+    try {
+      // Query for the most recent message
+      const messagesQuery = query(
+        collection(firestore, 'chats', chatId, 'messages'),
+        orderBy('timestamp', 'desc'),
+        limit(1)
+      );
+
+      const snapshot = await getDocs(messagesQuery);
+      
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const lastMessage = snapshot.docs[0].data();
+      return lastMessage.status as MessageStatus;
+    } catch (error) {
+      console.error('Error getting last message status:', error);
+      return null;
     }
   }
 }

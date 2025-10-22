@@ -22,7 +22,7 @@ import {
 
 export const SignUpScreen: React.FC = () => {
   const theme = useTheme();
-  const router = useRouter();
+  const router = useRouter(); // Still used for "Sign In" link navigation
   const { signUp, isLoading } = useAuthStore();
 
   const [email, setEmail] = useState('');
@@ -56,11 +56,8 @@ export const SignUpScreen: React.FC = () => {
 
     try {
       await signUp(email.trim(), password);
-      Alert.alert(
-        'Account Created',
-        'Your account has been created successfully! Please create your profile.',
-        [{ text: 'Continue', onPress: () => router.push('/(auth)/create-profile') }]
-      );
+      // Navigation is handled automatically by app/index.tsx
+      // No need to manually navigate - user will be redirected to create-profile
     } catch (error: any) {
       Alert.alert('Sign Up Failed', error.message);
     }

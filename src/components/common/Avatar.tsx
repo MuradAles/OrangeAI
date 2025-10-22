@@ -99,6 +99,8 @@ export const Avatar: React.FC<AvatarProps> = ({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     ...style,
   };
   

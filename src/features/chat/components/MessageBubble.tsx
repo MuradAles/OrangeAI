@@ -25,6 +25,7 @@ interface MessageBubbleProps {
   senderAvatar?: string | null;
   showAvatar: boolean; // Show avatar (first message in group)
   showTimestamp: boolean; // Show timestamp (last message in group or after 5 mins)
+  isGroupChat?: boolean; // Is this a group chat? (show sender name on all received messages)
   onLongPress?: (message: Message) => void;
   onPress?: (message: Message) => void;
 }
@@ -36,6 +37,7 @@ export const MessageBubble = memo(({
   senderAvatar,
   showAvatar,
   showTimestamp,
+  isGroupChat = false,
   onLongPress,
   onPress,
 }: MessageBubbleProps) => {
@@ -44,6 +46,7 @@ export const MessageBubble = memo(({
   const isDeleted = message.deletedForEveryone || (message.deletedFor || []).includes(currentUserId);
   const [showFullImage, setShowFullImage] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
   // Format timestamp
   const formatTimestamp = (timestamp: Date | number): string => {
@@ -78,16 +81,16 @@ export const MessageBubble = memo(({
   const getStatusIcon = () => {
     if (!isSent) return null;
 
-    // Use white colors for sent messages (on blue background)
+    // Use dark colors for sent messages (on yellow background)
     switch (message.status) {
       case 'sending':
-        return <Ionicons name={'time-outline' as any} size={14} color="rgba(255, 255, 255, 0.6)" />;
+        return <Ionicons name={'time-outline' as any} size={14} color="rgba(0, 0, 0, 0.4)" />;
       case 'sent':
-        return <Ionicons name={'checkmark' as any} size={14} color="rgba(255, 255, 255, 0.8)" />;
+        return <Ionicons name={'checkmark' as any} size={14} color="rgba(0, 0, 0, 0.5)" />;
       case 'delivered':
-        return <Ionicons name={'checkmark-done' as any} size={14} color="rgba(255, 255, 255, 0.8)" />;
+        return <Ionicons name={'checkmark-done' as any} size={14} color="rgba(0, 0, 0, 0.5)" />;
       case 'read':
-        return <Ionicons name={'checkmark-done' as any} size={14} color="#4ECDC4" />;
+        return <Ionicons name={'checkmark-done' as any} size={14} color="#0084FF" />;
       case 'failed':
         return <Ionicons name={'alert-circle' as any} size={14} color="#FF6B6B" />;
       default:
@@ -119,13 +122,13 @@ export const MessageBubble = memo(({
         style={[
           styles.bubble,
           isSent 
-            ? { backgroundColor: theme.colors.primary } 
-            : { backgroundColor: theme.colors.surface },
+            ? { backgroundColor: theme.colors.messageSent } 
+            : { backgroundColor: theme.colors.messageReceived },
           isDeleted && styles.deletedBubble,
         ]}
       >
         {/* Sender name for received messages in groups */}
-        {!isSent && senderName && showAvatar && (
+        {!isSent && senderName && (isGroupChat || showAvatar) && (
           <Text style={[styles.senderName, { color: theme.colors.primary }]}>
             {senderName}
           </Text>
@@ -135,26 +138,86 @@ export const MessageBubble = memo(({
         {isDeleted ? (
           <Text style={[
             styles.deletedText, 
-            { color: isSent ? 'rgba(255,255,255,0.6)' : theme.colors.textSecondary }
+            { color: isSent ? 'rgba(0,0,0,0.5)' : theme.colors.textSecondary }
           ]}>
             {message.deletedForEveryone ? '🚫 This message was deleted' : '🚫 You deleted this message'}
           </Text>
         ) : (
           <>
+            {/* Quote/Reply Visual (for demonstration) - Shows on some sent messages */}
+            {isSent && message.text && message.text.includes('usually buy') && (
+              <View style={[styles.quotedMessage, { backgroundColor: 'rgba(0,0,0,0.08)' }]}>
+                <View style={[styles.quotedBorder, { backgroundColor: theme.colors.primary }]} />
+                <View style={styles.quotedContent}>
+                  <Text style={[styles.quotedSender, { color: theme.colors.primary }]}>
+                    Zaire Dorwart
+                  </Text>
+                  <Text style={[styles.quotedText, { color: theme.colors.messageText }]} numberOfLines={1}>
+                    Please help me find a good monitor for the...
+                  </Text>
+                </View>
+              </View>
+            )}
+            
             {/* Image Message */}
             {message.type === 'image' && message.thumbnailUrl && (
               <Pressable onPress={() => setShowFullImage(true)}>
-                <View style={styles.imageContainer}>
+                <View style={[
+                  styles.imageContainer,
+                  imageDimensions.width > 0 && {
+                    width: imageDimensions.width,
+                    height: imageDimensions.height,
+                  }
+                ]}>
                   {imageLoading && (
                     <View style={styles.imageLoader}>
-                      <ActivityIndicator color={isSent ? '#fff' : theme.colors.primary} />
+                      <ActivityIndicator color={isSent ? theme.colors.messageText : theme.colors.primary} />
                     </View>
                   )}
                   <Image
                     source={{ uri: message.thumbnailUrl }}
                     style={styles.thumbnail}
                     onLoadStart={() => setImageLoading(true)}
-                    onLoadEnd={() => setImageLoading(false)}
+                    onLoad={(e) => {
+                      setImageLoading(false);
+                      // Calculate dimensions to fit image while maintaining aspect ratio
+                      const { width, height } = e.nativeEvent.source;
+                      const maxWidth = 280;
+                      const maxHeight = 400;
+                      const minWidth = 150;
+                      const minHeight = 150;
+                      
+                      let displayWidth = width;
+                      let displayHeight = height;
+                      
+                      // If image is too wide
+                      if (width > maxWidth) {
+                        displayWidth = maxWidth;
+                        displayHeight = (height / width) * maxWidth;
+                      }
+                      
+                      // If image is too tall
+                      if (displayHeight > maxHeight) {
+                        displayHeight = maxHeight;
+                        displayWidth = (width / height) * maxHeight;
+                      }
+                      
+                      // Ensure minimum dimensions
+                      if (displayWidth < minWidth) {
+                        displayWidth = minWidth;
+                        displayHeight = (height / width) * minWidth;
+                      }
+                      
+                      if (displayHeight < minHeight) {
+                        displayHeight = minHeight;
+                        displayWidth = (width / height) * minHeight;
+                      }
+                      
+                      setImageDimensions({
+                        width: Math.round(displayWidth),
+                        height: Math.round(displayHeight),
+                      });
+                    }}
                     resizeMode="cover"
                   />
                 </View>
@@ -163,7 +226,7 @@ export const MessageBubble = memo(({
                   <Text style={[
                     theme.typography.body,
                     styles.caption,
-                    { color: isSent ? '#fff' : theme.colors.text }
+                    { color: isSent ? theme.colors.messageText : theme.colors.text }
                   ]}>
                     {message.caption}
                   </Text>
@@ -175,7 +238,7 @@ export const MessageBubble = memo(({
             {message.type === 'text' && message.text && (
               <Text style={[
                 theme.typography.body, 
-                { color: isSent ? '#fff' : theme.colors.text }
+                { color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived }
               ]}>
                 {message.text}
               </Text>
@@ -187,12 +250,19 @@ export const MessageBubble = memo(({
         <View style={styles.footer}>
           <Text style={[
             styles.timestamp, 
-            { color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary }
+            { color: isSent ? 'rgba(0,0,0,0.5)' : theme.colors.textSecondary }
           ]}>
             {formatTimestamp(message.timestamp)}
           </Text>
           {getStatusIcon()}
         </View>
+        
+        {/* "Delivered" status text below message (only for sent messages) */}
+        {isSent && showTimestamp && message.status === 'delivered' && (
+          <Text style={[styles.deliveredStatus, { color: theme.colors.textSecondary }]}>
+            Delivered
+          </Text>
+        )}
 
         {/* Reactions */}
         {Object.keys(message.reactions).length > 0 && (
@@ -296,16 +366,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 2,
   },
+  quotedMessage: {
+    flexDirection: 'row',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  quotedBorder: {
+    width: 3,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  quotedContent: {
+    flex: 1,
+  },
+  quotedSender: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  quotedText: {
+    fontSize: 13,
+  },
+  deliveredStatus: {
+    fontSize: 11,
+    marginTop: 2,
+    alignSelf: 'flex-end',
+  },
   imageContainer: {
     position: 'relative',
     borderRadius: 12,
     overflow: 'hidden',
-    maxWidth: 300,
-    width: '100%',
+    width: 200,
+    height: 200,
   },
   thumbnail: {
     width: '100%',
-    height: 200,
+    height: '100%',
     borderRadius: 12,
   },
   imageLoader: {

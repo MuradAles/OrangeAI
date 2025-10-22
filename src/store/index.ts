@@ -7,6 +7,7 @@
 export * from './AuthStore';
 export * from './ChatStore';
 export * from './ContactStore';
+export * from './GroupStore';
 export * from './PresenceStore';
 
 

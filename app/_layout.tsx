@@ -4,8 +4,11 @@
  * Initializes Firebase, SQLite, and manages authentication state
  */
 
+import { InAppNotification } from '@/components/common';
 import { SQLiteService } from '@/database/SQLiteService';
 import { initializeFirebase, PresenceService } from '@/services/firebase';
+import { OfflineBanner } from '@/shared/components/OfflineBanner';
+import { useNotifications } from '@/shared/hooks/useNotifications';
 import { useAuthStore } from '@/store';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -17,6 +20,17 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
   const appState = useRef(AppState.currentState);
+  
+  // Notifications
+  const {
+    inAppNotification,
+    initialize: initializeNotifications,
+    dismissInAppNotification,
+    updateFCMToken,
+    cleanup: cleanupNotifications,
+  } = useNotifications();
+  
+  // Removed debug logs for cleaner console
 
   // Initialize app (Firebase + SQLite + Auth)
   useEffect(() => {
@@ -42,6 +56,10 @@ export default function RootLayout() {
         await initialize();
         console.log('✅ Auth initialized');
 
+        // Initialize notifications
+        await initializeNotifications();
+        console.log('✅ Notifications initialized');
+
         setIsAppReady(true);
       } catch (error) {
         console.error('❌ App initialization failed:', error);
@@ -57,7 +75,7 @@ export default function RootLayout() {
     if (!isAppReady || !isInitialized) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    const isOnCreateProfile = segments[1] === 'create-profile';
+    const inTabsGroup = segments[0] === '(tabs)';
 
     if (!isAuthenticated) {
       // User not authenticated, redirect to sign-in
@@ -66,24 +84,28 @@ export default function RootLayout() {
       }
     } else {
       // User authenticated
-      // Check if user has completed profile
       const hasCompletedProfile = user?.username && user?.displayName;
       
       if (!hasCompletedProfile) {
         // No profile yet, redirect to create-profile
+        const isOnCreateProfile = segments[1] === 'create-profile';
         if (!isOnCreateProfile) {
-          // Only log if user is not null (profile loaded but incomplete)
-          // If user is null, profile is still loading - don't log warning
-          if (user) {
-            console.log('ℹ️  No profile found - redirecting to profile creation');
-          }
           router.replace('/(auth)/create-profile');
         }
       } else {
-        // Profile complete, navigate to home
+        // Profile complete - navigate to home
+        // Only redirect from index or auth routes, not from tabs or modals
+        // @ts-ignore - segments type is complex from expo-router
+        const isOnIndexRoute = segments.length === 0 || segments[0] === '' || segments[0] === 'index';
+        
         if (inAuthGroup) {
+          // User just completed profile, navigate to home
+          router.replace('/(tabs)/home');
+        } else if (isOnIndexRoute && !inTabsGroup) {
+          // User on index route with complete profile, navigate to home
           router.replace('/(tabs)/home');
         }
+        // Don't redirect if already in tabs or on modal routes (search, etc)
       }
     }
   }, [isAuthenticated, isAppReady, isInitialized, segments, user?.username, user?.displayName]);
@@ -151,6 +173,19 @@ export default function RootLayout() {
     };
   }, [isAuthenticated, user?.id, user?.displayName]);
 
+  // Update FCM token when user logs in
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      console.log('🔔 Updating FCM token for user:', user.id.substring(0, 8));
+      updateFCMToken(user.id).catch(error => 
+        console.error('❌ Failed to update FCM token:', error)
+      );
+    } else if (!isAuthenticated) {
+      // Cleanup notifications on logout
+      cleanupNotifications();
+    }
+  }, [isAuthenticated, user?.id]);
+
   if (!isAppReady || !isInitialized) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
@@ -161,9 +196,34 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen 
+          name="search" 
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+      </Stack>
+      
+      {/* In-app notification banner */}
+      {inAppNotification && (
+        <InAppNotification
+          senderName={inAppNotification.senderName}
+          messageText={inAppNotification.messageText}
+          senderAvatar={inAppNotification.senderAvatar}
+          chatId={inAppNotification.chatId}
+          isImage={inAppNotification.isImage}
+          onDismiss={dismissInAppNotification}
+        />
+      )}
+      
+      {/* Offline banner */}
+      <OfflineBanner />
+    </>
   );
 }

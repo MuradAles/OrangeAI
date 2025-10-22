@@ -20,6 +20,7 @@ interface ChatState {
   // State
   chats: Chat[];
   currentChatId: string | null;
+  activeChatId: string | null; // Currently open/viewing chat (for notifications)
   messages: Message[];
   isLoadingChats: boolean;
   isLoadingMessages: boolean;
@@ -36,6 +37,7 @@ interface ChatState {
   loadChatsFromSQLite: (userId: string) => Promise<void>;
   subscribeToChats: (userId: string) => void;
   selectChat: (chatId: string) => void;
+  setActiveChatId: (chatId: string | null) => void;
   createChat: (userId1: string, userId2: string) => Promise<string>;
   
   // Actions - User Profiles
@@ -64,6 +66,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Initial State
   chats: [],
   currentChatId: null,
+  activeChatId: null,
   messages: [],
   isLoadingChats: false,
   isLoadingMessages: false,
@@ -108,9 +111,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
       
       // Helper function to safely parse timestamp (returns number, not Date)
-      const parseTimestamp = (dateValue: any): number => {
-        if (!dateValue || dateValue === '{}') {
-          return Date.now(); // Return current timestamp for invalid values
+      const parseTimestamp = (dateValue: any, allowZero: boolean = false): number => {
+        if (!dateValue || dateValue === '{}' || dateValue === 0 || dateValue === null) {
+          return allowZero ? 0 : Date.now(); // Return 0 for lastMessageTime, current time for createdAt
         }
         
         // If it's already a number, return it
@@ -121,7 +124,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const date = new Date(dateValue);
         // Check if date is valid
         if (isNaN(date.getTime())) {
-          return Date.now(); // Return current timestamp for invalid dates
+          return allowZero ? 0 : Date.now(); // Return 0 for lastMessageTime, current time for createdAt
         }
         
         return date.getTime();
@@ -143,11 +146,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
             type: row.type as 'one-on-one' | 'group',
             participants,
             lastMessageText: row.lastMessageText,
-            lastMessageTime: parseTimestamp(row.lastMessageTime),
+            lastMessageTime: parseTimestamp(row.lastMessageTime, true), // Allow 0 for no messages
             lastMessageSenderId: row.lastMessageSenderId,
             lastMessageStatus: row.lastMessageStatus as any,
             unreadCount: row.unreadCount || 0, // Load unread count from SQLite
-            createdAt: parseTimestamp(row.createdAt),
+            createdAt: parseTimestamp(row.createdAt, false), // Don't allow 0 for createdAt
             createdBy: row.createdBy,
             groupName: row.groupName || undefined,
             groupIcon: row.groupIcon || undefined,
@@ -191,41 +194,117 @@ export const useChatStore = create<ChatState>((set, get) => ({
       chatsUnsubscribe();
     }
 
+    // Keep track of previous chat states to detect new messages
+    let previousChats = new Map<string, { lastMessageTime: number, lastMessageText: string }>();
+
     const unsubscribe = ChatService.subscribeToChats(
       userId,
       async (chats) => {
+        // Silently process chat updates
+        
         // Load unread counts for each chat BEFORE updating state
         try {
           // Longer delay to ensure participant documents are updated
           await new Promise(resolve => setTimeout(resolve, 300));
           
+          // Get current local state to preserve optimistic updates
+          const currentChats = get().chats;
+          const activeChatId = get().activeChatId;
+          
           // Load unread counts in parallel and create new chat objects
           const chatsWithUnreadCounts = await Promise.all(
             chats.map(async (chat) => {
-              // Try multiple times to get the unread count (in case of timing issues)
+              // Fetch the actual unread count from Firestore first
               let participantData = await ChatService.getParticipant(chat.id, userId);
               let unreadCount = participantData?.unreadCount || 0;
               
               // If we got 0 but the last message is not from us, try again after a delay
+              // (This handles race condition where unread count hasn't been updated yet)
               if (unreadCount === 0 && chat.lastMessageSenderId !== userId) {
                 await new Promise(resolve => setTimeout(resolve, 200));
                 participantData = await ChatService.getParticipant(chat.id, userId);
                 unreadCount = participantData?.unreadCount || 0;
               }
               
-              if (unreadCount > 0) {
-                console.log(`🔴 Chat "${chat.lastMessageText?.substring(0, 30)}..." has ${unreadCount} UNREAD messages!`);
+              // Check if user is actively viewing this chat or sent the last message
+              const isCurrentlyActive = chat.id === activeChatId;
+              const lastMessageIsFromUser = chat.lastMessageSenderId === userId;
+              
+              // Override unreadCount to 0 ONLY if:
+              // 1. User is CURRENTLY actively viewing this chat (real-time)
+              // 2. Last message was sent BY this user (obviously no unread for sender)
+              if (isCurrentlyActive || lastMessageIsFromUser) {
+                unreadCount = 0;
               }
               
-              // Return new chat object with unread count
+              // Fetch the REAL status from the actual last message document
+              // This is more accurate than chat.lastMessageStatus which can be stale
+              let realStatus = chat.lastMessageStatus; // Fallback to chat status
+              try {
+                const { MessageService } = await import('@/services/firebase');
+                const lastMessageStatus = await MessageService.getLastMessageStatus(chat.id);
+                if (lastMessageStatus) {
+                  realStatus = lastMessageStatus;
+                }
+              } catch (error) {
+                console.error('Error fetching real message status:', error);
+              }
+              
+              // Silently track unread count
+              
+              // 🔔 CHECK FOR NEW MESSAGES: Compare with previous state
+              const previousChat = previousChats.get(chat.id);
+              const isNewMessage = previousChat && (
+                chat.lastMessageTime > previousChat.lastMessageTime ||
+                chat.lastMessageText !== previousChat.lastMessageText
+              );
+              
+              // If new message AND it's not from current user AND not currently viewing this chat
+              if (isNewMessage && 
+                  chat.lastMessageSenderId !== userId && 
+                  get().activeChatId !== chat.id) {
+                
+                // Trigger notification
+                try {
+                  const { triggerInAppNotification } = await import('@/services/NotificationHelper');
+                  
+                  // Get sender profile (may already be cached)
+                  let sender = get().getUserProfile(chat.lastMessageSenderId);
+                  
+                  // If not cached, try to load it
+                  if (!sender) {
+                    sender = await get().loadUserProfile(chat.lastMessageSenderId);
+                  }
+                  
+                  triggerInAppNotification({
+                    id: `${chat.id}_${chat.lastMessageTime}`,
+                    senderName: sender?.displayName || chat.groupName || 'Someone',
+                    messageText: chat.lastMessageText || '',
+                    senderAvatar: sender?.profilePictureUrl || chat.groupIcon,
+                    chatId: chat.id,
+                    isImage: false, // We don't know from chat list, assume text
+                  });
+                } catch (error) {
+                  console.error('Error triggering notification from chat list:', error);
+                }
+              }
+              
+              // Update previous chats map
+              previousChats.set(chat.id, {
+                lastMessageTime: chat.lastMessageTime,
+                lastMessageText: chat.lastMessageText || '',
+              });
+              
+              // Return new chat object with unread count and REAL message status
               return {
                 ...chat,
                 unreadCount,
+                lastMessageStatus: realStatus, // Use real status from actual message document
               };
             })
           );
           
-          console.log(`📊 Loaded ${chatsWithUnreadCounts.filter(c => c.unreadCount > 0).length} chats with unread messages`);
+          // Chats loaded with unread counts
           
           // Now update state with new chat objects including unread counts
           set({ chats: chatsWithUnreadCounts }); // New array with new objects
@@ -252,7 +331,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               lastMessageText: chat.lastMessageText,
               lastMessageTime: typeof chat.lastMessageTime === 'number' 
                 ? chat.lastMessageTime 
-                : chat.lastMessageTime, // Already a number
+                : (chat.lastMessageTime instanceof Date ? chat.lastMessageTime.getTime() : 0),
               lastMessageSenderId: chat.lastMessageSenderId,
               lastMessageStatus: chat.lastMessageStatus || null,
               unreadCount: chat.unreadCount || 0,
@@ -263,7 +342,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               inviteCode: chat.inviteCode || null,
               createdAt: typeof chat.createdAt === 'number' 
                 ? chat.createdAt 
-                : chat.createdAt, // Already a number
+                : (chat.createdAt instanceof Date ? chat.createdAt.getTime() : 0),
               createdBy: chat.createdBy,
             };
             await SQLiteService.saveChat(chatRow);
@@ -286,6 +365,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Select a chat to view
   selectChat: (chatId: string) => {
     set({ currentChatId: chatId, messages: [] });
+  },
+
+  // Set active chat ID (when chat is actually being viewed)
+  setActiveChatId: (chatId: string | null) => {
+    set({ activeChatId: chatId });
   },
 
   // Create a new one-on-one chat
@@ -349,6 +433,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         const currentMessages = get().messages;
         const currentMessageIds = new Set(currentMessages.map(m => m.id));
+        const activeChatId = get().activeChatId; // Check if this chat is actively being viewed
         
         // Separate Firestore messages into new and updates
         const messagesToAdd: Message[] = [];
@@ -357,42 +442,88 @@ export const useChatStore = create<ChatState>((set, get) => ({
         for (const msg of newMessages) {
           if (currentMessageIds.has(msg.id)) {
             // Update existing message (status change, etc.)
-            const oldMessage = currentMessages.find(m => m.id === msg.id);
-            if (oldMessage && oldMessage.status !== msg.status) {
-              console.log(`📝 Message status CHANGED!`);
-              console.log(`   Message: "${msg.text.substring(0, 30)}..."`);
-              console.log(`   Old status: ${oldMessage.status} → New status: ${msg.status}`);
-              if (msg.status === 'read') {
-                console.log(`   🎉 YOUR MESSAGE WAS READ!`);
-              }
-            }
             messagesToUpdate.push(msg);
           } else {
             // New message (not in current state)
             messagesToAdd.push(msg);
-            console.log(`📨 NEW MESSAGE RECEIVED!`);
-            console.log(`   From: ${msg.senderId === currentUserId ? 'YOU' : msg.senderId}`);
-            console.log(`   Text: "${msg.text}"`);
-            console.log(`   Status: ${msg.status}`);
-            console.log(`   Time: ${new Date(msg.timestamp).toLocaleTimeString()}`);
             
-            // Mark as "delivered" if it's not our own message and status is still "sent"
-            if (currentUserId && msg.senderId !== currentUserId && msg.status === 'sent') {
+            // If user is ACTIVELY viewing this chat AND message is from someone else:
+            // Mark as "read" immediately (skip delivered)
+            if (currentUserId && msg.senderId !== currentUserId && activeChatId === chatId) {
+              try {
+                await MessageService.updateMessageStatus(chatId, msg.id, 'read');
+                msg.status = 'read'; // Update local copy
+                
+                // Also update chat to reset unread count
+                await ChatService.markChatAsRead(chatId, currentUserId, msg.id);
+                
+                // Update chat document's lastMessageStatus so chat list shows correct read status
+                const messageTimestamp = typeof msg.timestamp === 'number' 
+                  ? msg.timestamp 
+                  : (msg.timestamp as any)?.getTime?.() || Date.now();
+                await ChatService.updateChatLastMessage(
+                  chatId,
+                  msg.text || (msg.type === 'image' ? '📷 Photo' : ''),
+                  msg.senderId,
+                  'read',
+                  messageTimestamp
+                );
+                
+                // IMMEDIATELY update local chat state to reset unread count (don't wait for Firestore listener)
+                const { chats } = get();
+                const updatedChats = chats.map(chat => {
+                  if (chat.id === chatId) {
+                    return {
+                      ...chat,
+                      unreadCount: 0,
+                      lastMessageStatus: 'read' as any,
+                    };
+                  }
+                  return chat;
+                });
+                set({ chats: updatedChats });
+              } catch (error) {
+                console.error('Error marking message as read:', error);
+              }
+            } 
+            // If user is NOT actively viewing this chat but received the message:
+            // Mark as "delivered"
+            else if (currentUserId && msg.senderId !== currentUserId && msg.status === 'sent') {
               try {
                 await MessageService.updateMessageStatus(chatId, msg.id, 'delivered');
                 msg.status = 'delivered'; // Update local copy
-                console.log(`   ✅ Marked as DELIVERED`);
               } catch (error) {
                 console.error('Error marking message as delivered:', error);
+              }
+            }
+
+            // 🔔 Trigger in-app notification if message is from someone else AND not actively viewing this chat
+            if (currentUserId && msg.senderId !== currentUserId && activeChatId !== chatId) {
+              try {
+                const { triggerInAppNotification } = await import('@/services/NotificationHelper');
+                const sender = get().getUserProfile(msg.senderId);
+                
+                // Trigger direct in-app notification (works on emulator!)
+                triggerInAppNotification({
+                  id: msg.id,
+                  senderName: sender?.displayName || 'Someone',
+                  messageText: msg.text || '',
+                  senderAvatar: sender?.profilePictureUrl,
+                  chatId,
+                  isImage: msg.type === 'image',
+                });
+              } catch (error) {
+                console.error('Error triggering notification:', error);
               }
             }
           }
         }
         
         // Merge: Update existing messages, add new ones
+        // Force new array to trigger React re-render
         let updatedMessages = currentMessages.map(existing => {
           const update = messagesToUpdate.find(m => m.id === existing.id);
-          return update || existing;
+          return update ? { ...update } : existing; // Create new object to ensure re-render
         });
         
         // Add new messages
@@ -400,7 +531,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         set({ messages: updatedMessages });
         
-        // Sync new messages to SQLite for offline access
+        // Sync new/updated messages to SQLite for offline access
         try {
           for (const message of newMessages) {
             const messageRow: any = {
@@ -496,11 +627,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const currentChat = chats.find(c => c.id === chatId);
         if (currentChat) {
           const otherParticipants = currentChat.participants.filter(id => id !== senderId);
-          console.log(`📊 Incrementing unread count for participants:`, otherParticipants);
           for (const participantId of otherParticipants) {
             try {
               await ChatService.incrementUnreadCount(chatId, participantId);
-              console.log(`✅ Incremented unread count for ${participantId} in chat ${chatId}`);
             } catch (error) {
               console.error('❌ Error incrementing unread count:', error);
             }
@@ -509,9 +638,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           console.warn(`⚠️ Chat ${chatId} not found in local state when trying to increment unread count`);
         }
         
-        // THEN: Update last message in chat with 'sent' status
+        // THEN: Update last message in chat with 'sent' status and the message timestamp
         // This triggers the chat subscription, which will now fetch the updated unread count
-        await ChatService.updateChatLastMessage(chatId, text, senderId, 'sent');
+        await ChatService.updateChatLastMessage(chatId, text, senderId, 'sent', optimisticMessage.timestamp);
         
         // The Firestore listener will update the message with the real timestamp and 'sent' status
         // Since we use the same ID, it will replace the optimistic message automatically
@@ -643,9 +772,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         }
         
-        // Update last message in chat
+        // Update last message in chat with timestamp
         const lastMessageText = caption || '📷 Photo';
-        await ChatService.updateChatLastMessage(chatId, lastMessageText, senderId, 'sent');
+        await ChatService.updateChatLastMessage(chatId, lastMessageText, senderId, 'sent', optimisticMessage.timestamp);
         
         // Update optimistic message with real URLs in state
         set((state) => ({
@@ -816,6 +945,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const { messages, chats } = get();
       
+      // IMMEDIATELY update local chat state to reset unread count (optimistic update)
+      const updatedChatsOptimistic = chats.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            unreadCount: 0,
+          };
+        }
+        return chat;
+      });
+      set({ chats: updatedChatsOptimistic });
+      
       // Get messages for this chat only and sort by timestamp to get the ACTUAL last message
       const chatMessages = messages.filter(m => m.chatId === chatId);
       const sortedMessages = [...chatMessages].sort((a, b) => {
@@ -824,8 +965,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return timeB - timeA; // Newest first
       });
       const lastMessage = sortedMessages[0]; // Most recent message
-      
-      console.log(`📖 Marking chat as read. Last message: "${lastMessage?.text}" from ${lastMessage?.senderId === userId ? 'YOU' : 'OTHER'}`);
       
       if (lastMessage) {
         await ChatService.markChatAsRead(chatId, userId, lastMessage.id);
@@ -836,12 +975,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         msg => msg.senderId !== userId && (msg.status === 'delivered' || msg.status === 'sent')
       );
       
-      console.log(`📖 Marking ${unreadMessages.length} messages as read`);
-      
       for (const msg of unreadMessages) {
         try {
           await MessageService.updateMessageStatus(chatId, msg.id, 'read');
-          console.log(`   ✅ Marked as read: "${msg.text.substring(0, 30)}..."`);
           // Update in local state
           const updatedMessages = get().messages.map(m =>
             m.id === msg.id ? { ...m, status: 'read' as MessageStatus } : m
@@ -854,19 +990,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       // If the last message was from someone else, update chat's lastMessageStatus to "read"
       if (lastMessage && lastMessage.senderId !== userId) {
-        console.log(`🔄 Updating chat lastMessageStatus to "read"`);
+        const messageTimestamp = typeof lastMessage.timestamp === 'number' 
+          ? lastMessage.timestamp 
+          : (lastMessage.timestamp as any)?.getTime?.() || Date.now();
         await ChatService.updateChatLastMessage(
           chatId,
           lastMessage.text,
           lastMessage.senderId,
-          'read'
+          'read',
+          messageTimestamp
         );
       }
       
-      // Update chat list to reset unread count to 0 and update status
+      // Update chat list with final status
       const updatedChats = chats.map(chat => {
         if (chat.id === chatId) {
-          console.log(`🔄 Updating chat list: unreadCount 0, status: ${lastMessage?.senderId !== userId ? 'read' : chat.lastMessageStatus}`);
           return {
             ...chat,
             unreadCount: 0,
@@ -888,7 +1026,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
       }
       
-      console.log(`✅ Chat marked as read successfully`);
+      // Chat marked as read
     } catch (error) {
       console.error('Error marking chat as read:', error);
     }

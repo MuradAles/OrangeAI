@@ -14,7 +14,7 @@ import { PresenceService } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 32, // 20px + 12px = 32px total padding at bottom
+    paddingBottom: Platform.OS === 'ios' ? 12 : 20,
   },
   imagePreviewContainer: {
     position: 'relative',
@@ -299,6 +299,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     justifyContent: 'center',
+    minHeight: 40,
   },
   input: {
     maxHeight: 120,

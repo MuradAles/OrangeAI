@@ -53,28 +53,22 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
     
     const currentUserId = getCurrentUserId();
     
-    console.log('🔔 PresenceStore: Request to subscribe to user:', userId.substring(0, 8));
+    // Subscribe to user presence
     
     // PREVENT subscribing to your own presence!
     if (currentUserId && userId === currentUserId) {
-      console.log('🚫 BLOCKED: Cannot subscribe to your own presence!', userId.substring(0, 8));
       return;
     }
     
     // Already subscribed? Skip!
     if (subscriptions.has(userId)) {
-      console.log('⏭️  Already subscribed to', userId.substring(0, 8), '- skipping');
       return;
     }
-    
-    console.log('✅ Creating NEW subscription for', userId.substring(0, 8));
     
     // Subscribe to this user's presence
     const unsubscribe = PresenceService.subscribeToPresence(
       userId,
       (presence) => {
-        console.log('👀 PRESENCE UPDATE:', userId.substring(0, 8), presence?.isOnline ? 'ONLINE ✅' : 'OFFLINE ❌');
-        
         set(state => {
           const newMap = new Map(state.presenceMap);
           
@@ -90,7 +84,6 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
           }
           
           // Increment version to force re-renders
-          console.log('🔄 Version incremented:', state.version, '→', state.version + 1);
           return { 
             presenceMap: newMap,
             version: state.version + 1
@@ -98,7 +91,7 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
         });
       },
       (error) => {
-        console.error(`❌ Error subscribing to presence for ${userId}:`, error);
+        console.error(`Error subscribing to presence for ${userId}:`, error);
       }
     );
     
@@ -106,7 +99,6 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
     set(state => {
       const newSubs = new Map(state.subscriptions);
       newSubs.set(userId, unsubscribe);
-      console.log('📊 Total subscriptions:', newSubs.size);
       return { subscriptions: newSubs };
     });
   },

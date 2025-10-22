@@ -60,7 +60,6 @@ export const initializeFirebase = () => {
     if (getApps().length === 0) {
       // Initialize Firebase App
       app = initializeApp(firebaseConfig);
-      console.log('✅ Firebase App initialized successfully');
       
       // Initialize Auth with AsyncStorage persistence
       if (Platform.OS !== 'web') {
@@ -70,21 +69,21 @@ export const initializeFirebase = () => {
       } else {
         auth = getAuth(app);
       }
-      console.log('✅ Firebase Auth initialized with persistence');
       
       // Initialize Firestore
       // Note: React Native doesn't support persistentLocalCache (requires IndexedDB)
       // Using default cache which works for both platforms
       firestore = getFirestore(app);
-      console.log('✅ Firestore initialized');
       
       // Initialize Storage
       storage = getStorage(app);
-      console.log('✅ Firebase Storage initialized');
       
       // Initialize Realtime Database
       database = getDatabase(app);
-      console.log('✅ Firebase Realtime Database initialized');
+      
+      console.log('_______________________________________________');
+      console.log('🔥 FIREBASE INITIALIZED');
+      console.log('_______________________________________________\n');
       
     } else {
       // Use existing Firebase app
@@ -93,7 +92,6 @@ export const initializeFirebase = () => {
       firestore = getFirestore(app);
       storage = getStorage(app);
       database = getDatabase(app);
-      console.log('✅ Using existing Firebase instance');
     }
     
     return { app, auth, firestore, storage, database };
@@ -119,6 +117,6 @@ export { app, auth, database, firestore, storage };
 
 // Export Firebase SDK modules for use in services
   export * from 'firebase/app';
-    export type { User as FirebaseUser } from 'firebase/auth';
-    export type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+  export type { User as FirebaseUser } from 'firebase/auth';
+  export type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 
