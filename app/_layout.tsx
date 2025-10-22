@@ -7,6 +7,7 @@
 import { InAppNotification } from '@/components/common';
 import { SQLiteService } from '@/database/SQLiteService';
 import { initializeFirebase, PresenceService } from '@/services/firebase';
+import { OfflineBanner } from '@/shared/components/OfflineBanner';
 import { useNotifications } from '@/shared/hooks/useNotifications';
 import { useAuthStore } from '@/store';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -29,13 +30,7 @@ export default function RootLayout() {
     cleanup: cleanupNotifications,
   } = useNotifications();
   
-  // Debug: Log when inAppNotification changes
-  useEffect(() => {
-    console.log('🔔 _layout: inAppNotification state changed:', inAppNotification ? {
-      senderName: inAppNotification.senderName,
-      chatId: inAppNotification.chatId,
-    } : null);
-  }, [inAppNotification]);
+  // Removed debug logs for cleaner console
 
   // Initialize app (Firebase + SQLite + Auth)
   useEffect(() => {
@@ -82,20 +77,9 @@ export default function RootLayout() {
     const inAuthGroup = segments[0] === '(auth)';
     const inTabsGroup = segments[0] === '(tabs)';
 
-    console.log('🔄 LAYOUT - Navigation check:', {
-      isAuthenticated,
-      hasUser: !!user,
-      username: user?.username,
-      displayName: user?.displayName,
-      segments: segments.join('/'),
-      inAuthGroup,
-      inTabsGroup,
-    });
-
     if (!isAuthenticated) {
       // User not authenticated, redirect to sign-in
       if (!inAuthGroup) {
-        console.log('🔄 LAYOUT - Not authenticated, navigating to sign-in');
         router.replace('/(auth)/sign-in');
       }
     } else {
@@ -106,21 +90,19 @@ export default function RootLayout() {
         // No profile yet, redirect to create-profile
         const isOnCreateProfile = segments[1] === 'create-profile';
         if (!isOnCreateProfile) {
-          console.log('🔄 LAYOUT - No profile, navigating to create-profile');
           router.replace('/(auth)/create-profile');
         }
       } else {
         // Profile complete - navigate to home
         // Only redirect from index or auth routes, not from tabs or modals
+        // @ts-ignore - segments type is complex from expo-router
         const isOnIndexRoute = segments.length === 0 || segments[0] === '' || segments[0] === 'index';
         
         if (inAuthGroup) {
           // User just completed profile, navigate to home
-          console.log('🔄 LAYOUT - Profile complete, navigating from auth to home');
           router.replace('/(tabs)/home');
         } else if (isOnIndexRoute && !inTabsGroup) {
           // User on index route with complete profile, navigate to home
-          console.log('🔄 LAYOUT - Profile complete, navigating from index to home');
           router.replace('/(tabs)/home');
         }
         // Don't redirect if already in tabs or on modal routes (search, etc)
@@ -239,6 +221,9 @@ export default function RootLayout() {
           onDismiss={dismissInAppNotification}
         />
       )}
+      
+      {/* Offline banner */}
+      <OfflineBanner />
     </>
   );
 }

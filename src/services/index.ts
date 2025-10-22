@@ -5,5 +5,6 @@
  */
 
 export * from './firebase';
+export * from './NotificationHelper';
 
 

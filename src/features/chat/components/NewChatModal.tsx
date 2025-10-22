@@ -50,12 +50,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   }, [visible]);
 
   // Debug logging
-  React.useEffect(() => {
-    console.log('🔹 NewChatModal: visible =', visible);
-    console.log('🔹 NewChatModal: step =', step);
-    console.log('🔹 NewChatModal: contacts count =', contacts.length);
-    console.log('🔹 NewChatModal: chatType =', chatType);
-  }, [visible, step, contacts.length, chatType]);
+  // Removed debug logs for cleaner console
 
   const handleSelectChatType = (type: 'one-on-one' | 'group') => {
     setChatType(type);

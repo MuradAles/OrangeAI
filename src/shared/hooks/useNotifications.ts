@@ -7,20 +7,14 @@
  */
 
 import { MessagingService, NotificationData } from '@/services/firebase/MessagingService';
-import { registerNotificationCallback, unregisterNotificationCallback } from '@/services/NotificationHelper';
+import { InAppNotificationData, registerNotificationCallback, unregisterNotificationCallback } from '@/services/NotificationHelper';
 import { useAuthStore } from '@/store/AuthStore';
 import { useChatStore } from '@/store/ChatStore';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
 
-export interface InAppNotificationData {
-  id: string;
-  senderName: string;
-  messageText: string;
-  senderAvatar?: string;
-  chatId: string;
-  isImage: boolean;
-}
+// Re-export for convenience
+export type { InAppNotificationData };
 
 export const useNotifications = () => {
   const [inAppNotification, setInAppNotification] = useState<InAppNotificationData | null>(null);
@@ -35,31 +29,19 @@ export const useNotifications = () => {
    * This allows triggering notifications without push API (works on emulator)
    */
   useEffect(() => {
-    console.log('🎯 useNotifications: Registering callback with activeChatId:', activeChatId);
-    
     const handleDirectNotification = (notification: InAppNotificationData) => {
-      console.log('📨 handleDirectNotification called:', {
-        senderName: notification.senderName,
-        chatId: notification.chatId,
-        activeChatId: activeChatId,
-        willSuppress: notification.chatId === activeChatId,
-      });
-      
       // Check if user is in this chat
       if (notification.chatId === activeChatId) {
-        console.log('🚫 User in this chat, suppressing notification');
-        return;
+        return; // Suppress notification if user is viewing this chat
       }
 
       // Show in-app notification
-      console.log('✅ Setting in-app notification state');
       setInAppNotification(notification);
     };
 
     registerNotificationCallback(handleDirectNotification);
 
     return () => {
-      console.log('🧹 Unregistering notification callback');
       unregisterNotificationCallback();
     };
   }, [activeChatId]);
@@ -122,13 +104,16 @@ export const useNotifications = () => {
     }
 
     // User is NOT in this chat - show in-app banner
-    if (data?.type === 'message' || data?.type === 'image') {
+    if (data?.type === 'message' || data?.type === 'group_message') {
+      const title = notification.request.content.title || 'Someone';
+      const body = notification.request.content.body || '';
+      
       setInAppNotification({
         id: notification.request.identifier,
-        senderName: data.senderName || 'Someone',
-        messageText: data.messageText || '',
+        senderName: title,
+        messageText: body,
         chatId: chatId || '',
-        isImage: data.type === 'image',
+        isImage: false, // Push notifications will show text, images are displayed inline
       });
     }
   };

@@ -185,8 +185,6 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     const unsubscribe = FriendRequestService.subscribeSentFriendRequests(
       userId,
       (requests) => {
-        console.log('📤 Sent requests update received:', requests.length);
-        
         const currentRequests = get().sentRequests;
         
         // Detect if any requests disappeared (likely accepted!)
@@ -198,7 +196,6 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
         
         // If requests disappeared, reload contacts (they might have been accepted)
         if (disappearedRequests.length > 0 && previousRealRequests.length > 0) {
-          console.log('📤 Sent requests decreased, reloading contacts (likely accepted)');
           get().loadContacts(userId);
         }
         
@@ -209,7 +206,6 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
         );
         
         const finalRequests = [...requests, ...tempRequests];
-        console.log('📤 Final sent requests count:', finalRequests.length);
         
         set({ 
           sentRequests: finalRequests, 

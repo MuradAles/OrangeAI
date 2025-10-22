@@ -64,8 +64,6 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!user?.id || chats.length === 0) return;
 
-    console.log('📡 HOME: Setting up presence subscriptions for', chats.length, 'chats');
-
     // Get all unique participant IDs (excluding current user)
     const participantIds = new Set<string>();
     chats.forEach(chat => {
@@ -75,10 +73,6 @@ export default function HomeScreen() {
         }
       });
     });
-
-    console.log('📡 HOME: Current user:', user.id.substring(0, 8));
-    console.log('📡 HOME: Subscribing to', participantIds.size, 'users:', 
-      Array.from(participantIds).map(id => id.substring(0, 8)).join(', '));
 
     // Subscribe to each participant's presence (PresenceStore handles deduplication)
     participantIds.forEach(participantId => {

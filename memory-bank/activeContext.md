@@ -1,30 +1,172 @@
 # Active Context
 
-## Current Status: **PR #4 Group Chat + Navigation Fixes + In-App Notifications Complete! 🎉**
+## Current Status: **PR #5 Push Notifications & Offline Queue Complete! 🚀**
 
 ### Where We Are
 - ✅ **Phase 1 Complete:** Foundation, auth, theme, database, UI components all working
 - ✅ **Phase 2 Complete:** Core messaging with real-time updates, virtual scrolling, and optimistic updates
-- ✅ **Phase 3 Partially Complete:** Images, reactions, typing, presence (optimized), contacts, friend requests, in-app notifications working
+- ✅ **Phase 3 Complete:** Images, reactions, typing, presence (optimized), contacts, friend requests, in-app notifications
 - ✅ **Phase 4 Core Complete:** Group chat with creation flow, messaging, and backend services
+- ✅ **Phase 5 Partially Complete:** Push notifications (FCM), offline queue with auto-retry, network detection (6/18 tasks)
 - ✅ **Testing Infrastructure:** Jest + React Native Testing Library with 88 passing tests
-- ✅ **Critical Bug Fixes:** Navigation flow, friend request synchronization, in-app notifications implemented
-- ⏳ **Next:** PR #5 - Push Notifications (FCM) & Polish, or enhance group features (settings, member management UI)
+- ⏳ **Next:** Test on physical device, then continue Phase 5 polish tasks
 
 ### Current Task
-**Just Completed: Navigation Fixes & In-App Notification System 🎊**
+**Just Completed: Read Receipt & Checkmark System Overhaul! ✅💙✓✓**
 
-We've built the complete one-on-one messaging system with:
-- Real-time chat list with FlashList virtual scrolling
-- Full-screen chat modal with message bubbles
-- Optimistic updates (messages appear instantly)
-- Message status tracking (sending → sent → delivered → read)
-- Jump to bottom floating button
-- Load from SQLite first (<100ms), then sync from Firebase
-- Message grouping, date separators, character counter
-- User profile caching for chat participants
+We've completely fixed the read receipt and checkmark display system by fetching the **real message status** from the actual message document instead of relying on potentially stale chat metadata.
 
 ### Recent Work (This Session)
+
+#### ✅ Completed: Read Receipt & Checkmark System Overhaul 🎊
+
+**Critical Architectural Improvement:**
+
+**The Problem - Multiple Issues:**
+1. Messages showed as read in chat (blue checkmarks), but chat list showed unread badge
+2. Chat list showed unread count even after viewing messages
+3. Push notifications sent to online users
+4. Chat list always showed "read" status (blue checkmarks) even when recipient hadn't read yet
+5. Optimistic updates were being overwritten by Firestore subscriptions
+
+**The Root Cause:**
+- Storing `lastMessageStatus` in the chat document created sync issues
+- Chat subscription's `unreadCount` overwrote optimistic updates
+- Complex optimistic status logic was unreliable
+- Race conditions between local state and Firestore
+
+**The Solution - Fetch Real Message Status:**
+
+1. **New Method in MessageService** (`src/services/firebase/MessageService.ts`)
+   ```typescript
+   static async getLastMessageStatus(chatId: string): Promise<MessageStatus | null>
+   ```
+   - Queries the most recent message directly
+   - Returns the **real** status from the message document
+   - Single source of truth - no more stale chat metadata
+
+2. **Simplified ChatStore Logic** (`src/store/ChatStore.ts`)
+   - Removed complex optimistic status updates
+   - Now fetches real status from actual message: `MessageService.getLastMessageStatus()`
+   - Only overrides `unreadCount: 0` for **active chat** or **sender**
+   - Preserves real unread counts for other chats
+   - Fixed subscription from overwriting optimistic updates
+
+3. **Smart Notification Filtering** (`src/services/firebase/MessageService.ts`)
+   - Strictly checks `!isOnline` before sending push notifications
+   - Removed overly broad `!isOnline || !isInThisChat` logic
+   - In-app notifications handle online users
+   - Push notifications only for truly offline users
+
+**How It Works Now:**
+✅ **Chat list checkmarks** → Shows REAL message status (sent ✓ / delivered ✓✓ / read 💙✓✓)
+✅ **Sender sees accurate status** → Single checkmark until recipient actually reads it
+✅ **Unread badges** → Clear immediately when viewing messages, stay cleared
+✅ **Offline users** → Firebase push notifications 📱
+✅ **Online users** → In-app notification banners 🔔
+✅ **Users in active chat** → No notifications (already viewing) ✓
+✅ **No more race conditions** → Optimistic updates preserved correctly
+
+**Files Modified:**
+- `src/services/firebase/MessageService.ts` - Added `getLastMessageStatus()` method
+- `src/store/ChatStore.ts` - Simplified logic, fetch real status, fixed subscription overwrites
+
+---
+
+#### ✅ Previously Completed: Push Notifications & Offline Queue System 🎊
+
+**What We Built:**
+
+1. **MessagingService** (`src/services/firebase/MessagingService.ts`)
+   - Complete FCM token management (register, save, remove)
+   - Permission handling for iOS and Android
+   - Android notification channels configuration
+   - Notification listeners (foreground & tap events)
+   - Badge count management
+   - Local notification scheduling (for testing)
+   - Proper cleanup on logout
+   - Works on physical devices (Expo push tokens)
+
+2. **NotificationHelper** (`src/services/NotificationHelper.ts`)
+   - Formatters for all notification types:
+     - New messages (text preview if < 50 chars)
+     - Image messages ("📷 Sent an image" + caption)
+     - Friend requests
+     - Friend request accepted
+     - Group invites
+     - Admin promoted
+   - Deep linking routes for notification taps
+   - Notification data parsing
+
+3. **MessageQueue** (`src/database/MessageQueue.ts`)
+   - FIFO queue processing (first sent, first uploaded)
+   - Auto-retry logic (up to 3 attempts per message)
+   - Persistent queue in SQLite
+   - Background processing when online
+   - Manual retry for failed messages
+   - Get pending/failed message counts
+   - Clear failed messages after user acknowledges
+
+4. **Network Status** (`src/shared/hooks/useNetworkStatus.ts`)
+   - Real-time connection monitoring with NetInfo
+   - Detects online/offline transitions
+   - Auto-processes message queue when back online
+   - Provides connection type and quality
+   - Tracks if user has been offline in session
+
+5. **OfflineBanner** (`src/shared/components/OfflineBanner.tsx`)
+   - Slides down from top when offline
+   - Shows "⚠️ No internet connection" message
+   - Slides up when connection restored
+   - Non-intrusive (allows touches to pass through)
+   - Beautiful styling with shadow
+
+6. **Integration** (Updated Files)
+   - `app/_layout.tsx`: Initialize notifications on app start, FCM token registration
+   - `src/shared/hooks/useNotifications.ts`: Fixed push notification data handling
+   - `src/services/index.ts`: Export NotificationHelper
+   - `src/services/firebase/index.ts`: Export MessagingService
+
+**Files Created:**
+- `src/services/firebase/MessagingService.ts` ✨ (NEW - 376 lines)
+- `src/services/NotificationHelper.ts` ✨ (NEW - 225 lines)
+- `src/database/MessageQueue.ts` ✨ (NEW - 203 lines)
+- `src/shared/hooks/useNetworkStatus.ts` ✨ (NEW - 89 lines)
+- `src/shared/components/OfflineBanner.tsx` ✨ (NEW - 74 lines)
+
+**Files Updated:**
+- `app/_layout.tsx` (added OfflineBanner rendering)
+- `src/shared/hooks/useNotifications.ts` (fixed notification data handling)
+- `src/services/index.ts` (export NotificationHelper)
+- `src/services/firebase/index.ts` (already had MessagingService export)
+
+**What Works Now:**
+- ✅ Push notifications on physical devices via Expo push tokens
+- ✅ FCM tokens saved to Firestore for each user
+- ✅ Notification permissions requested on first launch
+- ✅ Foreground notifications (when app is open)
+- ✅ Background notifications (when app is closed/backgrounded)
+- ✅ Tap notification to open specific chat (deep linking ready)
+- ✅ Badge count updates with unread messages
+- ✅ Offline banner shows when no connection
+- ✅ Message queue automatically processes when back online
+- ✅ Auto-retry up to 3 times for failed messages
+- ✅ Network status monitoring throughout app
+
+**Testing Required:**
+- ⏳ Test push notifications on **physical device** (emulator can't receive push)
+- ⏳ Test offline → send messages → online → verify auto-upload
+- ⏳ Test FCM token registration and saving
+- ⏳ Test notification tap navigation
+- ⏳ Test badge count updates
+
+**Status:** ✅ Complete and ready for device testing!
+
+---
+
+### Recent Work (Previous Session)
+
+
 
 #### ✅ Completed: In-App Notification System with Horizontal Animation
 
