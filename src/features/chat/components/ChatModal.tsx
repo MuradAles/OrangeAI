@@ -44,6 +44,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     deleteMessageForMe,
     deleteMessageForEveryone,
     addReaction,
+    setActiveChatId,
   } = useChatStore();
 
   const [isSending, setIsSending] = useState(false);
@@ -83,6 +84,9 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Reset scroll flag when opening chat
       hasScrolledInitially.current = false;
       
+      // Set active chat ID for notification routing
+      setActiveChatId(chatId);
+      
       // PRD Flow: Load from SQLite FIRST (instant <100ms), then sync from Firebase in background
       const loadMessages = async () => {
         // 1. Load from SQLite instantly (cached messages)
@@ -99,7 +103,17 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       };
       
       loadMessages();
+    } else if (!visible) {
+      // Clear active chat ID when modal closes
+      setActiveChatId(null);
     }
+    
+    return () => {
+      // Clear active chat ID on unmount
+      if (visible) {
+        setActiveChatId(null);
+      }
+    };
     // Note: Don't clear messages on cleanup - keep them for quick reopening
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, chatId, user?.id]);
@@ -483,7 +497,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       <KeyboardAvoidingView 
         style={{ flex: 1, backgroundColor: theme.colors.background }} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <StatusBar 
           barStyle={theme.colors.background === '#000000' ? 'light-content' : 'dark-content'} 
@@ -552,6 +566,28 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                 )}
               </View>
 
+              {/* Action Buttons */}
+              <View style={styles.headerActions}>
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={() => {
+                    // Video call - placeholder for future functionality
+                    console.log('Video call pressed');
+                  }}
+                >
+                  <Ionicons name="videocam" size={24} color={theme.colors.text} />
+                </Pressable>
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={() => {
+                    // Phone call - placeholder for future functionality
+                    console.log('Phone call pressed');
+                  }}
+                >
+                  <Ionicons name="call" size={24} color={theme.colors.text} />
+                </Pressable>
+              </View>
+
             </View>
 
             {/* Messages List */}
@@ -570,8 +606,10 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                     : `${item.type}-${index}`
                 }
                 getItemType={getItemType}
-                contentContainerStyle={styles.messagesList}
+                estimatedItemSize={100}
+                contentContainerStyle={styles.messagesListContent}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
                 onScroll={(event) => {
                   // Show jump to bottom button if user scrolls up
                   const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -650,12 +688,20 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionButton: {
+    padding: 4,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  messagesList: {
+  messagesListContent: {
     paddingVertical: 8,
   },
   jumpToBottomButton: {

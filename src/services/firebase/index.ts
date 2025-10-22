@@ -10,6 +10,7 @@ export * from './FirebaseConfig';
 export * from './FriendRequestService';
 export * from './GroupService';
 export * from './MessageService';
+export * from './MessagingService';
 export * from './PresenceService';
 export * from './StorageService';
 export * from './UserService';

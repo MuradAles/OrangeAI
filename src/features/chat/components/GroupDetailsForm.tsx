@@ -3,13 +3,13 @@
  * Form to enter group name, description, and icon
  */
 
-import { Avatar, Button, Input } from '@/components/common';
+import { Avatar, Input } from '@/components/common';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Contact } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 interface GroupDetailsFormProps {
   selectedContacts: Contact[];
@@ -77,9 +77,20 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
+    >
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+      <View style={[
+        styles.header, 
+        { 
+          backgroundColor: theme.colors.background,
+          borderBottomColor: theme.colors.border,
+          paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 12 : 48
+        }
+      ]}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </Pressable>
@@ -88,15 +99,21 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
         </Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         {/* Group Icon */}
         <View style={styles.iconSection}>
           <Pressable onPress={handlePickImage} style={styles.iconButton}>
             {groupIcon ? (
-              <Avatar imageUrl={groupIcon} size={100} />
+              <Avatar imageUrl={groupIcon} size={120} />
             ) : (
               <View style={[styles.placeholderIcon, { backgroundColor: theme.colors.surface }]}>
-                <Ionicons name="camera" size={32} color={theme.colors.textSecondary} />
+                <Ionicons name="camera" size={40} color={theme.colors.textSecondary} />
               </View>
             )}
             <View
@@ -105,20 +122,22 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
                 { backgroundColor: theme.colors.primary },
               ]}
             >
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
+              <Ionicons name="camera" size={18} color="#FFFFFF" />
             </View>
           </Pressable>
           <Text
-            style={[theme.typography.bodySmall, { color: theme.colors.textSecondary, marginTop: 12 }]}
+            style={[theme.typography.body, { color: theme.colors.textSecondary, marginTop: 16 }]}
           >
-            Tap to {groupIcon ? 'change' : 'add'} group icon
+            Tap to add group icon
           </Text>
         </View>
 
         {/* Group Name */}
         <View style={styles.inputSection}>
+          <Text style={[theme.typography.bodyBold, { color: theme.colors.text, marginBottom: 8 }]}>
+            Group Name
+          </Text>
           <Input
-            label="Group Name"
             placeholder="Enter group name"
             value={groupName}
             onChangeText={(text) => {
@@ -127,22 +146,24 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
             }}
             error={errors.name}
             maxLength={50}
-            autoFocus
           />
-          <Text
-            style={[
-              theme.typography.caption,
-              { color: theme.colors.textSecondary, marginTop: 4 },
-            ]}
-          >
-            {groupName.length}/50
-          </Text>
+          {errors.name ? (
+            <Text style={[theme.typography.caption, { color: theme.colors.error, marginTop: 4 }]}>
+              {errors.name}
+            </Text>
+          ) : (
+            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary, marginTop: 4 }]}>
+              {groupName.length}/50 characters
+            </Text>
+          )}
         </View>
 
         {/* Description */}
         <View style={styles.inputSection}>
+          <Text style={[theme.typography.bodyBold, { color: theme.colors.text, marginBottom: 8 }]}>
+            Description (optional)
+          </Text>
           <Input
-            label="Description (optional)"
             placeholder="What's this group about?"
             value={description}
             onChangeText={setDescription}
@@ -150,53 +171,68 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
             numberOfLines={3}
             maxLength={200}
           />
-          <Text
-            style={[
-              theme.typography.caption,
-              { color: theme.colors.textSecondary, marginTop: 4 },
-            ]}
-          >
-            {description.length}/200
+          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary, marginTop: 4 }]}>
+            {description.length}/200 characters
           </Text>
         </View>
 
         {/* Members Preview */}
         <View style={styles.membersSection}>
-          <Text style={[theme.typography.bodyBold, { color: theme.colors.text, marginBottom: 12 }]}>
+          <Text style={[theme.typography.bodyBold, { color: theme.colors.text, marginBottom: 16 }]}>
             Members ({selectedContacts.length})
           </Text>
-          <View style={styles.membersList}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.membersList}
+          >
             {selectedContacts.map((contact) => (
               <View key={contact.userId} style={styles.memberItem}>
                 <Avatar
                   name={contact.displayName}
                   imageUrl={contact.profilePictureUrl}
-                  size={40}
+                  size={56}
                 />
                 <Text
-                  style={[theme.typography.bodySmall, { color: theme.colors.text, marginTop: 4 }]}
+                  style={[theme.typography.caption, { color: theme.colors.text, marginTop: 8, textAlign: 'center' }]}
                   numberOfLines={1}
                 >
                   {contact.displayName.split(' ')[0]}
                 </Text>
               </View>
             ))}
-          </View>
+          </ScrollView>
         </View>
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
-        <Button
-          variant="primary"
+      <View style={[styles.footer, { 
+        backgroundColor: theme.colors.background,
+        borderTopColor: theme.colors.border,
+        paddingBottom: Platform.OS === 'ios' ? 20 : 16
+      }]}>
+        <Pressable
+          style={[
+            styles.createButton,
+            { 
+              backgroundColor: theme.colors.primary,
+              opacity: (isLoading || !groupName.trim()) ? 0.5 : 1,
+              marginBottom: 20
+            }
+          ]}
           onPress={handleSubmit}
           disabled={isLoading || !groupName.trim()}
-          loading={isLoading}
         >
-          Create Group
-        </Button>
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buttonText}>
+              Create Group
+            </Text>
+          )}
+        </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -208,7 +244,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 16,
     borderBottomWidth: 1,
   },
   backButton: {
@@ -217,56 +253,77 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    paddingBottom: 40,
   },
   iconSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
   },
   iconButton: {
     position: 'relative',
   },
   placeholderIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#E0E0E0',
     borderStyle: 'dashed',
   },
   iconBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: 4,
+    right: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#FFFFFF',
   },
   inputSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   membersSection: {
     marginTop: 8,
   },
   membersList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 16,
+    paddingRight: 20,
   },
   memberItem: {
     alignItems: 'center',
-    width: 60,
+    width: 64,
   },
   footer: {
     borderTopWidth: 1,
-    paddingVertical: 12,
+    paddingTop: 20,
     paddingHorizontal: 20,
+  },
+  createButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });
 

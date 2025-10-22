@@ -139,6 +139,19 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     const unsubscribe = FriendRequestService.subscribeFriendRequests(
       userId,
       (requests) => {
+        const currentRequests = get().friendRequests;
+        
+        // Detect if any requests disappeared (accepted or ignored)
+        const disappearedRequests = currentRequests.filter(prev => 
+          !requests.some(r => r.id === prev.id)
+        );
+        
+        // If requests disappeared, reload contacts (they might have been accepted)
+        if (disappearedRequests.length > 0 && currentRequests.length > 0) {
+          console.log('📥 Friend requests decreased, reloading contacts');
+          get().loadContacts(userId);
+        }
+        
         set({ 
           friendRequests: requests, 
           friendRequestsLoading: false 
@@ -172,15 +185,34 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     const unsubscribe = FriendRequestService.subscribeSentFriendRequests(
       userId,
       (requests) => {
+        console.log('📤 Sent requests update received:', requests.length);
+        
+        const currentRequests = get().sentRequests;
+        
+        // Detect if any requests disappeared (likely accepted!)
+        // Compare current real requests (excluding temp) with new requests
+        const previousRealRequests = currentRequests.filter(req => !req.id.startsWith('temp_'));
+        const disappearedRequests = previousRealRequests.filter(prev => 
+          !requests.some(r => r.id === prev.id)
+        );
+        
+        // If requests disappeared, reload contacts (they might have been accepted)
+        if (disappearedRequests.length > 0 && previousRealRequests.length > 0) {
+          console.log('📤 Sent requests decreased, reloading contacts (likely accepted)');
+          get().loadContacts(userId);
+        }
+        
         // Merge optimistic updates with real data
         // Remove any temporary requests that now have real data
-        const currentRequests = get().sentRequests;
         const tempRequests = currentRequests.filter(req => 
           req.id.startsWith('temp_') && !requests.some(r => r.toUserId === req.toUserId)
         );
         
+        const finalRequests = [...requests, ...tempRequests];
+        console.log('📤 Final sent requests count:', finalRequests.length);
+        
         set({ 
-          sentRequests: [...requests, ...tempRequests], 
+          sentRequests: finalRequests, 
           sentRequestsLoading: false 
         });
       },
@@ -238,6 +270,7 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     const result = await FriendRequestService.sendFriendRequest(fromUserId, toUserId);
     
     if (result.success) {
+      console.log('✅ Friend request sent, adding optimistic update');
       // Optimistically update sent requests immediately for instant UI feedback
       // The real-time listener will sync the actual state shortly after
       const tempRequest: FriendRequest = {
@@ -245,13 +278,17 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
         fromUserId,
         toUserId,
         status: 'pending',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: Date.now(),
+        respondedAt: null,
       };
       
-      set(state => ({
-        sentRequests: [...state.sentRequests, tempRequest]
-      }));
+      set(state => {
+        const newSentRequests = [...state.sentRequests, tempRequest];
+        console.log('📤 Optimistic sent requests count:', newSentRequests.length);
+        return {
+          sentRequests: newSentRequests
+        };
+      });
     }
     
     return result;

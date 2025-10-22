@@ -3,12 +3,12 @@
  * Select contacts for chat (single or multi-select)
  */
 
-import { Avatar, Button } from '@/components/common';
+import { Avatar } from '@/components/common';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Contact } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 
 interface ContactPickerProps {
   contacts: Contact[];
@@ -136,9 +136,16 @@ export const ContactPicker: React.FC<ContactPickerProps> = ({
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+      <View style={[
+        styles.header, 
+        { 
+          backgroundColor: theme.colors.background,
+          borderBottomColor: theme.colors.border,
+          paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 12 : 48
+        }
+      ]}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </Pressable>
@@ -179,18 +186,36 @@ export const ContactPicker: React.FC<ContactPickerProps> = ({
 
       {/* Footer - only for multi-select */}
       {mode === 'multi' && (
-        <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
-          <Text style={[theme.typography.bodySmall, { color: theme.colors.textSecondary }]}>
-            {selectedContactIds.size} selected
-          </Text>
-          <Button
-            variant="primary"
-            onPress={onConfirm}
-            disabled={selectedContactIds.size === 0 || isLoading}
-            loading={isLoading}
-          >
-            {getButtonText()}
-          </Button>
+        <View style={[styles.footer, { 
+          backgroundColor: theme.colors.background,
+          borderTopColor: theme.colors.border,
+          paddingBottom: Platform.OS === 'ios' ? 34 : 20
+        }]}>
+          <View style={styles.footerContent}>
+            <Text style={[theme.typography.bodyBold, { color: theme.colors.text, marginBottom: 4 }]}>
+              {selectedContactIds.size} member{selectedContactIds.size !== 1 ? 's' : ''} selected
+            </Text>
+            <Pressable
+              style={[
+                styles.createButton,
+                { 
+                  backgroundColor: theme.colors.primary,
+                  opacity: (selectedContactIds.size === 0 || isLoading) ? 0.5 : 1,
+                  marginBottom: 20
+                }
+              ]}
+              onPress={onConfirm}
+              disabled={selectedContactIds.size === 0 || isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  Create Group
+                </Text>
+              )}
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -205,7 +230,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 16,
     borderBottomWidth: 1,
   },
   backButton: {
@@ -225,7 +250,7 @@ const styles = StyleSheet.create({
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
@@ -252,12 +277,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     borderTopWidth: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+  },
+  footerContent: {
+    width: '100%',
+  },
+  createButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });
 

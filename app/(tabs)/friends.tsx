@@ -7,7 +7,7 @@ import { Avatar } from '@/components/common';
 import { ChatModal } from '@/features/chat/components';
 import { ChatService } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
-import { useAuthStore, useContactStore, usePresenceStore } from '@/store';
+import { useAuthStore, useChatStore, useContactStore, usePresenceStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -39,26 +39,28 @@ export default function FriendsScreen() {
   const presenceMap = usePresenceStore(state => state.presenceMap);
   const presenceVersion = usePresenceStore(state => state.version); // Subscribe to version for reactivity
 
+  const { loadUserProfile } = useChatStore();
+
   const [activeTab, setActiveTab] = useState<TabType>('friends');
   const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
-      // Load contacts once
-      loadContacts(user.id);
-      
-      // Subscribe to real-time updates for friend requests
-      subscribeFriendRequests(user.id);
-      subscribeSentRequests(user.id);
-    }
+    if (!user?.id) return;
+    
+    // Load contacts once
+    loadContacts(user.id);
+    
+    // Subscribe to real-time updates for friend requests
+    subscribeFriendRequests(user.id);
+    subscribeSentRequests(user.id);
 
     // Cleanup: unsubscribe when component unmounts
     return () => {
       unsubscribeAll();
     };
-  }, [user]);
+  }, [user?.id]); // Only re-run if userId changes, not entire user object
 
   // Subscribe to presence updates for all contacts
   // Using centralized PresenceStore - only subscribes once per user globally
@@ -146,6 +148,9 @@ export default function FriendsScreen() {
     if (!user) return;
 
     try {
+      // Load friend's profile first so it displays correctly in chat modal
+      await loadUserProfile(friendUserId);
+      
       // Check if chat already exists
       const existingChatId = await ChatService.findExistingChat(user.id, friendUserId);
 
@@ -353,7 +358,7 @@ export default function FriendsScreen() {
             {activeTab === 'sent' && `${sentRequests.length} sent`}
           </Text>
         </View>
-        <Pressable onPress={() => router.push('/search' as any)}>
+        <Pressable onPress={() => router.push('/search')}>
           <Ionicons name="person-add-outline" size={24} color={theme.colors.text} />
         </Pressable>
       </View>

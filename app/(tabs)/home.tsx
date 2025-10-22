@@ -25,6 +25,7 @@ export default function HomeScreen() {
     subscribeToChats, 
     unsubscribeAll,
     getUserProfile,
+    loadUserProfile,
   } = useChatStore();
 
   const { subscribeToUser } = usePresenceStore();
@@ -113,6 +114,9 @@ export default function HomeScreen() {
 
     setIsCreatingChat(true);
     try {
+      // Load contact's profile first so it displays correctly in chat modal
+      await loadUserProfile(contact.userId);
+      
       // Check if chat already exists
       const existingChat = chats.find(chat => 
         chat.type === 'one-on-one' && 
@@ -125,9 +129,9 @@ export default function HomeScreen() {
         setSelectedChatId(existingChat.id);
       } else {
         // Create new chat
-        const newChat = await ChatService.createChat([user.id, contact.userId]);
+        const newChatId = await ChatService.createChat(user.id, contact.userId);
         setIsNewChatModalVisible(false);
-        setSelectedChatId(newChat.id);
+        setSelectedChatId(newChatId);
       }
     } catch (error) {
       console.error('Failed to create chat:', error);
