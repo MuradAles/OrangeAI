@@ -111,7 +111,6 @@ export class GroupService {
       // Commit batch
       await batch.commit();
 
-      console.log('✅ Group created:', chatRef.id);
 
       // Return chat object
       return {

@@ -65,7 +65,6 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   createGroup: async (name, description, groupIcon, creatorId, memberIds) => {
     set({ isCreatingGroup: true, error: null });
     try {
-      console.log('📦 Creating group:', name);
       
       // Create group in Firestore
       const group = await GroupService.createGroup(
@@ -84,7 +83,6 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         isCreatingGroup: false,
       });
 
-      console.log('✅ Group created successfully:', group.id);
       return group;
     } catch (error) {
       console.error('❌ Failed to create group:', error);

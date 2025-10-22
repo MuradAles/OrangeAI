@@ -37,12 +37,6 @@ export const InAppNotification: React.FC<InAppNotificationProps> = ({
   isImage = false,
   onDismiss,
 }) => {
-  console.log('🎨 InAppNotification RENDERED:', {
-    senderName,
-    messageText: messageText.substring(0, 50),
-    chatId,
-    isImage,
-  });
   
   const router = useRouter();
   const theme = useTheme();

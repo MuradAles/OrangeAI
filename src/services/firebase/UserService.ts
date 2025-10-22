@@ -237,7 +237,6 @@ export class UserService {
       // Sort by display name
       contacts.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-      console.log(`✅ Loaded ${contacts.length} contacts for user ${userId}`);
       return contacts;
     } catch (error: any) {
       console.error('❌ Failed to get contacts:', error);
@@ -260,6 +259,24 @@ export class UserService {
       });
     } catch (error: any) {
       console.error('❌ Failed to update online status:', error);
+    }
+  }
+
+  /**
+   * Update user's active chat ID (for notification filtering)
+   * Set to null when user leaves chat
+   */
+  static async updateActiveChatId(
+    userId: string,
+    activeChatId: string | null
+  ): Promise<void> {
+    try {
+      const userRef = doc(firestore, this.USERS_COLLECTION, userId);
+      await updateDoc(userRef, {
+        activeChatId: activeChatId || null,
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to update active chat ID:', error);
     }
   }
 

@@ -32,11 +32,7 @@ export const ContactPicker: React.FC<ContactPickerProps> = ({
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = React.useState('');
 
-  // Debug: log contacts
-  React.useEffect(() => {
-    console.log('📋 ContactPicker: contacts count =', contacts.length);
-    console.log('📋 ContactPicker: mode =', mode);
-  }, [contacts, mode]);
+  // Removed debug logs for cleaner console
 
   const filteredContacts = React.useMemo(() => {
     if (!searchQuery.trim()) return contacts;

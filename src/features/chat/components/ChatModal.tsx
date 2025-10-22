@@ -84,8 +84,19 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Reset scroll flag when opening chat
       hasScrolledInitially.current = false;
       
-      // Set active chat ID for notification routing
+      // Set active chat ID for notification routing (in Zustand store)
       setActiveChatId(chatId);
+      
+      // Save active chat ID to Firestore (for push notification filtering)
+      const updateActiveChatInFirestore = async () => {
+        try {
+          const { UserService } = await import('@/services/firebase');
+          await UserService.updateActiveChatId(user.id, chatId);
+        } catch (error) {
+          console.error('Failed to update active chat ID in Firestore:', error);
+        }
+      };
+      updateActiveChatInFirestore();
       
       // PRD Flow: Load from SQLite FIRST (instant <100ms), then sync from Firebase in background
       const loadMessages = async () => {
@@ -106,12 +117,36 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     } else if (!visible) {
       // Clear active chat ID when modal closes
       setActiveChatId(null);
+      
+      // Clear active chat ID in Firestore
+      if (user?.id) {
+        const clearActiveChatInFirestore = async () => {
+          try {
+            const { UserService } = await import('@/services/firebase');
+            await UserService.updateActiveChatId(user.id, null);
+          } catch (error) {
+            console.error('Failed to clear active chat ID in Firestore:', error);
+          }
+        };
+        clearActiveChatInFirestore();
+      }
     }
     
     return () => {
       // Clear active chat ID on unmount
-      if (visible) {
+      if (visible && user?.id) {
         setActiveChatId(null);
+        
+        // Clear active chat ID in Firestore
+        const clearActiveChatInFirestore = async () => {
+          try {
+            const { UserService } = await import('@/services/firebase');
+            await UserService.updateActiveChatId(user.id, null);
+          } catch (error) {
+            console.error('Failed to clear active chat ID in Firestore:', error);
+          }
+        };
+        clearActiveChatInFirestore();
       }
     };
     // Note: Don't clear messages on cleanup - keep them for quick reopening

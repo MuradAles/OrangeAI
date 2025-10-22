@@ -1,8 +1,14 @@
 # Progress Tracker
 
-## Current Status: **Phase 1, 2, 3 Key Features & 4 Core Complete! + Navigation & Notifications Fixed!**
+## Current Status: **Phase 1, 2, 3 Key Features & 4 Core Complete! + Read Receipts & Notifications Fixed!**
 
 **Overall Progress:** ~67% complete (46 of 69 main tasks)
+
+### Latest Fixes (This Session) ✅
+- **Read Receipt System Overhaul:** Fetch real message status from message document (not chat metadata)
+- **Checkmark Display:** Chat list shows accurate sent ✓ / delivered ✓✓ / read 💙✓✓ status
+- **Unread Count Fix:** Optimistic updates preserved, no more race conditions
+- **Push Notifications:** Only sent to offline users (online users get in-app notifications)
 
 ---
 
@@ -543,9 +549,66 @@ All 12 tasks from Phase 1 are complete:
 ---
 
 ## 📋 Phase 5: Polish & Deploy (Days 6-7)
-**Status:** Not Started
+**Status:** In Progress (Push Notifications & Offline Queue Complete!)
 
-0 of 18 tasks completed
+6 of 18 tasks completed
+
+### Task 5.1: Dependencies for Push Notifications ✅
+- [x] Already had expo-notifications installed
+- [x] Already had expo-device installed
+- [x] Already had @react-native-community/netinfo installed
+- [x] Notification plugin configured in app.json
+
+### Task 5.2: Firebase Cloud Messaging Service ✅
+- [x] Created MessagingService with full FCM support
+- [x] Request notification permissions (requestPermissions)
+- [x] Get FCM token (getFCMToken)
+- [x] Save FCM token to Firestore
+- [x] Notification listeners (foreground & tap handling)
+- [x] Badge count management
+- [x] Android notification channels
+- [x] Local notification scheduling (for testing)
+- [x] Cleanup on logout
+
+### Task 5.3: Push Notification Types ✅
+- [x] Created NotificationHelper with formatters:
+  - formatMessageNotification (text messages)
+  - formatImageNotification (image messages with captions)
+  - formatFriendRequestNotification
+  - formatFriendAcceptedNotification
+  - formatGroupInviteNotification
+  - formatAdminPromotedNotification
+- [x] Get notification route for deep linking
+- [x] Parse notification data
+
+### Task 5.4: Offline Support - Network Detection ✅
+- [x] Created useNetworkStatus hook
+- [x] Detects online/offline state with NetInfo
+- [x] Auto-processes message queue when connection restored
+- [x] Provides connection type and quality info
+- [x] Created OfflineBanner component
+- [x] Slides down from top when offline
+- [x] Slides up when back online
+- [x] Warning icon and message
+
+### Task 5.5: Offline Message Queue ✅
+- [x] Created MessageQueue system
+- [x] FIFO processing (first sent, first uploaded)
+- [x] Auto-retry up to 3 times per message
+- [x] Persistent queue in SQLite
+- [x] Background processing when online
+- [x] Manual retry for failed messages
+- [x] Get pending/failed counts
+- [x] Clear failed messages
+
+### Task 5.6: Integration ✅
+- [x] Updated root layout to:
+  - Initialize notifications on app start
+  - Register FCM token when user logs in
+  - Cleanup on logout
+  - Render OfflineBanner
+- [x] ChatStore already has in-app notification triggers
+- [x] useNotifications hook manages all notification state
 
 ---
 
