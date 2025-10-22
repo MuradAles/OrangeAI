@@ -77,8 +77,11 @@ service cloud.firestore {
         // - Any authenticated user can update (for incrementing unread counts)
         allow update: if isSignedIn();
         
-        // No deletes
-        allow delete: if false;
+        // Allow deleting own participant document (for leaving group)
+        // OR allow admin to delete others (for removing members)
+        allow delete: if isSignedIn() && 
+          (request.auth.uid == participantId ||
+           request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.groupAdminId);
       }
       
       // Messages subcollection

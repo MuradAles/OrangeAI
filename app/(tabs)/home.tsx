@@ -27,6 +27,8 @@ export default function HomeScreen() {
     getUserProfile,
     loadUserProfile,
   } = useChatStore();
+  
+  const chatsVersion = useChatStore(state => state.chatsVersion); // Subscribe to version for reactivity
 
   const { subscribeToUser } = usePresenceStore();
   const presenceMap = usePresenceStore(state => state.presenceMap);
@@ -301,7 +303,7 @@ export default function HomeScreen() {
           data={chatsWithMessages}
           renderItem={renderChatItem}
           keyExtractor={(item) => item.id}
-          extraData={presenceVersion}
+          extraData={[presenceVersion, chatsVersion]}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl

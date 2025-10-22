@@ -210,6 +210,8 @@ export const ChatListItem = React.memo(({
     prevProps.chat.lastMessageText === nextProps.chat.lastMessageText &&
     prevProps.chat.unreadCount === nextProps.chat.unreadCount &&
     prevProps.chat.lastMessageStatus === nextProps.chat.lastMessageStatus &&
+    prevProps.chat.groupName === nextProps.chat.groupName &&
+    prevProps.chat.groupIcon === nextProps.chat.groupIcon &&
     prevProps.otherUserName === nextProps.otherUserName &&
     prevProps.isOnline === nextProps.isOnline
   );
