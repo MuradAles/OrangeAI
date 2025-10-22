@@ -43,16 +43,16 @@
 
 ### Authentication
 - **Email/Password:** Requires email verification before access
-- **Google Sign-In:** Auto-populate profile from Google account
-- **Username:** User creates their own unique username with real-time availability check
-- **Profile:** Display name, username, profile picture, optional phone number
+- **Username:** User creates their own unique username with real-time availability check (lowercase, 3-20 chars)
+- **Profile:** Display name (permanent), username (permanent), profile picture, bio
+- **Note:** Display name and username are set once during sign-up and cannot be changed
 
 ### Profile Pictures
-- **Google users:** Use Google profile picture if available
-- **No picture:** Generate colored circle with first letter of display name
+- **Default:** Generate colored circle with first letter of display name
   - Random background color (from preset palette)
   - White text (first letter)
-- **Custom upload:** User can upload their own image anytime
+- **Custom upload:** User can upload/change their profile picture anytime
+- **Editable:** Profile picture and bio can be edited after account creation
 
 ### Contacts
 
@@ -62,18 +62,10 @@
 3. Recipient accepts request
 4. Both become contacts, can chat
 
-**Personal Invite Links:**
-1. Every user has link: `messageai.app/user/[username]`
-2. Share link with anyone
-3. Recipient clicks → Opens app → Views profile
-4. Recipient sends friend request
-5. User accepts request
-6. Now contacts, can chat
-
 **Additional Features:**
 - Contact list with online/offline status
-- Block users (deletes chat for both users, blocks all communication)
 - Real-time username availability check
+- Add friends to groups from friend list
 
 ### One-on-One Chat
 - Send/receive text messages (max 4,096 characters)
@@ -92,14 +84,15 @@
 ### Group Chat
 - Create group: Name (required), icon (optional), description (optional)
 - **2 roles only:**
-  - **Admin (1 person):** Add/remove members, edit group settings, generate invite links
+  - **Admin (1 person):** Add/remove members, edit group settings
   - **Members:** Send messages, leave group
 - Admin transitions: If admin leaves → Oldest member becomes admin
 - If admin leaves and no members → Group auto-deleted
-- **Group invite links:**
-  - Permanent (never expire)
-  - Public (anyone with link can join instantly, no approval)
-  - Shareable via any app
+- **Member Management:**
+  - Admin can add friends from friend list
+  - Friends already in group shown grayed out (cannot select)
+  - Admin can remove members
+  - All members can leave group
 - Group features: Same as one-on-one (messages, images, reactions, status)
 - **Read receipts in groups:** Message turns blue when FIRST person reads it
 
@@ -107,9 +100,10 @@
 
 **Core Concept:**
 - **Virtual scrolling:** Only render ~40 messages in RAM at any time
-- **Start position:** Always open at last read message (where you left off)
+- **Start position:** Always open at last read position (where you left off)
+- **No visual separator:** Chat opens at last position, user scrolls naturally to see new messages
 - **Lazy loading:** Load 50 messages at a time as you scroll
-- **Adaptive sync:** Download new messages in batches based on count
+- **Adaptive sync:** Download new messages in batches based on count (console logs only, no UI indicator)
 
 **Render in RAM:** 40 messages (visible + buffer)
 **Load per scroll:** 50 messages
@@ -191,12 +185,11 @@
 
 **`/users/{userId}`**
 ```
-username (unique, lowercase)
-displayName
+username (unique, lowercase, permanent)
+displayName (permanent after creation)
 email
-profilePictureUrl (null if none)
-phoneNumber (null if none)
-phoneNumberVisible (boolean)
+bio (editable)
+profilePictureUrl (editable, null if none)
 isOnline (boolean)
 lastSeen (timestamp)
 createdAt (timestamp)
@@ -217,7 +210,7 @@ groupName
 groupIcon (Firebase Storage URL)
 groupDescription
 groupAdminId (userId of current admin)
-inviteCode (for invite links)
+inviteCode (backend only, no UI for sharing)
 ```
 
 **`/chats/{chatId}/messages/{messageId}`**
@@ -256,14 +249,9 @@ unreadCount (number)
 ```
 fromUserId
 toUserId
-status ("pending" | "accepted" | "ignored" | "blocked")
+status ("pending" | "accepted" | "ignored")
 createdAt (timestamp)
 respondedAt (timestamp, null if pending)
-```
-
-**`/users/{userId}/blockedUsers/{blockedUserId}`**
-```
-blockedAt (timestamp)
 ```
 
 **`/chats/{chatId}/typing/{userId}`**
@@ -288,6 +276,7 @@ CREATE TABLE users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE,
   displayName TEXT,
+  bio TEXT,
   profilePictureUrl TEXT,
   isOnline INTEGER,
   lastSeen INTEGER
@@ -375,13 +364,13 @@ CREATE TABLE friend_requests (
 7. If chat open: Mark as read, send read receipt to Firestore
 
 ### Open Existing Chat Flow
-1. Query Firestore for `lastReadMessageId`
+1. Query SQLite for `lastReadMessageId` and `scrollYPosition`
 2. Load from SQLite: Messages around last read position (what exists)
 3. Display instantly (<100ms)
-4. Scroll to last read message
-5. Show unread separator if applicable
-6. Background: Query Firestore for new messages after last cached
-7. Download in batches, save to SQLite
+4. Scroll to exact last read position (no visual separator)
+5. Background: Query Firestore for new messages after last cached
+6. Download in batches with console logs (no UI indicator)
+7. Save to SQLite as batches arrive
 8. Start real-time listener for new messages
 
 ### Open New Chat Flow (First Time)
@@ -423,16 +412,6 @@ CREATE TABLE friend_requests (
 9. Update status as they upload
 10. Download any new messages received while offline
 11. Update UI
-
-### Block User Flow
-1. User taps "Block [Name]"
-2. Confirmation dialog
-3. On confirm:
-   - Add to `/users/{userId}/blockedUsers/{blockedUserId}`
-   - Delete chat from Firestore (for both users)
-   - Delete chat from both users' SQLite
-   - Chat disappears for both people
-   - Blocked user can't send new friend requests or messages
 
 ---
 
@@ -511,7 +490,7 @@ firestore()
 - **Profile pictures:** Next to received messages
 - **Grouped messages:** Same sender within 1 minute
 - **Date separators:** "Today", "Yesterday", "March 15, 2025"
-- **Unread separator:** "━━━ Unread Messages ━━━"
+- **Last read position:** Chat opens at exact scroll position where user left off
 
 ### Status Indicators
 - ⏱️ **Sending:** Clock icon, gray
@@ -563,13 +542,18 @@ firestore()
 - ❌ Disappearing messages
 - ❌ End-to-end encryption
 - ❌ Moderator role (only Admin + Members)
-- ❌ Group link expiration/limits
+- ❌ Group invite link sharing UI (backend exists, no UI)
+- ❌ Personal invite links (user profile sharing)
+- ❌ Block users (removed from MVP)
+- ❌ Phone number in profiles
+- ❌ Edit display name or username after creation
+- ❌ Unread message separator line (opens at last position instead)
 - ❌ Read receipt privacy controls
 - ❌ Hide online status option
 - ❌ Disable typing indicators
 - ❌ Stories / Status updates
 - ❌ Chat wallpapers
-- ❌ Custom themes
+- ❌ Custom themes (light/dark only)
 - ❌ Multi-device support
 - ❌ Web/Desktop app
 - ❌ Chat backup to cloud
