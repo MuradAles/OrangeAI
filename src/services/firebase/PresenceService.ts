@@ -138,6 +138,11 @@ export class PresenceService {
    * Called when app comes to foreground
    */
   static async setOnline(userId: string, userName: string): Promise<void> {
+    if (!userId) {
+      console.error('❌ Firebase: Cannot set online - userId is undefined');
+      return;
+    }
+    
     try {
       console.log('🔥 Firebase: Setting ONLINE for', userId.substring(0, 8));
       const presenceRef = ref(database, `presence/${userId}`);
@@ -169,6 +174,11 @@ export class PresenceService {
    * Called when app goes to background or user logs out
    */
   static async setOffline(userId: string, userName: string): Promise<void> {
+    if (!userId) {
+      console.error('❌ Firebase: Cannot set offline - userId is undefined');
+      return;
+    }
+    
     try {
       console.log('🔥 Firebase: Setting OFFLINE for', userId.substring(0, 8));
       const presenceRef = ref(database, `presence/${userId}`);
@@ -202,6 +212,12 @@ export class PresenceService {
     onUpdate: (presence: UserPresence | null) => void,
     onError: (error: Error) => void
   ): Unsubscribe {
+    if (!userId) {
+      console.error('❌ Firebase: Cannot subscribe to presence - userId is undefined');
+      // Return a no-op unsubscribe function
+      return () => {};
+    }
+    
     console.log('🔥 Firebase: Creating presence subscription for', userId.substring(0, 8));
     const presenceRef = ref(database, `presence/${userId}`);
 
@@ -210,7 +226,7 @@ export class PresenceService {
       (snapshot) => {
         try {
           const data = snapshot.val();
-          console.log('🔥 Firebase: Received presence data for', userId.substring(0, 8), ':', data);
+          console.log('🔥 Firebase: Received presence data for', userId?.substring(0, 8) || 'unknown', ':', data);
           
           if (data) {
             onUpdate({
@@ -220,7 +236,7 @@ export class PresenceService {
             });
           } else {
             // No presence data - user is offline
-            console.log('⚠️ Firebase: No presence data for', userId.substring(0, 8), '- marking offline');
+            console.log('⚠️ Firebase: No presence data for', userId?.substring(0, 8) || 'unknown', '- marking offline');
             onUpdate(null);
           }
         } catch (error) {

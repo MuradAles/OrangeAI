@@ -25,6 +25,7 @@ interface ChatState {
   isLoadingChats: boolean;
   isLoadingMessages: boolean;
   error: string | null;
+  chatsVersion: number; // Version counter to force re-renders when chats update
   
   // User profiles cache (for displaying names/avatars in chat list)
   userProfiles: Map<string, User>;
@@ -71,6 +72,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingChats: false,
   isLoadingMessages: false,
   error: null,
+  chatsVersion: 0,
   userProfiles: new Map(),
   chatsUnsubscribe: null,
   messagesUnsubscribe: null,
@@ -78,8 +80,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Load chats from SQLite (instant, for initial display)
   loadChatsFromSQLite: async (userId: string) => {
     try {
+      console.log('📦 Loading chats from SQLite for user:', userId);
       set({ isLoadingChats: true, error: null });
       const chatRows = await SQLiteService.getChats(userId);
+      console.log('📦 SQLite returned', chatRows.length, 'chats');
       
       // Helper function to safely parse participants
       const parseParticipants = (participantsStr: string | any): string[] => {
@@ -202,18 +206,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
       async (chats) => {
         // Silently process chat updates
         
-        // Load unread counts for each chat BEFORE updating state
+        // Filter out chats where user is no longer a participant (removed from group)
+        const validChats = chats.filter(chat => chat.participants.includes(userId));
+        
+        // If any chats were filtered out, clean them from SQLite
+        const removedChats = chats.filter(chat => !chat.participants.includes(userId));
+        if (removedChats.length > 0) {
+          console.log(`🧹 Cleaning ${removedChats.length} chats where user is no longer a participant`);
+          for (const chat of removedChats) {
+            try {
+              await SQLiteService.deleteMessagesByChatId(chat.id);
+              await SQLiteService.deleteChatById(chat.id);
+              console.log(`✅ Cleaned chat ${chat.id} from SQLite`);
+            } catch (error) {
+              console.error(`Failed to clean chat ${chat.id}:`, error);
+            }
+          }
+        }
+        
+        // Load unread counts for each VALID chat BEFORE updating state
         try {
           // Longer delay to ensure participant documents are updated
           await new Promise(resolve => setTimeout(resolve, 300));
           
-          // Get current local state to preserve optimistic updates
-          const currentChats = get().chats;
+          // Get active chat ID to check if user is viewing a chat
           const activeChatId = get().activeChatId;
           
           // Load unread counts in parallel and create new chat objects
           const chatsWithUnreadCounts = await Promise.all(
-            chats.map(async (chat) => {
+            validChats.map(async (chat) => {
               // Fetch the actual unread count from Firestore first
               let participantData = await ChatService.getParticipant(chat.id, userId);
               let unreadCount = participantData?.unreadCount || 0;
@@ -254,6 +275,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
               
               // 🔔 CHECK FOR NEW MESSAGES: Compare with previous state
               const previousChat = previousChats.get(chat.id);
+              
+              // If this is the first time seeing this chat, initialize previousChats
+              // This prevents treating ALL old messages as "new" when user rejoins
+              if (!previousChat) {
+                previousChats.set(chat.id, {
+                  lastMessageTime: chat.lastMessageTime,
+                  lastMessageText: chat.lastMessageText || '',
+                });
+              }
+              
               const isNewMessage = previousChat && (
                 chat.lastMessageTime > previousChat.lastMessageTime ||
                 chat.lastMessageText !== previousChat.lastMessageText
@@ -264,42 +295,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   chat.lastMessageSenderId !== userId && 
                   get().activeChatId !== chat.id) {
                 
-                // Trigger notification
+                // Check if message was sent AFTER user joined (to avoid notifications for old messages)
                 try {
-                  const { triggerInAppNotification } = await import('@/services/NotificationHelper');
+                  const participantData = await ChatService.getParticipant(chat.id, userId);
+                  const userJoinedAt = participantData?.joinedAt 
+                    ? (typeof participantData.joinedAt === 'number' 
+                        ? participantData.joinedAt 
+                        : (participantData.joinedAt as any)?.toMillis?.() || 0)
+                    : 0;
                   
-                  // Get sender profile (may already be cached)
-                  let sender = get().getUserProfile(chat.lastMessageSenderId);
-                  
-                  // If not cached, try to load it
-                  if (!sender) {
-                    sender = await get().loadUserProfile(chat.lastMessageSenderId);
+                  // Only notify if message was sent AFTER user joined
+                  // This prevents notifications for old messages when user rejoins group
+                  if (userJoinedAt === 0 || chat.lastMessageTime > userJoinedAt) {
+                    const { triggerInAppNotification } = await import('@/services/NotificationHelper');
+                    
+                    // Get sender profile (may already be cached)
+                    let sender = get().getUserProfile(chat.lastMessageSenderId);
+                    
+                    // If not cached, try to load it
+                    if (!sender) {
+                      sender = await get().loadUserProfile(chat.lastMessageSenderId);
+                    }
+                    
+                    triggerInAppNotification({
+                      id: `${chat.id}_${chat.lastMessageTime}`,
+                      senderName: sender?.displayName || chat.groupName || 'Someone',
+                      messageText: chat.lastMessageText || '',
+                      senderAvatar: sender?.profilePictureUrl || chat.groupIcon || undefined,
+                      chatId: chat.id,
+                      isImage: false, // We don't know from chat list, assume text
+                    });
+                  } else {
+                    console.log(`⏭️ Skipping chat list notification for old message (sent before user joined)`);
                   }
-                  
-                  triggerInAppNotification({
-                    id: `${chat.id}_${chat.lastMessageTime}`,
-                    senderName: sender?.displayName || chat.groupName || 'Someone',
-                    messageText: chat.lastMessageText || '',
-                    senderAvatar: sender?.profilePictureUrl || chat.groupIcon,
-                    chatId: chat.id,
-                    isImage: false, // We don't know from chat list, assume text
-                  });
                 } catch (error) {
                   console.error('Error triggering notification from chat list:', error);
                 }
               }
               
-              // Update previous chats map
-              previousChats.set(chat.id, {
-                lastMessageTime: chat.lastMessageTime,
-                lastMessageText: chat.lastMessageText || '',
-              });
+              // Update previous chats map (only if we checked for new messages)
+              if (previousChat) {
+                previousChats.set(chat.id, {
+                  lastMessageTime: chat.lastMessageTime,
+                  lastMessageText: chat.lastMessageText || '',
+                });
+              }
               
               // Return new chat object with unread count and REAL message status
               return {
                 ...chat,
                 unreadCount,
                 lastMessageStatus: realStatus, // Use real status from actual message document
+                lastMessageSenderId: chat.lastMessageSenderId || '', // Ensure string not null
               };
             })
           );
@@ -307,7 +354,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // Chats loaded with unread counts
           
           // Now update state with new chat objects including unread counts
-          set({ chats: chatsWithUnreadCounts }); // New array with new objects
+          // Increment version to force re-renders
+          set(state => ({ 
+            chats: chatsWithUnreadCounts,
+            chatsVersion: state.chatsVersion + 1
+          }));
           
           // Load user profiles for all chat participants (wait for them to load)
           const loadUserProfile = get().loadUserProfile;
@@ -322,7 +373,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // Wait for all profiles to load before continuing
           await Promise.all(profileLoadPromises);
           
-          // Sync to SQLite (background task)
+          // Sync to SQLite (background task, non-blocking)
           for (const chat of chatsWithUnreadCounts) {
             const chatRow = {
               id: chat.id,
@@ -331,8 +382,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               lastMessageText: chat.lastMessageText,
               lastMessageTime: typeof chat.lastMessageTime === 'number' 
                 ? chat.lastMessageTime 
-                : (chat.lastMessageTime instanceof Date ? chat.lastMessageTime.getTime() : 0),
-              lastMessageSenderId: chat.lastMessageSenderId,
+                : 0,
+              lastMessageSenderId: chat.lastMessageSenderId || '',
               lastMessageStatus: chat.lastMessageStatus || null,
               unreadCount: chat.unreadCount || 0,
               groupName: chat.groupName || null,
@@ -342,15 +393,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
               inviteCode: chat.inviteCode || null,
               createdAt: typeof chat.createdAt === 'number' 
                 ? chat.createdAt 
-                : (chat.createdAt instanceof Date ? chat.createdAt.getTime() : 0),
-              createdBy: chat.createdBy,
+                : 0,
+              createdBy: chat.createdBy || '',
             };
-            await SQLiteService.saveChat(chatRow);
+            // Non-blocking save, ignore errors
+            SQLiteService.saveChat(chatRow).catch(() => {});
           }
         } catch (error) {
           console.error('Error loading unread counts or syncing to SQLite:', error);
           // Still update state even if some operations fail (without unread counts)
-          set({ chats: chats.map(chat => ({ ...chat, unreadCount: 0 })) });
+          set(state => ({ 
+            chats: validChats.map(chat => ({ ...chat, unreadCount: 0 })),
+            chatsVersion: state.chatsVersion + 1
+          }));
         }
       },
       (error) => {
@@ -482,8 +537,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   return chat;
                 });
                 set({ chats: updatedChats });
-              } catch (error) {
-                console.error('Error marking message as read:', error);
+              } catch (error: any) {
+                // Silently ignore permission errors (user was removed from group)
+                if (error?.code !== 'permission-denied' && error?.message?.includes?.('Missing or insufficient permissions') === false) {
+                  console.error('Error marking message as read:', error);
+                }
               }
             } 
             // If user is NOT actively viewing this chat but received the message:
@@ -492,26 +550,46 @@ export const useChatStore = create<ChatState>((set, get) => ({
               try {
                 await MessageService.updateMessageStatus(chatId, msg.id, 'delivered');
                 msg.status = 'delivered'; // Update local copy
-              } catch (error) {
-                console.error('Error marking message as delivered:', error);
+              } catch (error: any) {
+                // Silently ignore permission errors (user was removed from group)
+                if (error?.code !== 'permission-denied' && error?.message?.includes?.('Missing or insufficient permissions') === false) {
+                  console.error('Error marking message as delivered:', error);
+                }
               }
             }
 
             // 🔔 Trigger in-app notification if message is from someone else AND not actively viewing this chat
+            // AND message was sent AFTER user joined (to avoid notifications for old messages when rejoining)
             if (currentUserId && msg.senderId !== currentUserId && activeChatId !== chatId) {
               try {
-                const { triggerInAppNotification } = await import('@/services/NotificationHelper');
-                const sender = get().getUserProfile(msg.senderId);
+                // Fetch user's CURRENT joinedAt for THIS chat to check if message is new
+                const participantData = await ChatService.getParticipant(chatId, currentUserId);
+                const userJoinedAt = participantData?.joinedAt || 0;
                 
-                // Trigger direct in-app notification (works on emulator!)
-                triggerInAppNotification({
-                  id: msg.id,
-                  senderName: sender?.displayName || 'Someone',
-                  messageText: msg.text || '',
-                  senderAvatar: sender?.profilePictureUrl,
-                  chatId,
-                  isImage: msg.type === 'image',
-                });
+                const messageTimestamp = typeof msg.timestamp === 'number' 
+                  ? msg.timestamp 
+                  : (msg.timestamp as any)?.getTime?.() || Date.now();
+                
+                console.log(`🔔 Notification check: msg ${new Date(messageTimestamp).toISOString()} vs joined ${userJoinedAt ? new Date(userJoinedAt).toISOString() : 'never'}`);
+                
+                // Only notify if message was sent AFTER user joined the group
+                // This prevents notifications for old messages when user rejoins
+                if (userJoinedAt === 0 || messageTimestamp > userJoinedAt) {
+                  const { triggerInAppNotification } = await import('@/services/NotificationHelper');
+                  const sender = get().getUserProfile(msg.senderId);
+                  
+                  // Trigger direct in-app notification (works on emulator!)
+                  triggerInAppNotification({
+                    id: msg.id,
+                    senderName: sender?.displayName || 'Someone',
+                    messageText: msg.text || '',
+                    senderAvatar: sender?.profilePictureUrl || undefined,
+                    chatId,
+                    isImage: msg.type === 'image',
+                  });
+                } else {
+                  console.log(`⏭️ Skipping notification for old message (sent ${new Date(messageTimestamp).toISOString()} before user joined ${new Date(userJoinedAt).toISOString()})`);
+                }
               } catch (error) {
                 console.error('Error triggering notification:', error);
               }
@@ -531,31 +609,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         set({ messages: updatedMessages });
         
-        // Sync new/updated messages to SQLite for offline access
-        try {
-          for (const message of newMessages) {
-            const messageRow: any = {
-              id: message.id,
-              chatId: message.chatId,
-              senderId: message.senderId,
-              text: message.text,
-              timestamp: typeof message.timestamp === 'number' 
-                ? message.timestamp 
-                : (message.timestamp as any).getTime?.() || Date.now(),
-              status: message.status,
-              type: message.type,
-              imageUrl: message.imageUrl,
-              thumbnailUrl: message.thumbnailUrl,
-              caption: message.caption,
-              reactions: JSON.stringify(message.reactions || {}),
-              deletedForMe: 0,
-              deletedForEveryone: message.deletedForEveryone ? 1 : 0,
-              syncStatus: 'synced',
-            };
-            await SQLiteService.saveMessage(messageRow);
-          }
-        } catch (error) {
-          console.error('Error syncing messages to SQLite:', error);
+        // Sync new/updated messages to SQLite for offline access (non-blocking)
+        for (const message of newMessages) {
+          const messageRow: any = {
+            id: message.id,
+            chatId: message.chatId,
+            senderId: message.senderId,
+            text: message.text,
+        timestamp: typeof message.timestamp === 'number' 
+          ? message.timestamp 
+          : Date.now(),
+        status: message.status,
+        type: message.type,
+        imageUrl: message.imageUrl || null,
+        thumbnailUrl: message.thumbnailUrl || null,
+        caption: message.caption || null,
+            reactions: JSON.stringify(message.reactions || {}),
+            deletedForMe: 0,
+            deletedForEveryone: message.deletedForEveryone ? 1 : 0,
+            syncStatus: 'synced',
+          };
+          // Non-blocking save, ignore errors
+          SQLiteService.saveMessage(messageRow).catch(() => {});
         }
       },
       (error) => {
@@ -616,7 +691,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         deletedForEveryone: 0,
         syncStatus: optimisticMessage.syncStatus,
       };
-      await SQLiteService.saveMessage(messageRow);
+      // Non-blocking save, ignore errors
+      SQLiteService.saveMessage(messageRow).catch(() => {});
 
       // Upload to Firestore in background with the same ID
       try {
@@ -679,7 +755,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           deletedForEveryone: 0,
           syncStatus: failedMessage.syncStatus,
         };
-        await SQLiteService.saveMessage(failedRow);
+        // Non-blocking save, ignore errors
+        SQLiteService.saveMessage(failedRow).catch(() => {});
         
         throw uploadError;
       }
@@ -738,7 +815,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         deletedForEveryone: 0,
         syncStatus: optimisticMessage.syncStatus,
       };
-      await SQLiteService.saveMessage(messageRow);
+      // Non-blocking save, ignore errors
+      SQLiteService.saveMessage(messageRow).catch(() => {});
 
       // Upload image to Storage in background
       try {
@@ -792,7 +870,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           thumbnailUrl,
           syncStatus: 'synced',
         };
-        await SQLiteService.saveMessage(syncedRow);
+        // Non-blocking save, ignore errors
+        SQLiteService.saveMessage(syncedRow).catch(() => {});
         
       } catch (uploadError) {
         console.error('❌ Error uploading image:', uploadError);
@@ -816,7 +895,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...messageRow,
           syncStatus: 'failed',
         };
-        await SQLiteService.saveMessage(failedRow);
+        // Non-blocking save, ignore errors
+        SQLiteService.saveMessage(failedRow).catch(() => {});
         
         throw uploadError;
       }
@@ -832,12 +912,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await MessageService.updateMessageStatus(chatId, messageId, status);
       
-      // Update in SQLite
-      const message = await SQLiteService.getMessageById(messageId);
-      if (message) {
-        const updatedMessage = { ...message, status };
-        await SQLiteService.saveMessage(updatedMessage);
-      }
+      // Update in SQLite (non-blocking)
+      SQLiteService.getMessageById(messageId).then(message => {
+        if (message) {
+          const updatedMessage = { ...message, status };
+          SQLiteService.saveMessage(updatedMessage).catch(() => {});
+        }
+      }).catch(() => {});
     } catch (error) {
       console.error('Error updating message status:', error);
     }
@@ -870,15 +951,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await MessageService.deleteMessageForEveryone(chatId, messageId);
       
-      // Update in SQLite
-      const messageRow = await SQLiteService.getMessageById(messageId);
-      if (messageRow) {
-        const updatedRow = { 
-          ...messageRow, 
-          deletedForEveryone: 1, // SQLite uses 1 for true
-        };
-        await SQLiteService.saveMessage(updatedRow);
-      }
+      // Update in SQLite (non-blocking)
+      SQLiteService.getMessageById(messageId).then(messageRow => {
+        if (messageRow) {
+          const updatedRow = { 
+            ...messageRow, 
+            deletedForEveryone: 1, // SQLite uses 1 for true
+          };
+          SQLiteService.saveMessage(updatedRow).catch(() => {});
+        }
+      }).catch(() => {});
       
       // Update in state
       const { messages } = get();
@@ -1016,15 +1098,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
       set({ chats: updatedChats });
       
-      // Update in SQLite
-      const chatRow = await SQLiteService.getChatById(chatId);
-      if (chatRow) {
-        await SQLiteService.saveChat({
-          ...chatRow,
-          unreadCount: 0,
-          lastMessageStatus: (lastMessage && lastMessage.senderId !== userId) ? 'read' : chatRow.lastMessageStatus,
-        });
-      }
+      // Update in SQLite (non-blocking)
+      SQLiteService.getChatById(chatId).then(chatRow => {
+        if (chatRow) {
+          SQLiteService.saveChat({
+            ...chatRow,
+            unreadCount: 0,
+            lastMessageStatus: (lastMessage && lastMessage.senderId !== userId) ? 'read' : chatRow.lastMessageStatus,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
       
       // Chat marked as read
     } catch (error) {
@@ -1101,8 +1184,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             updatedProfiles.set(userId, firestoreProfile);
             set({ userProfiles: updatedProfiles });
             
-            // Save to SQLite (convert Date to timestamp)
-            await SQLiteService.saveUser({
+            // Save to SQLite (convert Date to timestamp) - non-blocking, ignore errors
+            SQLiteService.saveUser({
               id: firestoreProfile.id,
               username: firestoreProfile.username,
               displayName: firestoreProfile.displayName,
@@ -1114,6 +1197,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               createdAt: typeof firestoreProfile.createdAt === 'number' 
                 ? firestoreProfile.createdAt 
                 : (firestoreProfile.createdAt as any).getTime?.() || Date.now(),
+            }).catch(() => {
+              // Ignore SQLite errors (database locked, etc.) - profile is already in memory
             });
           }
         }).catch(err => console.error('Error updating profile from Firestore:', err));
@@ -1129,8 +1214,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         newProfiles.set(userId, profile);
         set({ userProfiles: newProfiles });
         
-        // Save to SQLite for offline access (convert Date to timestamp)
-        await SQLiteService.saveUser({
+        // Save to SQLite for offline access (non-blocking, ignore errors)
+        SQLiteService.saveUser({
           id: profile.id,
           username: profile.username,
           displayName: profile.displayName,
@@ -1142,6 +1227,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           createdAt: typeof profile.createdAt === 'number' 
             ? profile.createdAt 
             : (profile.createdAt as any).getTime?.() || Date.now(),
+        }).catch(() => {
+          // Ignore SQLite errors (database locked, etc.) - profile is already in memory
         });
         
         return profile;

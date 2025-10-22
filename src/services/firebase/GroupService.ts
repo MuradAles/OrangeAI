@@ -11,12 +11,15 @@
 import { Chat, ChatParticipant, UpdateGroupData } from '@/shared/types';
 import { generateInviteCode } from '@/shared/utils';
 import {
+    arrayRemove,
+    arrayUnion,
     collection,
     doc,
     getDoc,
     getDocs,
     query,
     serverTimestamp,
+    Timestamp,
     updateDoc,
     where,
     writeBatch
@@ -180,7 +183,11 @@ export class GroupService {
     try {
       const chatRef = doc(firestore, 'chats', groupId);
       
-      const updateData: any = {};
+      const updateData: any = {
+        // Update metadata timestamp (NOT lastMessageTime - that's for messages only)
+        updatedAt: serverTimestamp(),
+      };
+      
       if (updates.groupName !== undefined) {
         updateData.groupName = updates.groupName.trim();
       }
@@ -208,9 +215,7 @@ export class GroupService {
     userId: string
   ): Promise<void> {
     try {
-      const batch = writeBatch(firestore);
-
-      // Add to participants array in chat document
+      // Check if group exists and if user is already a member
       const chatRef = doc(firestore, 'chats', groupId);
       const chatSnap = await getDoc(chatRef);
       
@@ -220,11 +225,16 @@ export class GroupService {
 
       const currentParticipants = chatSnap.data().participants || [];
       if (currentParticipants.includes(userId)) {
-        throw new Error('User is already a member');
+        console.log('⚠️ User already a member, skipping:', userId);
+        return; // Silently skip instead of throwing error
       }
 
+      const batch = writeBatch(firestore);
+
+      // Use arrayUnion to atomically add to participants array
+      // This prevents race conditions when adding multiple users concurrently
       batch.update(chatRef, {
-        participants: [...currentParticipants, userId],
+        participants: arrayUnion(userId),
       });
 
       // Create participant document
@@ -272,10 +282,9 @@ export class GroupService {
 
       const batch = writeBatch(firestore);
 
-      // Remove from participants array
-      const currentParticipants = groupData.participants || [];
+      // Use arrayRemove to atomically remove from participants array
       batch.update(chatRef, {
-        participants: currentParticipants.filter((id: string) => id !== userId),
+        participants: arrayRemove(userId),
       });
 
       // Delete participant document
@@ -320,10 +329,9 @@ export class GroupService {
 
       const batch = writeBatch(firestore);
 
-      // Remove from participants array
-      const updatedParticipants = currentParticipants.filter((id: string) => id !== userId);
+      // Use arrayRemove to atomically remove from participants array
       batch.update(chatRef, {
-        participants: updatedParticipants,
+        participants: arrayRemove(userId),
       });
 
       // Delete participant document
@@ -331,7 +339,7 @@ export class GroupService {
       batch.delete(participantRef);
 
       // If admin is leaving, transfer to oldest member
-      if (isAdmin && updatedParticipants.length > 0) {
+      if (isAdmin && currentParticipants.length > 1) {
         const newAdminId = await this.getOldestMember(groupId, userId);
         if (newAdminId) {
           batch.update(chatRef, {
@@ -368,19 +376,24 @@ export class GroupService {
       const participantsRef = collection(firestore, 'chats', groupId, 'participants');
       const participantsSnap = await getDocs(participantsRef);
 
-      let oldestMember: { userId: string; joinedAt: number } | null = null;
+      let oldestUserId: string | null = null;
+      let oldestJoinedAt: number = Number.MAX_VALUE;
 
-      participantsSnap.forEach((doc) => {
-        const data = doc.data();
-        if (data.userId === excludeUserId) return; // Skip the leaving user
+      participantsSnap.docs.forEach((participantDoc) => {
+        const data = participantDoc.data();
+        const userId = data.userId as string;
+        const timestamp = data.joinedAt as Timestamp;
+        
+        if (userId === excludeUserId) return; // Skip the leaving user
 
-        const joinedAt = data.joinedAt?.toMillis() || 0;
-        if (!oldestMember || joinedAt < oldestMember.joinedAt) {
-          oldestMember = { userId: data.userId, joinedAt };
+        const joinedAt = timestamp?.toMillis?.() || 0;
+        if (joinedAt < oldestJoinedAt) {
+          oldestUserId = userId;
+          oldestJoinedAt = joinedAt;
         }
       });
 
-      return oldestMember?.userId || null;
+      return oldestUserId;
     } catch (error) {
       console.error('❌ Failed to get oldest member:', error);
       return null;

@@ -10,7 +10,7 @@
 | # | Task | Priority | Time | Status |
 |---|------|----------|------|--------|
 | 1 | Physical Device Testing | **CRITICAL** | 30 min | ⏳ User doing |
-| 2 | Group Settings Screen | High | 4-5 hrs | 📋 TODO |
+| 2 | Group Settings Screen | High | 4-5 hrs | ✅ DONE |
 | 3 | Profile Tab Updates | High | 3-4 hrs | 📋 TODO |
 | 4 | Last Read Position | High | 2-3 hrs | 📋 TODO |
 | 5 | Message Retry UI | Medium | 2 hrs | 📋 TODO |
@@ -92,56 +92,56 @@
 
 ### Subtasks
 
-#### 2.1: Group Info Display (1 hour)
-- [ ] Display group name, description, icon
-- [ ] Show member count
-- [ ] Admin badge visible
-- [ ] "Edit" button (admin only)
+#### 2.1: Group Info Display (1 hour) ✅
+- [x] Display group name, description, icon
+- [x] Show member count
+- [x] Admin badge visible
+- [x] "Edit" button (admin only)
 
-#### 2.2: Edit Group Info (1 hour)
-- [ ] Admin can edit group name
-- [ ] Admin can edit group description
-- [ ] Admin can change group icon
-- [ ] Save changes to Firestore via `GroupService.updateGroupInfo()`
-- [ ] Update GroupStore state
-- [ ] Sync to SQLite
+#### 2.2: Edit Group Info (1 hour) ✅
+- [x] Admin can edit group name
+- [x] Admin can edit group description
+- [x] Admin can change group icon
+- [x] Save changes to Firestore via `GroupService.updateGroupInfo()`
+- [x] Update GroupStore state
+- [x] Sync to SQLite
 
-#### 2.3: Member List with Roles (1 hour)
-- [ ] Display all group members
-- [ ] Show profile pictures
-- [ ] Show display names
-- [ ] Show "Admin" badge for admin
-- [ ] Show online/offline status
-- [ ] Fetch from `GroupService.getGroupParticipants()`
+#### 2.3: Member List with Roles (1 hour) ✅
+- [x] Display all group members
+- [x] Show profile pictures
+- [x] Show display names
+- [x] Show "Admin" badge for admin
+- [x] Show online/offline status
+- [x] Fetch from `GroupService.getGroupParticipants()`
 
-#### 2.4: Add Members (1-1.5 hours)
-- [ ] "Add Member" button (admin only)
-- [ ] Opens modal with friend list
-- [ ] Show ALL friends from ContactStore
-- [ ] Gray out friends already in group (disabled)
-- [ ] Friends NOT in group are selectable (white/normal)
-- [ ] Multi-select support
-- [ ] "Add" button → Calls `GroupService.addMember()` for each
-- [ ] Update UI optimistically
-- [ ] Show success confirmation
+#### 2.4: Add Members (1-1.5 hours) ✅
+- [x] "Add Member" button (admin only)
+- [x] Opens modal with friend list
+- [x] Show ALL friends from ContactStore
+- [x] Gray out friends already in group (disabled)
+- [x] Friends NOT in group are selectable (white/normal)
+- [x] Multi-select support
+- [x] "Add" button → Calls `GroupService.addMember()` for each
+- [x] Update UI optimistically
+- [x] Show success confirmation
 
-#### 2.5: Remove Members (30 min)
-- [ ] Swipe left on member (admin only, except self)
-- [ ] "Remove" button appears
-- [ ] Confirmation dialog: "Remove [Name] from group?"
-- [ ] Call `GroupService.removeMember()`
-- [ ] Update UI
-- [ ] Can't remove admin (validation)
+#### 2.5: Remove Members (30 min) ✅
+- [x] Long press on member (admin only, except self)
+- [x] "Remove" button/confirmation dialog
+- [x] Confirmation dialog: "Remove [Name] from group?"
+- [x] Call `GroupService.removeMember()`
+- [x] Update UI
+- [x] Can't remove admin (validation)
 
-#### 2.6: Leave Group (30 min)
-- [ ] "Leave Group" button (all members)
-- [ ] Red text, bottom of screen
-- [ ] Confirmation dialog: "Are you sure you want to leave?"
-- [ ] Call `GroupService.leaveGroup()`
-- [ ] If admin: Oldest member becomes admin automatically
-- [ ] If last member: Group deleted automatically
-- [ ] Navigate back to home screen
-- [ ] Remove from ChatStore
+#### 2.6: Leave Group (30 min) ✅
+- [x] "Leave Group" button (all members)
+- [x] Red text, bottom of screen
+- [x] Confirmation dialog: "Are you sure you want to leave?"
+- [x] Call `GroupService.leaveGroup()`
+- [x] If admin: Oldest member becomes admin automatically
+- [x] If last member: Group deleted automatically
+- [x] Navigate back to home screen
+- [x] Remove from ChatStore
 
 ### Backend Methods (Already Exist) ✅
 - `GroupService.updateGroupInfo(groupId, updates)` ✅
@@ -619,7 +619,7 @@ grep -r "Block" src/
 
 ### Completion Checklist
 - [ ] **Task 1:** Physical device testing complete (user doing)
-- [ ] **Task 2:** Group settings screen built and working
+- [x] **Task 2:** Group settings screen built and working ✅
 - [ ] **Task 3:** Profile editable (picture, bio, theme toggle)
 - [ ] **Task 4:** Last read position working
 - [ ] **Task 5:** Failed messages show retry UI

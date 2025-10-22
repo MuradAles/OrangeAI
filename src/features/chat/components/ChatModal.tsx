@@ -14,6 +14,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { DateSeparator } from './DateSeparator';
+import { GroupSettingsModal } from './GroupSettingsModal';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { TypingIndicator } from './TypingIndicator';
@@ -50,8 +51,10 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const [isSending, setIsSending] = useState(false);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
   const flashListRef = useRef<any>(null);
   const hasScrolledInitially = useRef(false);
+  const isCleaningUp = useRef(false); // Prevent duplicate cleanup alerts
 
   const { subscribeToUser } = usePresenceStore();
   const presenceMap = usePresenceStore(state => state.presenceMap);
@@ -60,9 +63,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   // Get current chat and other user info
   const { chats } = useChatStore();
   
-  const currentChat = useMemo(() => {
-    return chats.find(chat => chat.id === chatId);
-  }, [chats, chatId]);
+  // Get current chat - using direct find without memo to ensure immediate updates
+  const currentChat = chats.find(chat => chat.id === chatId);
 
   // Check if this is a group chat
   const isGroupChat = currentChat?.type === 'group';
@@ -152,6 +154,121 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     // Note: Don't clear messages on cleanup - keep them for quick reopening
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, chatId, user?.id]);
+
+  // Monitor if user is removed from group (real-time)
+  useEffect(() => {
+    if (!visible || !chatId || !user?.id || !isGroupChat) {
+      return;
+    }
+
+    // Listen to chat document for participant changes
+    const monitorGroupMembership = async () => {
+      const { doc, onSnapshot } = await import('firebase/firestore');
+      const { firestore } = await import('@/services/firebase/FirebaseConfig');
+      
+      const chatRef = doc(firestore, 'chats', chatId);
+      const unsubscribe = onSnapshot(chatRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          const participants = data.participants || [];
+          
+          // Check if current user is still a participant
+          if (!participants.includes(user.id)) {
+            // User has been removed! Clean up and close
+            if (isCleaningUp.current) return; // Prevent duplicate cleanup
+            isCleaningUp.current = true;
+            
+            console.log('🚪 User removed from group, cleaning up...');
+            
+            // Clean up local storage
+            const cleanup = async () => {
+              try {
+                const { SQLiteService } = await import('@/database/SQLiteService');
+                await SQLiteService.deleteMessagesByChatId(chatId);
+                await SQLiteService.deleteChatById(chatId);
+                
+                // Remove from ChatStore
+                const { useChatStore } = await import('@/store');
+                useChatStore.setState(state => ({
+                  chats: state.chats.filter(chat => chat.id !== chatId),
+                  chatsVersion: state.chatsVersion + 1,
+                }));
+                
+                // Close modal
+                onClose();
+                
+                // Show alert after modal closes (only once)
+                setTimeout(() => {
+                  Alert.alert(
+                    'Left Group',
+                    'You have left the group.'
+                  );
+                }, 300);
+              } catch (error) {
+                console.error('Error cleaning up after removal:', error);
+              }
+            };
+            
+            cleanup();
+          }
+        }
+      }, (error) => {
+        // Permission denied = user was removed from group
+        if (error.code === 'permission-denied') {
+          if (isCleaningUp.current) return; // Prevent duplicate cleanup
+          isCleaningUp.current = true;
+          
+          console.log('🚪 Permission denied - user was removed from group');
+          
+          // Clean up local storage
+          const cleanup = async () => {
+            try {
+              const { SQLiteService } = await import('@/database/SQLiteService');
+              await SQLiteService.deleteMessagesByChatId(chatId);
+              await SQLiteService.deleteChatById(chatId);
+              
+              // Remove from ChatStore
+              const { useChatStore } = await import('@/store');
+              useChatStore.setState(state => ({
+                chats: state.chats.filter(chat => chat.id !== chatId),
+                chatsVersion: state.chatsVersion + 1,
+              }));
+              
+              // Close modal
+              onClose();
+              
+              // Show alert after modal closes (only once)
+              setTimeout(() => {
+                Alert.alert(
+                  'Left Group',
+                  'You have left the group.'
+                );
+              }, 300);
+            } catch (error) {
+              console.error('Error cleaning up after removal:', error);
+            }
+          };
+          
+          cleanup();
+        } else {
+          console.error('Error monitoring group membership:', error);
+        }
+      });
+
+      return unsubscribe;
+    };
+
+    let unsubscribe: (() => void) | null = null;
+    monitorGroupMembership().then(unsub => {
+      unsubscribe = unsub;
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [visible, chatId, user?.id, isGroupChat, onClose]);
 
   // Subscribe to typing indicators
   useEffect(() => {
@@ -603,24 +720,37 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
 
               {/* Action Buttons */}
               <View style={styles.headerActions}>
-                <Pressable 
-                  style={styles.actionButton}
-                  onPress={() => {
-                    // Video call - placeholder for future functionality
-                    console.log('Video call pressed');
-                  }}
-                >
-                  <Ionicons name="videocam" size={24} color={theme.colors.text} />
-                </Pressable>
-                <Pressable 
-                  style={styles.actionButton}
-                  onPress={() => {
-                    // Phone call - placeholder for future functionality
-                    console.log('Phone call pressed');
-                  }}
-                >
-                  <Ionicons name="call" size={24} color={theme.colors.text} />
-                </Pressable>
+                {isGroupChat ? (
+                  // Three-dots menu for groups
+                  <Pressable 
+                    style={styles.actionButton}
+                    onPress={() => setShowGroupSettings(true)}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+                  </Pressable>
+                ) : (
+                  // Video and call buttons for one-on-one
+                  <>
+                    <Pressable 
+                      style={styles.actionButton}
+                      onPress={() => {
+                        // Video call - placeholder for future functionality
+                        console.log('Video call pressed');
+                      }}
+                    >
+                      <Ionicons name="videocam" size={24} color={theme.colors.text} />
+                    </Pressable>
+                    <Pressable 
+                      style={styles.actionButton}
+                      onPress={() => {
+                        // Phone call - placeholder for future functionality
+                        console.log('Phone call pressed');
+                      }}
+                    >
+                      <Ionicons name="call" size={24} color={theme.colors.text} />
+                    </Pressable>
+                  </>
+                )}
               </View>
 
             </View>
@@ -681,6 +811,15 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
             />
           </View>
       </KeyboardAvoidingView>
+
+      {/* Group Settings Modal */}
+      {isGroupChat && (
+        <GroupSettingsModal
+          visible={showGroupSettings}
+          chatId={chatId}
+          onClose={() => setShowGroupSettings(false)}
+        />
+      )}
     </Modal>
   );
 };

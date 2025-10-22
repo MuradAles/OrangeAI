@@ -37,6 +37,12 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
    * NOTE: This will NOT subscribe to your own user ID (we get currentUserId from AuthStore)
    */
   subscribeToUser: (userId: string) => {
+    // Validate userId is not null/undefined
+    if (!userId) {
+      console.warn('PresenceStore: Cannot subscribe to user with undefined/null ID');
+      return;
+    }
+    
     const { subscriptions } = get();
     
     // CRITICAL: Get current user ID to prevent self-subscription

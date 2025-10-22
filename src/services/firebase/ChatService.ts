@@ -281,6 +281,8 @@ export class ChatService {
       chatsQuery,
       async (snapshot) => {
         try {
+          console.log('🔄 Chat listener fired - processing', snapshot.docs.length, 'chats');
+          
           const chats: Chat[] = [];
           
           for (const doc of snapshot.docs) {
@@ -306,7 +308,7 @@ export class ChatService {
               }
             }
             
-            chats.push({
+            const chat = {
               id: doc.id,
               type: data.type,
               participants: data.participants,
@@ -321,9 +323,13 @@ export class ChatService {
               groupDescription: data.groupDescription,
               groupAdminId: data.groupAdminId,
               inviteCode: data.inviteCode,
-            });
+            };
+            
+            console.log(`📝 Chat ${doc.id}: ${chat.groupName || 'one-on-one'}`);
+            chats.push(chat);
           }
 
+          console.log('✅ Calling onUpdate with', chats.length, 'chats');
           onUpdate(chats);
         } catch (error) {
           onError(error as Error);
@@ -341,7 +347,7 @@ export class ChatService {
   static async getParticipant(
     chatId: string,
     userId: string
-  ): Promise<{ unreadCount: number } | null> {
+  ): Promise<{ unreadCount: number; joinedAt?: number } | null> {
     try {
       const participantRef = doc(firestore, 'chats', chatId, 'participants', userId);
       const participantSnap = await getDoc(participantRef);
@@ -353,6 +359,7 @@ export class ChatService {
       const data = participantSnap.data();
       return {
         unreadCount: data.unreadCount || 0,
+        joinedAt: data.joinedAt?.toMillis?.() || 0,
       };
     } catch (error) {
       console.error('Error getting participant:', error);
