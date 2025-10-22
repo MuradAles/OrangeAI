@@ -26,6 +26,10 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
+        "NOTIFICATIONS",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
         "NOTIFICATIONS"
       ]
     },
@@ -71,6 +75,12 @@
         "projectId": "abdece3f-a5c7-4a4b-92bb-471bc2ba5d9b"
       }
     },
-    "owner": "monsiermyrad"
+    "owner": "monsiermyrad",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/abdece3f-a5c7-4a4b-92bb-471bc2ba5d9b"
+    }
   }
 }
