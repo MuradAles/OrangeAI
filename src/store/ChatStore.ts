@@ -108,9 +108,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
       
       // Helper function to safely parse timestamp (returns number, not Date)
-      const parseTimestamp = (dateValue: any): number => {
-        if (!dateValue || dateValue === '{}') {
-          return Date.now(); // Return current timestamp for invalid values
+      const parseTimestamp = (dateValue: any, allowZero: boolean = false): number => {
+        if (!dateValue || dateValue === '{}' || dateValue === 0 || dateValue === null) {
+          return allowZero ? 0 : Date.now(); // Return 0 for lastMessageTime, current time for createdAt
         }
         
         // If it's already a number, return it
@@ -121,7 +121,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const date = new Date(dateValue);
         // Check if date is valid
         if (isNaN(date.getTime())) {
-          return Date.now(); // Return current timestamp for invalid dates
+          return allowZero ? 0 : Date.now(); // Return 0 for lastMessageTime, current time for createdAt
         }
         
         return date.getTime();
@@ -143,11 +143,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
             type: row.type as 'one-on-one' | 'group',
             participants,
             lastMessageText: row.lastMessageText,
-            lastMessageTime: parseTimestamp(row.lastMessageTime),
+            lastMessageTime: parseTimestamp(row.lastMessageTime, true), // Allow 0 for no messages
             lastMessageSenderId: row.lastMessageSenderId,
             lastMessageStatus: row.lastMessageStatus as any,
             unreadCount: row.unreadCount || 0, // Load unread count from SQLite
-            createdAt: parseTimestamp(row.createdAt),
+            createdAt: parseTimestamp(row.createdAt, false), // Don't allow 0 for createdAt
             createdBy: row.createdBy,
             groupName: row.groupName || undefined,
             groupIcon: row.groupIcon || undefined,
@@ -252,7 +252,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               lastMessageText: chat.lastMessageText,
               lastMessageTime: typeof chat.lastMessageTime === 'number' 
                 ? chat.lastMessageTime 
-                : chat.lastMessageTime, // Already a number
+                : (chat.lastMessageTime instanceof Date ? chat.lastMessageTime.getTime() : 0),
               lastMessageSenderId: chat.lastMessageSenderId,
               lastMessageStatus: chat.lastMessageStatus || null,
               unreadCount: chat.unreadCount || 0,
@@ -263,7 +263,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               inviteCode: chat.inviteCode || null,
               createdAt: typeof chat.createdAt === 'number' 
                 ? chat.createdAt 
-                : chat.createdAt, // Already a number
+                : (chat.createdAt instanceof Date ? chat.createdAt.getTime() : 0),
               createdBy: chat.createdBy,
             };
             await SQLiteService.saveChat(chatRow);
@@ -509,9 +509,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           console.warn(`⚠️ Chat ${chatId} not found in local state when trying to increment unread count`);
         }
         
-        // THEN: Update last message in chat with 'sent' status
+        // THEN: Update last message in chat with 'sent' status and the message timestamp
         // This triggers the chat subscription, which will now fetch the updated unread count
-        await ChatService.updateChatLastMessage(chatId, text, senderId, 'sent');
+        await ChatService.updateChatLastMessage(chatId, text, senderId, 'sent', optimisticMessage.timestamp);
         
         // The Firestore listener will update the message with the real timestamp and 'sent' status
         // Since we use the same ID, it will replace the optimistic message automatically
@@ -643,9 +643,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         }
         
-        // Update last message in chat
+        // Update last message in chat with timestamp
         const lastMessageText = caption || '📷 Photo';
-        await ChatService.updateChatLastMessage(chatId, lastMessageText, senderId, 'sent');
+        await ChatService.updateChatLastMessage(chatId, lastMessageText, senderId, 'sent', optimisticMessage.timestamp);
         
         // Update optimistic message with real URLs in state
         set((state) => ({
@@ -855,11 +855,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // If the last message was from someone else, update chat's lastMessageStatus to "read"
       if (lastMessage && lastMessage.senderId !== userId) {
         console.log(`🔄 Updating chat lastMessageStatus to "read"`);
+        const messageTimestamp = typeof lastMessage.timestamp === 'number' 
+          ? lastMessage.timestamp 
+          : (lastMessage.timestamp as any)?.getTime?.() || Date.now();
         await ChatService.updateChatLastMessage(
           chatId,
           lastMessage.text,
           lastMessage.senderId,
-          'read'
+          'read',
+          messageTimestamp
         );
       }
       

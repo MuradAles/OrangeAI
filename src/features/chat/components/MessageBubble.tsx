@@ -25,6 +25,7 @@ interface MessageBubbleProps {
   senderAvatar?: string | null;
   showAvatar: boolean; // Show avatar (first message in group)
   showTimestamp: boolean; // Show timestamp (last message in group or after 5 mins)
+  isGroupChat?: boolean; // Is this a group chat? (show sender name on all received messages)
   onLongPress?: (message: Message) => void;
   onPress?: (message: Message) => void;
 }
@@ -36,6 +37,7 @@ export const MessageBubble = memo(({
   senderAvatar,
   showAvatar,
   showTimestamp,
+  isGroupChat = false,
   onLongPress,
   onPress,
 }: MessageBubbleProps) => {
@@ -125,7 +127,7 @@ export const MessageBubble = memo(({
         ]}
       >
         {/* Sender name for received messages in groups */}
-        {!isSent && senderName && showAvatar && (
+        {!isSent && senderName && (isGroupChat || showAvatar) && (
           <Text style={[styles.senderName, { color: theme.colors.primary }]}>
             {senderName}
           </Text>

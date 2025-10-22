@@ -94,6 +94,7 @@ export const Modal: React.FC<ModalProps> = ({
     ? {
         ...styles.fullScreenContainer,
         backgroundColor: theme.colors.background,
+        ...modalStyle,
       }
     : {
         ...styles.modalContainer,
@@ -131,6 +132,13 @@ export const Modal: React.FC<ModalProps> = ({
   
   const ContentWrapper = scrollable ? ScrollView : View;
   
+  // Content wrapper style - needs flex: 1 for full-screen modals
+  const contentWrapperStyle = scrollable 
+    ? styles.scrollContent 
+    : fullScreen 
+      ? styles.fullScreenContent 
+      : undefined;
+  
   return (
     <RNModal
       visible={visible}
@@ -166,7 +174,7 @@ export const Modal: React.FC<ModalProps> = ({
             
             {/* Content */}
             <ContentWrapper
-              style={scrollable ? styles.scrollContent : undefined}
+              style={contentWrapperStyle}
               showsVerticalScrollIndicator={scrollable}
             >
               {children}
@@ -196,6 +204,9 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+  },
+  fullScreenContent: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,

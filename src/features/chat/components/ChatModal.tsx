@@ -4,7 +4,6 @@
  */
 
 import { Avatar } from '@/components/common';
-import { DateSeparator, MessageBubble, MessageInput, TypingIndicator } from '@/features/chat/components';
 import { PresenceService, TypingUser } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
@@ -14,6 +13,10 @@ import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { DateSeparator } from './DateSeparator';
+import { MessageBubble } from './MessageBubble';
+import { MessageInput } from './MessageInput';
+import { TypingIndicator } from './TypingIndicator';
 
 interface ChatModalProps {
   visible: boolean;
@@ -60,15 +63,19 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     return chats.find(chat => chat.id === chatId);
   }, [chats, chatId]);
 
+  // Check if this is a group chat
+  const isGroupChat = currentChat?.type === 'group';
+
+  // For one-on-one chats, get the other user
   const otherUser = useMemo(() => {
-    if (!user || !currentChat) return null;
+    if (!user || !currentChat || isGroupChat) return null;
     
     // Find the other user ID from participants
     const otherUserId = currentChat.participants.find(id => id !== user.id);
     if (!otherUserId) return null;
     
     return getUserProfile(otherUserId);
-  }, [currentChat, user, getUserProfile]);
+  }, [currentChat, user, getUserProfile, isGroupChat]);
 
   // Load messages when modal opens
   useEffect(() => {
@@ -118,11 +125,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   }, [visible, chatId, user?.id]);
 
   // Subscribe to other user's presence (online/offline status)
-  // Using centralized PresenceStore - only subscribes once per user globally
+  // Using centralized PresenceStore - only for one-on-one chats
   useEffect(() => {
-    if (!visible || !currentChat || !user?.id) return;
+    if (!visible || !currentChat || !user?.id || isGroupChat) return;
 
-    // Get the other user's ID
+    // Get the other user's ID (one-on-one only)
     const otherUserId = currentChat.participants.find(id => id !== user.id);
     if (!otherUserId) return;
 
@@ -130,7 +137,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     subscribeToUser(otherUserId);
 
     // No cleanup needed - PresenceStore manages subscriptions globally
-  }, [visible, currentChat, user?.id, subscribeToUser]);
+  }, [visible, currentChat, user?.id, isGroupChat, subscribeToUser]);
 
   // Process messages into list items (with date separators)
   const listItems = useMemo(() => {
@@ -450,6 +457,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         senderAvatar={senderProfile?.profilePictureUrl}
         showAvatar={showAvatar}
         showTimestamp={true}
+        isGroupChat={isGroupChat}
         onLongPress={handleLongPress}
       />
     );
@@ -498,26 +506,50 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               </Pressable>
 
               <View style={styles.headerInfo}>
-                <View style={styles.avatarWithIndicator}>
-                  <Avatar
-                    name={otherUser?.displayName || 'User'}
-                    imageUrl={otherUser?.profilePictureUrl}
-                    size={36}
-                  />
-                  {/* Green dot for online status - from centralized PresenceStore */}
-                  {(() => {
-                    const otherUserId = currentChat?.participants.find(id => id !== user?.id);
-                    const presence = otherUserId ? presenceMap.get(otherUserId) : null;
-                    return presence?.isOnline && (
-                      <View style={[styles.onlineDot, { backgroundColor: theme.colors.success }]} />
-                    );
-                  })()}
-                </View>
-                <View style={styles.headerText}>
-                  <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]} numberOfLines={1}>
-                    {otherUser?.displayName || 'Chat'}
-                  </Text>
-                </View>
+                {isGroupChat ? (
+                  // Group Chat Header
+                  <>
+                    <View style={styles.avatarWithIndicator}>
+                      <Avatar
+                        name={currentChat?.groupName || 'Group'}
+                        imageUrl={currentChat?.groupIcon}
+                        size={36}
+                      />
+                    </View>
+                    <View style={styles.headerText}>
+                      <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]} numberOfLines={1}>
+                        {currentChat?.groupName || 'Group Chat'}
+                      </Text>
+                      <Text style={[theme.typography.bodySmall, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                        {currentChat?.participants.length || 0} members
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  // One-on-One Chat Header
+                  <>
+                    <View style={styles.avatarWithIndicator}>
+                      <Avatar
+                        name={otherUser?.displayName || 'User'}
+                        imageUrl={otherUser?.profilePictureUrl}
+                        size={36}
+                      />
+                      {/* Green dot for online status - from centralized PresenceStore */}
+                      {(() => {
+                        const otherUserId = currentChat?.participants.find(id => id !== user?.id);
+                        const presence = otherUserId ? presenceMap.get(otherUserId) : null;
+                        return presence?.isOnline && (
+                          <View style={[styles.onlineDot, { backgroundColor: theme.colors.success }]} />
+                        );
+                      })()}
+                    </View>
+                    <View style={styles.headerText}>
+                      <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]} numberOfLines={1}>
+                        {otherUser?.displayName || 'Chat'}
+                      </Text>
+                    </View>
+                  </>
+                )}
               </View>
 
             </View>

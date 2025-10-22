@@ -3,15 +3,16 @@
  * Modern messaging interface with real-time updates
  */
 
-import { ChatListItem, ChatModal } from '@/features/chat/components';
+import { ChatListItem, ChatModal, NewChatModal } from '@/features/chat/components';
+import { ChatService, StorageService } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
-import { Chat } from '@/shared/types';
-import { useAuthStore, useChatStore, usePresenceStore } from '@/store';
+import { Chat, Contact } from '@/shared/types';
+import { useAuthStore, useChatStore, useContactStore, useGroupStore, usePresenceStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -30,10 +31,15 @@ export default function HomeScreen() {
   const presenceMap = usePresenceStore(state => state.presenceMap);
   const presenceVersion = usePresenceStore(state => state.version); // Subscribe to version for reactivity
 
+  const { contacts, loadContacts } = useContactStore();
+  const { createGroup } = useGroupStore();
+
   const [refreshing, setRefreshing] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [isNewChatModalVisible, setIsNewChatModalVisible] = useState(false);
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
 
-  // Load chats on mount
+  // Load chats and contacts on mount
   useEffect(() => {
     if (user?.id) {
       // Load from SQLite first (instant)
@@ -41,13 +47,16 @@ export default function HomeScreen() {
       
       // Subscribe to real-time updates from Firestore
       subscribeToChats(user.id);
+
+      // Load contacts for NewChatModal
+      loadContacts(user.id);
     }
 
     // Cleanup on unmount
     return () => {
       unsubscribeAll();
     };
-  }, [user?.id, loadChatsFromSQLite, subscribeToChats, unsubscribeAll]);
+  }, [user?.id, loadChatsFromSQLite, subscribeToChats, unsubscribeAll, loadContacts]);
 
   // Subscribe to presence updates for all chat participants
   // Using centralized PresenceStore - only subscribes once per user globally
@@ -93,9 +102,77 @@ export default function HomeScreen() {
     setSelectedChatId(chatId);
   };
 
-  // Navigate to friends tab
+  // Open new chat modal
   const handleNewChat = () => {
-    router.push('/(tabs)/friends');
+    setIsNewChatModalVisible(true);
+  };
+
+  // Create one-on-one chat
+  const handleCreateOneOnOneChat = async (contact: Contact) => {
+    if (!user) return;
+
+    setIsCreatingChat(true);
+    try {
+      // Check if chat already exists
+      const existingChat = chats.find(chat => 
+        chat.type === 'one-on-one' && 
+        chat.participants.includes(contact.userId)
+      );
+
+      if (existingChat) {
+        // Open existing chat
+        setIsNewChatModalVisible(false);
+        setSelectedChatId(existingChat.id);
+      } else {
+        // Create new chat
+        const newChat = await ChatService.createChat([user.id, contact.userId]);
+        setIsNewChatModalVisible(false);
+        setSelectedChatId(newChat.id);
+      }
+    } catch (error) {
+      console.error('Failed to create chat:', error);
+      Alert.alert('Error', 'Failed to create chat. Please try again.');
+    } finally {
+      setIsCreatingChat(false);
+    }
+  };
+
+  // Create group chat
+  const handleCreateGroupChat = async (
+    name: string,
+    description: string,
+    iconUri: string | null,
+    memberIds: string[]
+  ) => {
+    if (!user) return;
+
+    setIsCreatingChat(true);
+    try {
+      // Upload group icon if provided
+      let groupIconUrl: string | undefined;
+      if (iconUri) {
+        groupIconUrl = await StorageService.uploadGroupIcon(iconUri, name);
+      }
+
+      // Create group
+      const group = await createGroup(
+        name,
+        description || undefined,
+        groupIconUrl,
+        user.id,
+        memberIds
+      );
+
+      if (group) {
+        setIsNewChatModalVisible(false);
+        setSelectedChatId(group.id);
+      }
+    } catch (error) {
+      console.error('Failed to create group:', error);
+      Alert.alert('Error', 'Failed to create group. Please try again.');
+    } finally {
+      setIsCreatingChat(false);
+    }
   };
 
   if (!user) {
@@ -127,7 +204,16 @@ export default function HomeScreen() {
   };
 
   // Filter out chats with no messages (only show chats that have at least one message)
-  const chatsWithMessages = chats.filter(chat => chat.lastMessageText && chat.lastMessageText.trim() !== '');
+  // Check lastMessageTime instead of lastMessageText to include image-only messages
+  const chatsWithMessages = chats.filter(chat => {
+    // Must have a valid timestamp (not 0, not null)
+    const hasValidTime = chat.lastMessageTime && chat.lastMessageTime !== 0;
+    
+    // Must have either text or be a group chat (groups can have image-only messages)
+    const hasContent = chat.lastMessageText || chat.type === 'group';
+    
+    return hasValidTime && hasContent;
+  });
 
   // Empty state
   const renderEmptyState = () => (
@@ -239,6 +325,16 @@ export default function HomeScreen() {
       >
         <Ionicons name="people" size={28} color="#fff" />
       </Pressable>
+
+      {/* New Chat Modal */}
+      <NewChatModal
+        visible={isNewChatModalVisible}
+        onClose={() => setIsNewChatModalVisible(false)}
+        contacts={contacts}
+        onCreateOneOnOneChat={handleCreateOneOnOneChat}
+        onCreateGroupChat={handleCreateGroupChat}
+        isCreating={isCreatingChat}
+      />
 
       {/* Chat Modal */}
       <ChatModal
