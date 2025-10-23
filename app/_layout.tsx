@@ -8,6 +8,7 @@ import { InAppNotification } from '@/components/common';
 import { SQLiteService } from '@/database/SQLiteService';
 import { initializeFirebase, PresenceService } from '@/services/firebase';
 import { OfflineBanner } from '@/shared/components/OfflineBanner';
+import { ThemeProvider } from '@/shared/context/ThemeContext';
 import { useNotifications } from '@/shared/hooks/useNotifications';
 import { useAuthStore } from '@/store';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -46,7 +47,7 @@ export default function RootLayout() {
         try {
           await SQLiteService.initialize();
           console.log('✅ SQLite initialized');
-        } catch (error) {
+        } catch {
           console.error('⚠️  SQLite initialization failed, resetting database...');
           await SQLiteService.reset();
           console.log('✅ SQLite reset and reinitialized');
@@ -196,7 +197,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <ThemeProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
@@ -224,6 +225,6 @@ export default function RootLayout() {
       
       {/* Offline banner */}
       <OfflineBanner />
-    </>
+    </ThemeProvider>
   );
 }

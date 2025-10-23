@@ -35,7 +35,7 @@ export class AuthService {
         password
       );
       
-      console.log('✅ User created successfully:', userCredential.user.uid);
+      // User created successfully
       return userCredential.user;
     } catch (error: any) {
       // Don't log auth errors - they're expected user scenarios, not app errors
@@ -58,7 +58,7 @@ export class AuthService {
         password
       );
       
-      console.log('✅ User signed in:', userCredential.user.uid);
+      // User signed in successfully
       return userCredential.user;
     } catch (error: any) {
       // Don't log credential errors - they're expected user scenarios, not app errors
@@ -73,7 +73,7 @@ export class AuthService {
   static async signOut(): Promise<void> {
     try {
       await firebaseSignOut(auth);
-      console.log('✅ User signed out');
+      // User signed out successfully
     } catch (error: any) {
       console.error('❌ Sign out failed:', error.message);
       throw this.handleAuthError(error);
@@ -91,12 +91,12 @@ export class AuthService {
       }
       
       if (user.emailVerified) {
-        console.log('ℹ️  Email already verified');
+        // Email already verified
         return;
       }
       
       await firebaseSendEmailVerification(user);
-      console.log('✅ Verification email sent');
+      // Verification email sent successfully
     } catch (error: any) {
       console.error('❌ Failed to send verification email:', error.message);
       throw this.handleAuthError(error);
@@ -109,7 +109,7 @@ export class AuthService {
   static async resetPassword(email: string): Promise<void> {
     try {
       await sendPasswordResetEmail(auth, email);
-      console.log('✅ Password reset email sent');
+      // Password reset email sent successfully
     } catch (error: any) {
       // Don't log auth errors - they're expected user scenarios, not app errors
       throw this.handleAuthError(error);
@@ -162,7 +162,7 @@ export class AuthService {
       }
       
       await updateProfile(user, { displayName });
-      console.log('✅ User profile updated');
+      // User profile updated successfully
     } catch (error: any) {
       console.error('❌ Failed to update profile:', error.message);
       throw this.handleAuthError(error);

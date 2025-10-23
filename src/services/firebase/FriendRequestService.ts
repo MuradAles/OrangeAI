@@ -4,20 +4,20 @@
  * Handles friend request operations in Firestore
  */
 
-import { BlockedUser, FriendRequest } from '@/shared/types';
+import { FriendRequest } from '@/shared/types';
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    onSnapshot,
-    orderBy,
-    query,
-    Unsubscribe,
-    where,
-    writeBatch
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  Unsubscribe,
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { firestore } from './FirebaseConfig';
 import { UserService } from './UserService';
@@ -51,12 +51,6 @@ export class FriendRequestService {
       const recipientProfile = await UserService.getProfile(toUserId);
       if (!recipientProfile) {
         return { success: false, error: 'User not found' };
-      }
-
-      // Check if user is blocked
-      const isBlocked = await this.isUserBlocked(fromUserId, toUserId);
-      if (isBlocked) {
-        return { success: false, error: 'Cannot send friend request to this user' };
       }
 
       // Check if request already exists
@@ -204,149 +198,6 @@ export class FriendRequestService {
       return { success: true };
     } catch (error: any) {
       console.error('❌ Failed to ignore friend request:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * Block a user (prevents all future friend requests and deletes chat)
-   */
-  static async blockUser(
-    userId: string,
-    blockedUserId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (userId === blockedUserId) {
-        return { success: false, error: 'Cannot block yourself' };
-      }
-
-      const batch = writeBatch(firestore);
-
-      // Add to blocked users subcollection
-      const blockedUserRef = doc(
-        firestore,
-        this.USERS_COLLECTION,
-        userId,
-        'blockedUsers',
-        blockedUserId
-      );
-
-      batch.set(blockedUserRef, {
-        userId: blockedUserId,
-        blockedAt: Date.now(),
-      });
-
-      // Find and delete any existing chat between the two users
-      const chatsRef = collection(firestore, this.CHATS_COLLECTION);
-      const chatQuery = query(
-        chatsRef,
-        where('type', '==', 'one-on-one'),
-        where('participants', 'array-contains', userId)
-      );
-
-      const chatSnapshot = await getDocs(chatQuery);
-      
-      chatSnapshot.forEach((doc) => {
-        const chatData = doc.data();
-        if (
-          chatData.participants.includes(blockedUserId) &&
-          chatData.participants.length === 2
-        ) {
-          // Delete the chat
-          batch.delete(doc.ref);
-        }
-      });
-
-      // Reject any pending friend requests between the users
-      const requestsRef = collection(firestore, this.FRIEND_REQUESTS_COLLECTION);
-      
-      // From blocked user to current user
-      const q1 = query(
-        requestsRef,
-        where('fromUserId', '==', blockedUserId),
-        where('toUserId', '==', userId),
-        where('status', '==', 'pending')
-      );
-      
-      // From current user to blocked user
-      const q2 = query(
-        requestsRef,
-        where('fromUserId', '==', userId),
-        where('toUserId', '==', blockedUserId),
-        where('status', '==', 'pending')
-      );
-
-      const [snapshot1, snapshot2] = await Promise.all([
-        getDocs(q1),
-        getDocs(q2),
-      ]);
-
-      snapshot1.forEach((doc) => {
-        batch.update(doc.ref, {
-          status: 'blocked',
-          respondedAt: Date.now(),
-        });
-      });
-
-      snapshot2.forEach((doc) => {
-        batch.update(doc.ref, {
-          status: 'blocked',
-          respondedAt: Date.now(),
-        });
-      });
-
-      // Delete contacts if they exist
-      const contact1Ref = doc(
-        firestore,
-        this.USERS_COLLECTION,
-        userId,
-        'contacts',
-        blockedUserId
-      );
-
-      const contact2Ref = doc(
-        firestore,
-        this.USERS_COLLECTION,
-        blockedUserId,
-        'contacts',
-        userId
-      );
-
-      batch.delete(contact1Ref);
-      batch.delete(contact2Ref);
-
-      await batch.commit();
-
-      console.log('✅ User blocked:', blockedUserId);
-      return { success: true };
-    } catch (error: any) {
-      console.error('❌ Failed to block user:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * Unblock a user
-   */
-  static async unblockUser(
-    userId: string,
-    blockedUserId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const blockedUserRef = doc(
-        firestore,
-        this.USERS_COLLECTION,
-        userId,
-        'blockedUsers',
-        blockedUserId
-      );
-
-      await deleteDoc(blockedUserRef);
-
-      console.log('✅ User unblocked:', blockedUserId);
-      return { success: true };
-    } catch (error: any) {
-      console.error('❌ Failed to unblock user:', error);
       return { success: false, error: error.message };
     }
   }
@@ -540,80 +391,6 @@ export class FriendRequestService {
     } catch (error: any) {
       console.error('❌ Failed to get sent friend requests:', error);
       return [];
-    }
-  }
-
-  /**
-   * Get blocked users list
-   */
-  static async getBlockedUsers(userId: string): Promise<BlockedUser[]> {
-    try {
-      const blockedRef = collection(
-        firestore,
-        this.USERS_COLLECTION,
-        userId,
-        'blockedUsers'
-      );
-
-      const querySnapshot = await getDocs(blockedRef);
-      const blockedUsers: BlockedUser[] = [];
-
-      for (const doc of querySnapshot.docs) {
-        const data = doc.data();
-        const blockedProfile = await UserService.getProfile(doc.id);
-
-        if (blockedProfile) {
-          blockedUsers.push({
-            userId: doc.id,
-            username: blockedProfile.username,
-            displayName: blockedProfile.displayName,
-            blockedAt: data.blockedAt,
-          });
-        }
-      }
-
-      return blockedUsers;
-    } catch (error: any) {
-      console.error('❌ Failed to get blocked users:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Check if a user is blocked
-   */
-  static async isUserBlocked(
-    userId: string,
-    targetUserId: string
-  ): Promise<boolean> {
-    try {
-      // Check if userId blocked targetUserId
-      const blockedByUser = doc(
-        firestore,
-        this.USERS_COLLECTION,
-        userId,
-        'blockedUsers',
-        targetUserId
-      );
-
-      // Check if targetUserId blocked userId
-      const blockedByTarget = doc(
-        firestore,
-        this.USERS_COLLECTION,
-        targetUserId,
-        'blockedUsers',
-        userId
-      );
-
-      const [userBlocked, targetBlocked] = await Promise.all([
-        getDoc(blockedByUser),
-        getDoc(blockedByTarget),
-      ]);
-
-      return userBlocked.exists() || targetBlocked.exists();
-    } catch (error: any) {
-      console.error('❌ Failed to check if user is blocked:', error);
-      return false;
     }
   }
 

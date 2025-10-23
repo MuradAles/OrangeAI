@@ -14,7 +14,8 @@ import { PresenceService } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -40,6 +41,7 @@ export const MessageInput = ({
   userName,
 }: MessageInputProps) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(40);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -170,7 +172,8 @@ export const MessageInput = ({
   return (
     <View style={[styles.container, { 
       backgroundColor: theme.colors.surface,
-      borderTopColor: theme.colors.border 
+      borderTopColor: theme.colors.border,
+      paddingBottom: Math.max(insets.bottom, 12), // Use safe area insets for proper keyboard handling
     }]}>
       {/* Selected Image Preview */}
       {selectedImage && (
@@ -251,7 +254,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 20,
+    // paddingBottom now handled dynamically with useSafeAreaInsets in the component
   },
   imagePreviewContainer: {
     position: 'relative',

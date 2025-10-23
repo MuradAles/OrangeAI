@@ -91,7 +91,7 @@ class SQLiteServiceClass {
       );
       
       return result ? parseInt(result.value, 10) : 0;
-    } catch (error) {
+    } catch {
       // Table doesn't exist yet, return 0
       return 0;
     }

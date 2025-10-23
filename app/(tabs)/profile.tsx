@@ -5,16 +5,123 @@
 
 import { Avatar, Button, Card } from '@/components/common';
 import { SQLiteService } from '@/database/SQLiteService';
-import { useTheme } from '@/shared/hooks/useTheme';
-import { useAuthStore } from '@/store';
+import { EditBioModal } from '@/features/auth/components';
+import { StorageService, UserService } from '@/services/firebase';
+import { useTheme, useThemeMode } from '@/shared/hooks/useTheme';
+import { useAuthStore, useChatStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const { user, signOut } = useAuthStore();
-  const router = useRouter();
+  const { themeMode, setThemeMode } = useThemeMode();
+  const { user, signOut, updateUserProfile } = useAuthStore();
+  const { refreshUserProfile } = useChatStore();
+  
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isBioModalVisible, setIsBioModalVisible] = useState(false);
+
+  const handleChangeProfilePicture = async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant permission to access your photo library to change your profile picture.'
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      const imageUri = result.assets[0].uri;
+
+      // Show confirmation
+      Alert.alert(
+        'Change Profile Picture',
+        'Upload this image as your profile picture?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Upload',
+            onPress: async () => {
+              try {
+                setIsUploadingPhoto(true);
+                setUploadProgress(0);
+
+                if (!user?.id) {
+                  throw new Error('User ID not found');
+                }
+
+                // Upload to Firebase Storage
+                const profilePictureUrl = await StorageService.uploadProfilePicture(
+                  user.id,
+                  imageUri,
+                  (progress) => {
+                    setUploadProgress(progress.progress);
+                  }
+                );
+
+                // Update Firestore
+                await UserService.updateProfile(user.id, { profilePictureUrl });
+
+                // Update AuthStore
+                await updateUserProfile({ profilePictureUrl });
+                
+                // Refresh profile cache in ChatStore so it shows in chats
+                await refreshUserProfile(user.id);
+
+                Alert.alert('Success', 'Profile picture updated successfully!');
+              } catch (error) {
+                console.error('Error uploading profile picture:', error);
+                Alert.alert('Error', 'Failed to upload profile picture. Please try again.');
+              } finally {
+                setIsUploadingPhoto(false);
+                setUploadProgress(0);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+
+  const handleSaveBio = async (newBio: string) => {
+    try {
+      if (!user?.id) {
+        throw new Error('User ID not found');
+      }
+
+      // Update Firestore
+      await UserService.updateProfile(user.id, { bio: newBio });
+
+      // Update AuthStore
+      await updateUserProfile({ bio: newBio });
+
+      Alert.alert('Success', 'Bio updated successfully!');
+    } catch (error) {
+      console.error('Error updating bio:', error);
+      Alert.alert('Error', 'Failed to update bio. Please try again.');
+    }
+  };
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -85,6 +192,7 @@ export default function ProfileScreen() {
   }
 
   return (
+    <>
     <ScrollView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       contentContainerStyle={styles.content}
@@ -105,6 +213,30 @@ export default function ProfileScreen() {
           showOnline
           isOnline={user.isOnline}
         />
+        
+        {/* Change Photo Button */}
+        <Pressable
+          style={[styles.changePhotoButton, { backgroundColor: theme.colors.surface }]}
+          onPress={handleChangeProfilePicture}
+          disabled={isUploadingPhoto}
+        >
+          {isUploadingPhoto ? (
+            <>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={[theme.typography.bodySmall, { color: theme.colors.primary, marginLeft: 8 }]}>
+                Uploading... {uploadProgress.toFixed(0)}%
+              </Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="camera" size={16} color={theme.colors.primary} />
+              <Text style={[theme.typography.bodySmall, { color: theme.colors.primary, marginLeft: 6 }]}>
+                Change Photo
+              </Text>
+            </>
+          )}
+        </Pressable>
+        
         <Text
           style={[
             theme.typography.h3,
@@ -121,21 +253,48 @@ export default function ProfileScreen() {
         >
           @{user.username}
         </Text>
-        {user.bio && (
-          <Text
-            style={[
-              theme.typography.body,
-              {
-                color: theme.colors.text,
-                marginTop: 12,
-                textAlign: 'center',
-                paddingHorizontal: 20,
-              },
-            ]}
+        
+        {/* Bio Section */}
+        <View style={styles.bioSection}>
+          {user.bio ? (
+            <Text
+              style={[
+                theme.typography.body,
+                {
+                  color: theme.colors.text,
+                  textAlign: 'center',
+                  paddingHorizontal: 20,
+                },
+              ]}
+            >
+              {user.bio}
+            </Text>
+          ) : (
+            <Text
+              style={[
+                theme.typography.body,
+                {
+                  color: theme.colors.textSecondary,
+                  textAlign: 'center',
+                  fontStyle: 'italic',
+                },
+              ]}
+            >
+              No bio yet
+            </Text>
+          )}
+          
+          {/* Edit Bio Button */}
+          <Pressable
+            style={[styles.editBioButton, { backgroundColor: theme.colors.surface }]}
+            onPress={() => setIsBioModalVisible(true)}
           >
-            {user.bio}
-          </Text>
-        )}
+            <Ionicons name="create-outline" size={14} color={theme.colors.primary} />
+            <Text style={[theme.typography.bodySmall, { color: theme.colors.primary, marginLeft: 4 }]}>
+              Edit Bio
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Profile Details Card */}
@@ -192,6 +351,85 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
+      {/* Theme Settings */}
+      <Card style={styles.card}>
+        <Text
+          style={[
+            theme.typography.h4,
+            { color: theme.colors.text, marginBottom: 16 },
+          ]}
+        >
+          Appearance
+        </Text>
+
+        <View style={styles.themeRow}>
+          <View style={styles.themeInfo}>
+            <View style={styles.themeIconContainer}>
+              <Ionicons 
+                name={themeMode === 'dark' ? 'moon' : themeMode === 'light' ? 'sunny' : 'phone-portrait-outline'} 
+                size={20} 
+                color={theme.colors.primary} 
+              />
+            </View>
+            <View>
+              <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]}>
+                Theme
+              </Text>
+              <Text style={[theme.typography.bodySmall, { color: theme.colors.textSecondary }]}>
+                {themeMode === 'system' ? 'Follow System' : themeMode === 'dark' ? 'Dark Mode' : 'Light Mode'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.themeButtons}>
+            <Pressable
+              style={[
+                styles.themeButton,
+                themeMode === 'light' && { backgroundColor: theme.colors.primary },
+                { borderColor: theme.colors.border },
+              ]}
+              onPress={() => setThemeMode('light')}
+            >
+              <Ionicons 
+                name="sunny" 
+                size={18} 
+                color={themeMode === 'light' ? '#fff' : theme.colors.textSecondary} 
+              />
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.themeButton,
+                themeMode === 'system' && { backgroundColor: theme.colors.primary },
+                { borderColor: theme.colors.border },
+              ]}
+              onPress={() => setThemeMode('system')}
+            >
+              <Ionicons 
+                name="phone-portrait-outline" 
+                size={18} 
+                color={themeMode === 'system' ? '#fff' : theme.colors.textSecondary} 
+              />
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.themeButton,
+                themeMode === 'dark' && { backgroundColor: theme.colors.primary },
+                { borderColor: theme.colors.border },
+              ]}
+              onPress={() => setThemeMode('dark')}
+            >
+              <Ionicons 
+                name="moon" 
+                size={18} 
+                color={themeMode === 'dark' ? '#fff' : theme.colors.textSecondary} 
+              />
+            </Pressable>
+          </View>
+        </View>
+      </Card>
+
       {/* Actions */}
       <View style={styles.actions}>
         <Button
@@ -215,6 +453,15 @@ export default function ProfileScreen() {
 
       <View style={{ height: 20 }} />
     </ScrollView>
+    
+    {/* Edit Bio Modal */}
+    <EditBioModal
+      visible={isBioModalVisible}
+      currentBio={user.bio || ''}
+      onSave={handleSaveBio}
+      onClose={() => setIsBioModalVisible(false)}
+    />
+    </>
   );
 }
 
@@ -233,6 +480,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
   },
+  changePhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  bioSection: {
+    marginTop: 12,
+    alignItems: 'center',
+    width: '100%',
+  },
+  editBioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginTop: 8,
+  },
   card: {
     marginTop: 24,
   },
@@ -244,6 +512,35 @@ const styles = StyleSheet.create({
   },
   infoContent: {
     flex: 1,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  themeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  themeIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  themeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  themeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   actions: {
     marginTop: 32,

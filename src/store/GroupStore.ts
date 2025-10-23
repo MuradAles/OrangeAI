@@ -39,7 +39,6 @@ interface GroupState {
   loadGroupParticipants: (groupId: string) => Promise<void>;
   updateGroupInfo: (groupId: string, name: string, description?: string, icon?: string) => Promise<void>;
   addMember: (groupId: string, userId: string) => Promise<void>;
-  removeMember: (groupId: string, userId: string, adminId: string) => Promise<void>;
   leaveGroup: (groupId: string, userId: string) => Promise<void>;
   transferAdmin: (groupId: string, currentAdminId: string, newAdminId: string) => Promise<void>;
   joinGroupByInviteCode: (inviteCode: string, userId: string) => Promise<string | null>;
@@ -209,28 +208,6 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     } catch (error) {
       console.error('❌ Failed to add member:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to add member';
-      set({ error: errorMessage });
-      throw error;
-    }
-  },
-
-  /**
-   * Remove member from group
-   */
-  removeMember: async (groupId, userId, adminId) => {
-    set({ error: null });
-    try {
-      console.log('📦 Removing member from group:', userId);
-      
-      await GroupService.removeMember(groupId, userId, adminId);
-
-      // Reload participants
-      await get().loadGroupParticipants(groupId);
-
-      console.log('✅ Member removed');
-    } catch (error) {
-      console.error('❌ Failed to remove member:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to remove member';
       set({ error: errorMessage });
       throw error;
     }

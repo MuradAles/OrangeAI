@@ -11,10 +11,12 @@
  */
 
 import { SQLiteService } from '@/database/SQLiteService';
-import { ChatService, MessageService, UserService } from '@/services/firebase';
+import { ChatService, MessageService } from '@/services/firebase';
 import { Chat, Message, MessageStatus, MessageSyncStatus, MessageType, User } from '@/shared/types';
 import type { Unsubscribe } from 'firebase/firestore';
 import { create } from 'zustand';
+import { createMessageActions } from './ChatStore.messages';
+import { createProfileActions } from './ChatStore.profiles';
 
 interface ChatState {
   // State
@@ -44,6 +46,7 @@ interface ChatState {
   // Actions - User Profiles
   loadUserProfile: (userId: string) => Promise<User | null>;
   getUserProfile: (userId: string) => User | null;
+  refreshUserProfile: (userId: string) => Promise<void>;
   
   // Actions - Messages
   loadMessagesFromSQLite: (chatId: string) => Promise<void>;
@@ -51,16 +54,17 @@ interface ChatState {
   sendMessage: (chatId: string, senderId: string, text: string) => Promise<void>;
   sendImageMessage: (chatId: string, senderId: string, imageUri: string, caption?: string) => Promise<void>;
   updateMessageStatus: (chatId: string, messageId: string, status: MessageStatus) => Promise<void>;
+  retryFailedMessage: (chatId: string, messageId: string) => Promise<void>;
   deleteMessageForMe: (chatId: string, messageId: string, userId: string) => Promise<void>;
   deleteMessageForEveryone: (chatId: string, messageId: string) => Promise<void>;
   addReaction: (chatId: string, messageId: string, emoji: string, userId: string) => Promise<void>;
   removeReaction: (chatId: string, messageId: string, emoji: string, userId: string) => Promise<void>;
   markChatAsRead: (chatId: string, userId: string) => Promise<void>;
-  blockUserAndDeleteChat: (chatId: string) => Promise<void>;
 
   // Cleanup
   unsubscribeAll: () => void;
   clearError: () => void;
+  removeChatLocally: (chatId: string, userId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -80,10 +84,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Load chats from SQLite (instant, for initial display)
   loadChatsFromSQLite: async (userId: string) => {
     try {
-      console.log('📦 Loading chats from SQLite for user:', userId);
       set({ isLoadingChats: true, error: null });
       const chatRows = await SQLiteService.getChats(userId);
-      console.log('📦 SQLite returned', chatRows.length, 'chats');
       
       // Helper function to safely parse participants
       const parseParticipants = (participantsStr: string | any): string[] => {
@@ -410,7 +412,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       },
       (error) => {
         console.error('Error in chat subscription:', error);
-        set({ error: error.message });
+        // If permission error, likely user was removed from a group
+        // Clean up local state to ensure removed chats don't appear
+        if (error.message?.includes?.('permission') || error.message?.includes?.('insufficient')) {
+          console.log('🧹 Permission error detected, cleaning up inaccessible chats...');
+          // Trigger a refresh by clearing error after a short delay
+          setTimeout(() => {
+            set({ error: null });
+          }, 1000);
+        } else {
+          set({ error: error.message });
+        }
       }
     );
 
@@ -472,7 +484,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   // Subscribe to real-time message updates  
-  // PRD: This should only listen for NEW messages, not load all historical messages
+  // PRD: Adaptive loading based on unread count:
+  // ≤50 unread: Load all at once
+  // 51-500 unread: Batch loading (100, 200, rest)
+  // 500+ unread: Load 50 at a time on scroll
   subscribeToMessages: (chatId: string, currentUserId?: string) => {
     // Unsubscribe from previous listener if exists
     const { messagesUnsubscribe } = get();
@@ -480,6 +495,102 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messagesUnsubscribe();
     }
 
+    // Track if this is the initial load (to prevent notifications for old messages)
+    let isInitialLoad = true;
+    let hasReceivedFirstSnapshot = false; // Track if we've received the very first snapshot
+
+    // PRD: Check unread count to determine how many messages to load
+    const currentChat = get().chats.find(c => c.id === chatId);
+    const unreadCount = currentChat?.unreadCount || 0;
+    
+    // Adaptive loading based on PRD
+    let initialLoadLimit = 50; // Default
+    if (unreadCount <= 50) {
+      // Load all at once (or 50 whichever is larger for context)
+      initialLoadLimit = Math.max(50, unreadCount + 10);
+    } else if (unreadCount <= 500) {
+      // First batch: 100 messages
+      initialLoadLimit = 100;
+      
+      // Schedule second batch (200 more) after 2 seconds
+      setTimeout(async () => {
+        const result = await MessageService.getMessages(chatId, 200);
+        const moreMessages = result.messages; // Extract messages array from result
+        const currentMsgs = get().messages;
+        const currentIds = new Set(currentMsgs.map(m => m.id));
+        const newMsgs = moreMessages.filter((m: Message) => !currentIds.has(m.id));
+        
+        if (newMsgs.length > 0) {
+          set({ messages: [...currentMsgs, ...newMsgs] });
+          // Save to SQLite (convert Message to MessageRow)
+          for (const msg of newMsgs) {
+            const msgTimestamp: number = typeof msg.timestamp === 'number' 
+              ? msg.timestamp 
+              : ((msg.timestamp as any).getTime?.() || Date.now());
+            const messageRow = {
+              id: msg.id,
+              chatId: msg.chatId,
+              senderId: msg.senderId,
+              text: msg.text,
+              timestamp: msgTimestamp,
+              status: msg.status,
+              type: msg.type,
+              imageUrl: msg.imageUrl || null,
+              thumbnailUrl: msg.thumbnailUrl || null,
+              caption: msg.caption || null,
+              reactions: JSON.stringify(msg.reactions || {}),
+              deletedForMe: 0,
+              deletedForEveryone: msg.deletedForEveryone ? 1 : 0,
+              syncStatus: 'synced' as MessageSyncStatus,
+            };
+            await SQLiteService.saveMessage(messageRow).catch(console.error);
+          }
+        }
+      }, 2000);
+      
+      // Schedule third batch (rest) after 5 seconds if needed
+      if (unreadCount > 300) {
+        setTimeout(async () => {
+          const result = await MessageService.getMessages(chatId, 300);
+          const moreMessages = result.messages; // Extract messages array from result
+          const currentMsgs = get().messages;
+          const currentIds = new Set(currentMsgs.map(m => m.id));
+          const newMsgs = moreMessages.filter((m: Message) => !currentIds.has(m.id));
+          
+          if (newMsgs.length > 0) {
+            set({ messages: [...currentMsgs, ...newMsgs] });
+            // Save to SQLite (convert Message to MessageRow)
+            for (const msg of newMsgs) {
+              const msgTimestamp: number = typeof msg.timestamp === 'number' 
+                ? msg.timestamp 
+                : ((msg.timestamp as any).getTime?.() || Date.now());
+              const messageRow = {
+                id: msg.id,
+                chatId: msg.chatId,
+                senderId: msg.senderId,
+                text: msg.text,
+                timestamp: msgTimestamp,
+                status: msg.status,
+                type: msg.type,
+                imageUrl: msg.imageUrl || null,
+                thumbnailUrl: msg.thumbnailUrl || null,
+                caption: msg.caption || null,
+                reactions: JSON.stringify(msg.reactions || {}),
+                deletedForMe: 0,
+                deletedForEveryone: msg.deletedForEveryone ? 1 : 0,
+                syncStatus: 'synced' as MessageSyncStatus,
+              };
+              await SQLiteService.saveMessage(messageRow).catch(console.error);
+            }
+          }
+        }, 5000);
+      }
+    } else {
+      // 500+ unread: Load 50 at a time (user will scroll to load more)
+      initialLoadLimit = 50;
+    }
+
+    // Subscribe with adaptive limit
     const unsubscribe = MessageService.subscribeToMessages(
       chatId,
       async (newMessages) => {
@@ -502,65 +613,72 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // New message (not in current state)
             messagesToAdd.push(msg);
             
-            // If user is ACTIVELY viewing this chat AND message is from someone else:
-            // Mark as "read" immediately (skip delivered)
-            if (currentUserId && msg.senderId !== currentUserId && activeChatId === chatId) {
-              try {
-                await MessageService.updateMessageStatus(chatId, msg.id, 'read');
-                msg.status = 'read'; // Update local copy
-                
-                // Also update chat to reset unread count
-                await ChatService.markChatAsRead(chatId, currentUserId, msg.id);
-                
-                // Update chat document's lastMessageStatus so chat list shows correct read status
-                const messageTimestamp = typeof msg.timestamp === 'number' 
-                  ? msg.timestamp 
-                  : (msg.timestamp as any)?.getTime?.() || Date.now();
-                await ChatService.updateChatLastMessage(
-                  chatId,
-                  msg.text || (msg.type === 'image' ? '📷 Photo' : ''),
-                  msg.senderId,
-                  'read',
-                  messageTimestamp
-                );
-                
-                // IMMEDIATELY update local chat state to reset unread count (don't wait for Firestore listener)
-                const { chats } = get();
-                const updatedChats = chats.map(chat => {
-                  if (chat.id === chatId) {
-                    return {
-                      ...chat,
-                      unreadCount: 0,
-                      lastMessageStatus: 'read' as any,
-                    };
+            // CRITICAL: Only update status for truly NEW messages (not during initial load)
+            // This prevents status updates that trigger notifications for all users
+            if (!isInitialLoad) {
+              // If user is ACTIVELY viewing this chat AND message is from someone else:
+              // Mark as "read" immediately (skip delivered)
+              if (currentUserId && msg.senderId !== currentUserId && activeChatId === chatId) {
+                try {
+                  await MessageService.updateMessageStatus(chatId, msg.id, 'read');
+                  msg.status = 'read'; // Update local copy
+                  
+                  // Also update chat to reset unread count
+                  await ChatService.markChatAsRead(chatId, currentUserId, msg.id);
+                  
+                  // Update chat document's lastMessageStatus so chat list shows correct read status
+                  const messageTimestamp = typeof msg.timestamp === 'number' 
+                    ? msg.timestamp 
+                    : (msg.timestamp as any)?.getTime?.() || Date.now();
+                  await ChatService.updateChatLastMessage(
+                    chatId,
+                    msg.text || (msg.type === 'image' ? '📷 Photo' : ''),
+                    msg.senderId,
+                    'read',
+                    messageTimestamp
+                  );
+                  
+                  // IMMEDIATELY update local chat state to reset unread count (don't wait for Firestore listener)
+                  const { chats } = get();
+                  const updatedChats = chats.map(chat => {
+                    if (chat.id === chatId) {
+                      return {
+                        ...chat,
+                        unreadCount: 0,
+                        lastMessageStatus: 'read' as any,
+                      };
+                    }
+                    return chat;
+                  });
+                  set({ chats: updatedChats });
+                } catch (error: any) {
+                  // Silently ignore permission errors (user was removed from group)
+                  if (error?.code !== 'permission-denied' && error?.message?.includes?.('Missing or insufficient permissions') === false) {
+                    console.error('Error marking message as read:', error);
                   }
-                  return chat;
-                });
-                set({ chats: updatedChats });
-              } catch (error: any) {
-                // Silently ignore permission errors (user was removed from group)
-                if (error?.code !== 'permission-denied' && error?.message?.includes?.('Missing or insufficient permissions') === false) {
-                  console.error('Error marking message as read:', error);
+                }
+              } 
+              // If user is NOT actively viewing this chat but received the message:
+              // Mark as "delivered"
+              else if (currentUserId && msg.senderId !== currentUserId && msg.status === 'sent') {
+                try {
+                  await MessageService.updateMessageStatus(chatId, msg.id, 'delivered');
+                  msg.status = 'delivered'; // Update local copy
+                } catch (error: any) {
+                  // Silently ignore permission errors (user was removed from group)
+                  if (error?.code !== 'permission-denied' && error?.message?.includes?.('Missing or insufficient permissions') === false) {
+                    console.error('Error marking message as delivered:', error);
+                  }
                 }
               }
-            } 
-            // If user is NOT actively viewing this chat but received the message:
-            // Mark as "delivered"
-            else if (currentUserId && msg.senderId !== currentUserId && msg.status === 'sent') {
-              try {
-                await MessageService.updateMessageStatus(chatId, msg.id, 'delivered');
-                msg.status = 'delivered'; // Update local copy
-              } catch (error: any) {
-                // Silently ignore permission errors (user was removed from group)
-                if (error?.code !== 'permission-denied' && error?.message?.includes?.('Missing or insufficient permissions') === false) {
-                  console.error('Error marking message as delivered:', error);
-                }
-              }
+            } else {
+              console.log('⏭️ Skipping status update for old message during initial load');
             }
 
             // 🔔 Trigger in-app notification if message is from someone else AND not actively viewing this chat
             // AND message was sent AFTER user joined (to avoid notifications for old messages when rejoining)
-            if (currentUserId && msg.senderId !== currentUserId && activeChatId !== chatId) {
+            // AND this is NOT the initial load (to avoid notifications when loading cached messages)
+            if (currentUserId && msg.senderId !== currentUserId && activeChatId !== chatId && !isInitialLoad) {
               try {
                 // Fetch user's CURRENT joinedAt for THIS chat to check if message is new
                 const participantData = await ChatService.getParticipant(chatId, currentUserId);
@@ -569,8 +687,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 const messageTimestamp = typeof msg.timestamp === 'number' 
                   ? msg.timestamp 
                   : (msg.timestamp as any)?.getTime?.() || Date.now();
-                
-                console.log(`🔔 Notification check: msg ${new Date(messageTimestamp).toISOString()} vs joined ${userJoinedAt ? new Date(userJoinedAt).toISOString() : 'never'}`);
                 
                 // Only notify if message was sent AFTER user joined the group
                 // This prevents notifications for old messages when user rejoins
@@ -609,6 +725,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         set({ messages: updatedMessages });
         
+        // Mark that we've received the first snapshot
+        // Use a timeout to ensure ALL batches from initial snapshot are processed
+        // before enabling notifications
+        if (!hasReceivedFirstSnapshot) {
+          hasReceivedFirstSnapshot = true;
+          console.log('📦 First snapshot received, waiting for all initial batches...');
+          
+          // Wait 2 seconds after first snapshot to ensure all initial batches are processed
+          setTimeout(() => {
+            if (isInitialLoad) {
+              isInitialLoad = false;
+              console.log('✅ Initial message load complete, notifications now enabled');
+            }
+          }, 2000);
+        }
+        
         // Sync new/updated messages to SQLite for offline access (non-blocking)
         for (const message of newMessages) {
           const messageRow: any = {
@@ -636,631 +768,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       (error) => {
         console.error('Error in message subscription:', error);
         set({ error: error.message });
-      }
+      },
+      initialLoadLimit // Pass adaptive limit based on unread count
     );
 
     set({ messagesUnsubscribe: unsubscribe });
   },
 
-  // Send a new message (optimistic update)
-  sendMessage: async (chatId: string, senderId: string, text: string) => {
-    try {
-      // Generate a unique message ID (will be used in both local state and Firestore)
-      // This prevents duplicates because Firestore will use the same ID
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Create optimistic message
-      const optimisticMessage: Message = {
-        id: messageId,
-        chatId,
-        senderId,
-        text,
-        timestamp: Date.now(), // Use timestamp number instead of Date object
-        status: 'sending',
-        type: 'text',
-        imageUrl: null,
-        thumbnailUrl: null,
-        caption: null,
-        reactions: {},
-        deletedFor: [],
-        deletedForEveryone: false,
-        deletedAt: null,
-        syncStatus: 'pending',
-      };
+  // Import message actions from separate file
+  ...createMessageActions(set, get),
 
-      // Add to state immediately (optimistic update)
-      const { messages } = get();
-      set({ messages: [...messages, optimisticMessage] });
-
-      // Save to SQLite with pending status (convert to MessageRow)
-      const messageRow: any = {
-        id: optimisticMessage.id,
-        chatId: optimisticMessage.chatId,
-        senderId: optimisticMessage.senderId,
-        text: optimisticMessage.text,
-        timestamp: typeof optimisticMessage.timestamp === 'number' 
-          ? optimisticMessage.timestamp 
-          : (optimisticMessage.timestamp as any).getTime?.() || Date.now(),
-        status: optimisticMessage.status,
-        type: optimisticMessage.type,
-        imageUrl: optimisticMessage.imageUrl,
-        thumbnailUrl: optimisticMessage.thumbnailUrl,
-        caption: optimisticMessage.caption,
-        reactions: JSON.stringify(optimisticMessage.reactions || {}),
-        deletedForMe: 0,
-        deletedForEveryone: 0,
-        syncStatus: optimisticMessage.syncStatus,
-      };
-      // Non-blocking save, ignore errors
-      SQLiteService.saveMessage(messageRow).catch(() => {});
-
-      // Upload to Firestore in background with the same ID
-      try {
-        await MessageService.sendMessage(chatId, senderId, text, messageId);
-        
-        // FIRST: Increment unread count for other participants (before updating chat document)
-        const { chats } = get();
-        const currentChat = chats.find(c => c.id === chatId);
-        if (currentChat) {
-          const otherParticipants = currentChat.participants.filter(id => id !== senderId);
-          for (const participantId of otherParticipants) {
-            try {
-              await ChatService.incrementUnreadCount(chatId, participantId);
-            } catch (error) {
-              console.error('❌ Error incrementing unread count:', error);
-            }
-          }
-        } else {
-          console.warn(`⚠️ Chat ${chatId} not found in local state when trying to increment unread count`);
-        }
-        
-        // THEN: Update last message in chat with 'sent' status and the message timestamp
-        // This triggers the chat subscription, which will now fetch the updated unread count
-        await ChatService.updateChatLastMessage(chatId, text, senderId, 'sent', optimisticMessage.timestamp);
-        
-        // The Firestore listener will update the message with the real timestamp and 'sent' status
-        // Since we use the same ID, it will replace the optimistic message automatically
-        
-      } catch (uploadError) {
-        // Mark as failed
-        const failedMessage: Message = {
-          ...optimisticMessage,
-          status: 'sending',
-          syncStatus: 'failed',
-        };
-        
-        // Update in state to show failed status
-        set((state) => ({
-          messages: state.messages.map(msg => 
-            msg.id === messageId ? failedMessage : msg
-          ),
-        }));
-        
-        // Update in SQLite
-        const failedRow: any = {
-          id: failedMessage.id,
-          chatId: failedMessage.chatId,
-          senderId: failedMessage.senderId,
-          text: failedMessage.text,
-          timestamp: typeof failedMessage.timestamp === 'number' 
-            ? failedMessage.timestamp 
-            : (failedMessage.timestamp as any).getTime?.() || Date.now(),
-          status: failedMessage.status,
-          type: failedMessage.type,
-          imageUrl: failedMessage.imageUrl,
-          thumbnailUrl: failedMessage.thumbnailUrl,
-          caption: failedMessage.caption,
-          reactions: JSON.stringify(failedMessage.reactions || {}),
-          deletedForMe: 0,
-          deletedForEveryone: 0,
-          syncStatus: failedMessage.syncStatus,
-        };
-        // Non-blocking save, ignore errors
-        SQLiteService.saveMessage(failedRow).catch(() => {});
-        
-        throw uploadError;
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      set({ error: (error as Error).message });
-      throw error;
-    }
-  },
-
-  // Send image message with optional caption
-  sendImageMessage: async (chatId: string, senderId: string, imageUri: string, caption?: string) => {
-    try {
-      const { StorageService } = await import('@/services/firebase');
-      
-      // Generate unique message ID
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Create optimistic message with placeholder image
-      const optimisticMessage: Message = {
-        id: messageId,
-        chatId,
-        senderId,
-        text: '', // Empty text for image messages
-        timestamp: Date.now(),
-        status: 'sending',
-        type: 'image',
-        imageUrl: imageUri, // Use local URI temporarily
-        thumbnailUrl: imageUri, // Use local URI temporarily
-        caption: caption || null,
-        reactions: {},
-        deletedFor: [],
-        deletedForEveryone: false,
-        deletedAt: null,
-        syncStatus: 'pending',
-      };
-
-      // Add to state immediately (optimistic update)
-      const { messages } = get();
-      set({ messages: [...messages, optimisticMessage] });
-
-      // Save to SQLite with pending status
-      const messageRow: any = {
-        id: optimisticMessage.id,
-        chatId: optimisticMessage.chatId,
-        senderId: optimisticMessage.senderId,
-        text: optimisticMessage.text,
-        timestamp: optimisticMessage.timestamp,
-        status: optimisticMessage.status,
-        type: optimisticMessage.type,
-        imageUrl: optimisticMessage.imageUrl,
-        thumbnailUrl: optimisticMessage.thumbnailUrl,
-        caption: optimisticMessage.caption,
-        reactions: JSON.stringify(optimisticMessage.reactions || {}),
-        deletedForMe: 0,
-        deletedForEveryone: 0,
-        syncStatus: optimisticMessage.syncStatus,
-      };
-      // Non-blocking save, ignore errors
-      SQLiteService.saveMessage(messageRow).catch(() => {});
-
-      // Upload image to Storage in background
-      try {
-        console.log('📸 Uploading image to Firebase Storage...');
-        const { imageUrl, thumbnailUrl } = await StorageService.uploadMessageImage(
-          chatId,
-          messageId,
-          imageUri
-        );
-        console.log('✅ Image uploaded successfully');
-
-        // Send message to Firestore with real image URLs
-        await MessageService.sendMessage(chatId, senderId, '', messageId, {
-          type: 'image',
-          imageUrl,
-          thumbnailUrl,
-          caption: caption || null,
-        });
-        
-        // Increment unread count for other participants
-        const { chats } = get();
-        const currentChat = chats.find(c => c.id === chatId);
-        if (currentChat) {
-          const otherParticipants = currentChat.participants.filter(id => id !== senderId);
-          for (const participantId of otherParticipants) {
-            try {
-              await ChatService.incrementUnreadCount(chatId, participantId);
-            } catch (error) {
-              console.error('❌ Error incrementing unread count:', error);
-            }
-          }
-        }
-        
-        // Update last message in chat with timestamp
-        const lastMessageText = caption || '📷 Photo';
-        await ChatService.updateChatLastMessage(chatId, lastMessageText, senderId, 'sent', optimisticMessage.timestamp);
-        
-        // Update optimistic message with real URLs in state
-        set((state) => ({
-          messages: state.messages.map(msg => 
-            msg.id === messageId 
-              ? { ...msg, imageUrl, thumbnailUrl, syncStatus: 'synced' as const }
-              : msg
-          ),
-        }));
-
-        // Update in SQLite with real URLs
-        const syncedRow: any = {
-          ...messageRow,
-          imageUrl,
-          thumbnailUrl,
-          syncStatus: 'synced',
-        };
-        // Non-blocking save, ignore errors
-        SQLiteService.saveMessage(syncedRow).catch(() => {});
-        
-      } catch (uploadError) {
-        console.error('❌ Error uploading image:', uploadError);
-        
-        // Mark as failed
-        const failedMessage: Message = {
-          ...optimisticMessage,
-          status: 'sending',
-          syncStatus: 'failed',
-        };
-        
-        // Update state
-        set((state) => ({
-          messages: state.messages.map(msg => 
-            msg.id === messageId ? failedMessage : msg
-          ),
-        }));
-        
-        // Update SQLite
-        const failedRow: any = {
-          ...messageRow,
-          syncStatus: 'failed',
-        };
-        // Non-blocking save, ignore errors
-        SQLiteService.saveMessage(failedRow).catch(() => {});
-        
-        throw uploadError;
-      }
-    } catch (error) {
-      console.error('Error sending image message:', error);
-      set({ error: (error as Error).message });
-      throw error;
-    }
-  },
-
-  // Update message status (sent → delivered → read)
-  updateMessageStatus: async (chatId: string, messageId: string, status: MessageStatus) => {
-    try {
-      await MessageService.updateMessageStatus(chatId, messageId, status);
-      
-      // Update in SQLite (non-blocking)
-      SQLiteService.getMessageById(messageId).then(message => {
-        if (message) {
-          const updatedMessage = { ...message, status };
-          SQLiteService.saveMessage(updatedMessage).catch(() => {});
-        }
-      }).catch(() => {});
-    } catch (error) {
-      console.error('Error updating message status:', error);
-    }
-  },
-
-  // Delete message for current user only
-  deleteMessageForMe: async (chatId: string, messageId: string, userId: string) => {
-    try {
-      await MessageService.deleteMessageForMe(chatId, messageId, userId);
-      
-      // Update in SQLite
-      await SQLiteService.deleteMessage(messageId, userId);
-      
-      // Update in state
-      const { messages } = get();
-      const updatedMessages = messages.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, deletedFor: [...(msg.deletedFor || []), userId] }
-          : msg
-      );
-      set({ messages: updatedMessages });
-    } catch (error) {
-      console.error('Error deleting message for me:', error);
-      throw error;
-    }
-  },
-
-  // Delete message for everyone
-  deleteMessageForEveryone: async (chatId: string, messageId: string) => {
-    try {
-      await MessageService.deleteMessageForEveryone(chatId, messageId);
-      
-      // Update in SQLite (non-blocking)
-      SQLiteService.getMessageById(messageId).then(messageRow => {
-        if (messageRow) {
-          const updatedRow = { 
-            ...messageRow, 
-            deletedForEveryone: 1, // SQLite uses 1 for true
-          };
-          SQLiteService.saveMessage(updatedRow).catch(() => {});
-        }
-      }).catch(() => {});
-      
-      // Update in state
-      const { messages } = get();
-      const updatedMessages = messages.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, deletedForEveryone: true, deletedAt: Date.now() }
-          : msg
-      );
-      set({ messages: updatedMessages });
-    } catch (error) {
-      console.error('Error deleting message for everyone:', error);
-      throw error;
-    }
-  },
-
-  // Add reaction to a message
-  addReaction: async (chatId: string, messageId: string, emoji: string, userId: string) => {
-    try {
-      await MessageService.addReaction(chatId, messageId, emoji, userId);
-      
-      // Update in SQLite
-      const messageRow = await SQLiteService.getMessageById(messageId);
-      if (messageRow) {
-        const reactions = messageRow.reactions ? JSON.parse(messageRow.reactions) : {};
-        if (!reactions[emoji]) {
-          reactions[emoji] = [];
-        }
-        if (!reactions[emoji].includes(userId)) {
-          reactions[emoji].push(userId);
-        }
-        await SQLiteService.updateReactions(messageId, reactions);
-      }
-    } catch (error) {
-      console.error('Error adding reaction:', error);
-      throw error;
-    }
-  },
-
-  // Remove reaction from a message
-  removeReaction: async (chatId: string, messageId: string, emoji: string, userId: string) => {
-    try {
-      await MessageService.removeReaction(chatId, messageId, emoji, userId);
-      
-      // Update in SQLite
-      const messageRow = await SQLiteService.getMessageById(messageId);
-      if (messageRow) {
-        const reactions = messageRow.reactions ? JSON.parse(messageRow.reactions) : {};
-        if (reactions[emoji]) {
-          reactions[emoji] = reactions[emoji].filter((id: string) => id !== userId);
-          if (reactions[emoji].length === 0) {
-            delete reactions[emoji];
-          }
-        }
-        await SQLiteService.updateReactions(messageId, reactions);
-      }
-    } catch (error) {
-      console.error('Error removing reaction:', error);
-      throw error;
-    }
-  },
-
-  // Mark chat as read (updates all unread messages to "read" status)
-  markChatAsRead: async (chatId: string, userId: string) => {
-    try {
-      const { messages, chats } = get();
-      
-      // IMMEDIATELY update local chat state to reset unread count (optimistic update)
-      const updatedChatsOptimistic = chats.map(chat => {
-        if (chat.id === chatId) {
-          return {
-            ...chat,
-            unreadCount: 0,
-          };
-        }
-        return chat;
-      });
-      set({ chats: updatedChatsOptimistic });
-      
-      // Get messages for this chat only and sort by timestamp to get the ACTUAL last message
-      const chatMessages = messages.filter(m => m.chatId === chatId);
-      const sortedMessages = [...chatMessages].sort((a, b) => {
-        const timeA = typeof a.timestamp === 'number' ? a.timestamp : (a.timestamp as any).getTime?.() || 0;
-        const timeB = typeof b.timestamp === 'number' ? b.timestamp : (b.timestamp as any).getTime?.() || 0;
-        return timeB - timeA; // Newest first
-      });
-      const lastMessage = sortedMessages[0]; // Most recent message
-      
-      if (lastMessage) {
-        await ChatService.markChatAsRead(chatId, userId, lastMessage.id);
-      }
-      
-      // Mark all messages from other users as "read"
-      const unreadMessages = chatMessages.filter(
-        msg => msg.senderId !== userId && (msg.status === 'delivered' || msg.status === 'sent')
-      );
-      
-      for (const msg of unreadMessages) {
-        try {
-          await MessageService.updateMessageStatus(chatId, msg.id, 'read');
-          // Update in local state
-          const updatedMessages = get().messages.map(m =>
-            m.id === msg.id ? { ...m, status: 'read' as MessageStatus } : m
-          );
-          set({ messages: updatedMessages });
-        } catch (error) {
-          console.error('Error marking message as read:', msg.id, error);
-        }
-      }
-      
-      // If the last message was from someone else, update chat's lastMessageStatus to "read"
-      if (lastMessage && lastMessage.senderId !== userId) {
-        const messageTimestamp = typeof lastMessage.timestamp === 'number' 
-          ? lastMessage.timestamp 
-          : (lastMessage.timestamp as any)?.getTime?.() || Date.now();
-        await ChatService.updateChatLastMessage(
-          chatId,
-          lastMessage.text,
-          lastMessage.senderId,
-          'read',
-          messageTimestamp
-        );
-      }
-      
-      // Update chat list with final status
-      const updatedChats = chats.map(chat => {
-        if (chat.id === chatId) {
-          return {
-            ...chat,
-            unreadCount: 0,
-            // Update status to 'read' if last message was from someone else
-            lastMessageStatus: (lastMessage && lastMessage.senderId !== userId) ? 'read' as any : chat.lastMessageStatus,
-          };
-        }
-        return chat;
-      });
-      set({ chats: updatedChats });
-      
-      // Update in SQLite (non-blocking)
-      SQLiteService.getChatById(chatId).then(chatRow => {
-        if (chatRow) {
-          SQLiteService.saveChat({
-            ...chatRow,
-            unreadCount: 0,
-            lastMessageStatus: (lastMessage && lastMessage.senderId !== userId) ? 'read' : chatRow.lastMessageStatus,
-          }).catch(() => {});
-        }
-      }).catch(() => {});
-      
-      // Chat marked as read
-    } catch (error) {
-      console.error('Error marking chat as read:', error);
-    }
-  },
-
-  // Block user and delete chat completely (hard delete from Firebase and SQLite)
-  blockUserAndDeleteChat: async (chatId: string) => {
-    try {
-      console.log(`🚫 Blocking user and deleting chat: ${chatId}`);
-      
-      // Delete chat from Firestore (including all messages)
-      await ChatService.deleteChat(chatId);
-      
-      // Delete all messages from SQLite
-      await SQLiteService.deleteMessagesByChatId(chatId);
-      
-      // Delete chat from SQLite
-      await SQLiteService.deleteChatById(chatId);
-      
-      // Remove from state
-      const { chats, messages } = get();
-      set({
-        chats: chats.filter(c => c.id !== chatId),
-        messages: messages.filter(m => m.chatId !== chatId),
-      });
-      
-      console.log(`✅ Chat ${chatId} blocked and deleted successfully`);
-    } catch (error) {
-      console.error('Error blocking user and deleting chat:', error);
-      set({ error: (error as Error).message });
-      throw error;
-    }
-  },
-
-  // Load user profile from SQLite first, then Firestore if not found
-  loadUserProfile: async (userId: string) => {
-    const { userProfiles } = get();
-    
-    // Check if already cached in memory
-    if (userProfiles.has(userId)) {
-      return userProfiles.get(userId)!;
-    }
-    
-    try {
-      // Try loading from SQLite first (instant, offline support)
-      const userRow = await SQLiteService.getUserById(userId);
-      if (userRow) {
-        const profile: User = {
-          id: userRow.id,
-          username: userRow.username,
-          displayName: userRow.displayName,
-          email: '', // Not stored in SQLite
-          profilePictureUrl: userRow.profilePictureUrl || null,
-          phoneNumber: null, // Not stored in SQLite
-          phoneNumberVisible: false, // Not stored in SQLite
-          bio: '', // Not stored in SQLite
-          isOnline: userRow.isOnline === 1,
-          lastSeen: userRow.lastSeen || Date.now(),
-          createdAt: userRow.createdAt,
-        };
-        
-        // Cache in memory
-        const newProfiles = new Map(userProfiles);
-        newProfiles.set(userId, profile);
-        set({ userProfiles: newProfiles });
-        
-        // Fetch from Firestore in background to update
-        UserService.getProfile(userId).then(async (firestoreProfile) => {
-          if (firestoreProfile) {
-            // Update cache
-            const updatedProfiles = new Map(get().userProfiles);
-            updatedProfiles.set(userId, firestoreProfile);
-            set({ userProfiles: updatedProfiles });
-            
-            // Save to SQLite (convert Date to timestamp) - non-blocking, ignore errors
-            SQLiteService.saveUser({
-              id: firestoreProfile.id,
-              username: firestoreProfile.username,
-              displayName: firestoreProfile.displayName,
-              profilePictureUrl: firestoreProfile.profilePictureUrl || null,
-              isOnline: firestoreProfile.isOnline ? 1 : 0,
-              lastSeen: typeof firestoreProfile.lastSeen === 'number' 
-                ? firestoreProfile.lastSeen 
-                : (firestoreProfile.lastSeen as any)?.getTime?.() || Date.now(),
-              createdAt: typeof firestoreProfile.createdAt === 'number' 
-                ? firestoreProfile.createdAt 
-                : (firestoreProfile.createdAt as any).getTime?.() || Date.now(),
-            }).catch(() => {
-              // Ignore SQLite errors (database locked, etc.) - profile is already in memory
-            });
-          }
-        }).catch(err => console.error('Error updating profile from Firestore:', err));
-        
-        return profile;
-      }
-      
-      // Not in SQLite, load from Firestore
-      const profile = await UserService.getProfile(userId);
-      if (profile) {
-        // Cache in memory
-        const newProfiles = new Map(userProfiles);
-        newProfiles.set(userId, profile);
-        set({ userProfiles: newProfiles });
-        
-        // Save to SQLite for offline access (non-blocking, ignore errors)
-        SQLiteService.saveUser({
-          id: profile.id,
-          username: profile.username,
-          displayName: profile.displayName,
-          profilePictureUrl: profile.profilePictureUrl || null,
-          isOnline: profile.isOnline ? 1 : 0,
-          lastSeen: typeof profile.lastSeen === 'number' 
-            ? profile.lastSeen 
-            : (profile.lastSeen as any)?.getTime?.() || Date.now(),
-          createdAt: typeof profile.createdAt === 'number' 
-            ? profile.createdAt 
-            : (profile.createdAt as any).getTime?.() || Date.now(),
-        }).catch(() => {
-          // Ignore SQLite errors (database locked, etc.) - profile is already in memory
-        });
-        
-        return profile;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-      return null;
-    }
-  },
-
-  // Get cached user profile
-  getUserProfile: (userId: string) => {
-    const { userProfiles } = get();
-    return userProfiles.get(userId) || null;
-  },
-
-  // Unsubscribe from all listeners
-  unsubscribeAll: () => {
-    const { chatsUnsubscribe, messagesUnsubscribe } = get();
-    if (chatsUnsubscribe) {
-      chatsUnsubscribe();
-    }
-    if (messagesUnsubscribe) {
-      messagesUnsubscribe();
-    }
-    set({ chatsUnsubscribe: null, messagesUnsubscribe: null });
-  },
-
-  // Clear error
-  clearError: () => {
-    set({ error: null });
-  },
+  // Import profile & utility actions from separate file
+  ...createProfileActions(set, get),
 }));
-

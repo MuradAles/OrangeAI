@@ -12,7 +12,6 @@
  * - Auto-dismiss after 5 seconds
  */
 
-import { useTheme } from '@/shared/hooks/useTheme';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { Animated, Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -39,7 +38,6 @@ export const InAppNotification: React.FC<InAppNotificationProps> = ({
 }) => {
   
   const router = useRouter();
-  const theme = useTheme();
   // Start from right side of screen (positive value = off-screen right)
   const slideAnim = React.useRef(new Animated.Value(SCREEN_WIDTH)).current;
   const opacityAnim = React.useRef(new Animated.Value(0)).current;

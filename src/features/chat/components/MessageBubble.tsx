@@ -264,6 +264,35 @@ export const MessageBubble = memo(({
           </Text>
         )}
 
+        {/* Failed Message Actions */}
+        {isSent && message.status === 'failed' && (
+          <View style={styles.failedActions}>
+            <Text style={[styles.failedText, { color: theme.colors.error }]}>
+              ❌ Failed to send
+            </Text>
+            <View style={styles.failedButtons}>
+              <Pressable
+                style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => onPress?.(message)}
+              >
+                <Ionicons name="refresh" size={14} color="#FFFFFF" />
+                <Text style={[styles.retryButtonText, { color: '#FFFFFF' }]}>
+                  Retry
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.deleteButton, { borderColor: theme.colors.error }]}
+                onPress={() => onLongPress?.(message)}
+              >
+                <Ionicons name="trash-outline" size={14} color={theme.colors.error} />
+                <Text style={[styles.deleteButtonText, { color: theme.colors.error }]}>
+                  Delete
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {/* Reactions */}
         {Object.keys(message.reactions).length > 0 && (
           <View style={styles.reactions}>
@@ -480,6 +509,43 @@ const styles = StyleSheet.create({
   },
   reactionCount: {
     fontSize: 11,
+    fontWeight: '600',
+  },
+  failedActions: {
+    marginTop: 8,
+    gap: 8,
+  },
+  failedText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  failedButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  deleteButtonText: {
+    fontSize: 12,
     fontWeight: '600',
   },
 });

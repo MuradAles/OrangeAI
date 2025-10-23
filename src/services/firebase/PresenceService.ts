@@ -187,7 +187,7 @@ export class PresenceService {
       try {
         await onDisconnect(presenceRef).cancel();
         console.log('✅ Firebase: onDisconnect cancelled');
-      } catch (cancelError) {
+      } catch {
         // Ignore cancel errors - may already be cancelled or not exist
         console.log('⚠️ Firebase: onDisconnect cancel skipped (may not exist)');
       }

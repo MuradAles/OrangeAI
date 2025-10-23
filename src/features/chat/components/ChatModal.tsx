@@ -4,6 +4,7 @@
  */
 
 import { Avatar } from '@/components/common';
+import { SQLiteService } from '@/database/SQLiteService';
 import { PresenceService, TypingUser } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
@@ -11,8 +12,8 @@ import { useAuthStore, useChatStore, usePresenceStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import * as Clipboard from 'expo-clipboard';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Keyboard, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { DateSeparator } from './DateSeparator';
 import { GroupSettingsModal } from './GroupSettingsModal';
 import { MessageBubble } from './MessageBubble';
@@ -33,6 +34,16 @@ type ListItem =
 export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const theme = useTheme();
   const { user } = useAuthStore();
+  
+  // Handle close with keyboard dismissal
+  const handleClose = useCallback(() => {
+    // Dismiss keyboard first
+    Keyboard.dismiss();
+    // Small delay to allow keyboard to dismiss before modal closes
+    setTimeout(() => {
+      onClose();
+    }, 100);
+  }, [onClose]);
   const {
     messages,
     isLoadingMessages,
@@ -42,6 +53,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     sendImageMessage,
     getUserProfile,
     markChatAsRead,
+    retryFailedMessage,
     deleteMessageForMe,
     deleteMessageForEveryone,
     addReaction,
@@ -52,13 +64,59 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [showChatMenu, setShowChatMenu] = useState(false);
   const flashListRef = useRef<any>(null);
   const hasScrolledInitially = useRef(false);
   const isCleaningUp = useRef(false); // Prevent duplicate cleanup alerts
+  const currentScrollPosition = useRef<{ offset: number; firstVisibleIndex: number }>({ offset: 0, firstVisibleIndex: 0 });
+  const scrollPositionSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const keyboardHeight = useRef(new Animated.Value(0)).current;
 
   const { subscribeToUser } = usePresenceStore();
   const presenceMap = usePresenceStore(state => state.presenceMap);
   const presenceVersion = usePresenceStore(state => state.version); // Subscribe to version for reactivity
+
+  // Handle keyboard events for proper modal keyboard behavior
+  useEffect(() => {
+    if (!visible) {
+      // Dismiss keyboard and reset height when modal closes
+      Keyboard.dismiss();
+      keyboardHeight.setValue(0);
+      return;
+    }
+
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        // Add 12px spacing between input and keyboard
+        const targetHeight = e.endCoordinates.height + 12;
+        Animated.timing(keyboardHeight, {
+          toValue: targetHeight,
+          duration: Platform.OS === 'ios' ? (e.duration || 250) : 250,
+          useNativeDriver: false,
+        }).start();
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      (e) => {
+        Animated.timing(keyboardHeight, {
+          toValue: 0,
+          duration: Platform.OS === 'ios' ? (e.duration || 250) : 200,
+          useNativeDriver: false,
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+      // Ensure keyboard is dismissed on unmount
+      Keyboard.dismiss();
+      keyboardHeight.setValue(0);
+    };
+  }, [visible, keyboardHeight]);
 
   // Get current chat and other user info
   const { chats } = useChatStore();
@@ -180,19 +238,12 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
             
             console.log('🚪 User removed from group, cleaning up...');
             
-            // Clean up local storage
+            // Clean up local storage using store function
             const cleanup = async () => {
               try {
-                const { SQLiteService } = await import('@/database/SQLiteService');
-                await SQLiteService.deleteMessagesByChatId(chatId);
-                await SQLiteService.deleteChatById(chatId);
-                
-                // Remove from ChatStore
-                const { useChatStore } = await import('@/store');
-                useChatStore.setState(state => ({
-                  chats: state.chats.filter(chat => chat.id !== chatId),
-                  chatsVersion: state.chatsVersion + 1,
-                }));
+                // Use the store's remove function to ensure complete cleanup
+                await useChatStore.getState().removeChatLocally(chatId, user.id);
+                console.log('✅ Chat removed from local state after group removal');
                 
                 // Close modal
                 onClose();
@@ -200,12 +251,14 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                 // Show alert after modal closes (only once)
                 setTimeout(() => {
                   Alert.alert(
-                    'Left Group',
-                    'You have left the group.'
+                    'Removed from Group',
+                    'You have been removed from this group by the admin.'
                   );
                 }, 300);
               } catch (error) {
                 console.error('Error cleaning up after removal:', error);
+                // Still close modal even if cleanup fails
+                onClose();
               }
             };
             
@@ -220,19 +273,12 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           
           console.log('🚪 Permission denied - user was removed from group');
           
-          // Clean up local storage
+          // Clean up local storage using store function
           const cleanup = async () => {
             try {
-              const { SQLiteService } = await import('@/database/SQLiteService');
-              await SQLiteService.deleteMessagesByChatId(chatId);
-              await SQLiteService.deleteChatById(chatId);
-              
-              // Remove from ChatStore
-              const { useChatStore } = await import('@/store');
-              useChatStore.setState(state => ({
-                chats: state.chats.filter(chat => chat.id !== chatId),
-                chatsVersion: state.chatsVersion + 1,
-              }));
+              // Use the store's remove function to ensure complete cleanup
+              await useChatStore.getState().removeChatLocally(chatId, user.id);
+              console.log('✅ Chat removed from local state after permission error');
               
               // Close modal
               onClose();
@@ -240,12 +286,14 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               // Show alert after modal closes (only once)
               setTimeout(() => {
                 Alert.alert(
-                  'Left Group',
-                  'You have left the group.'
+                  'Removed from Group',
+                  'You have been removed from this group.'
                 );
               }, 300);
             } catch (error) {
               console.error('Error cleaning up after removal:', error);
+              // Still close modal even if cleanup fails
+              onClose();
             }
           };
           
@@ -269,6 +317,68 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       }
     };
   }, [visible, chatId, user?.id, isGroupChat, onClose]);
+
+  // Save scroll position on close
+  useEffect(() => {
+    if (!visible && chatId) {
+      // Chat modal is closing - save scroll position
+      const savePosition = async () => {
+        try {
+          const msgs = useChatStore.getState().messages; // Get fresh messages from store
+          const visibleIndex = currentScrollPosition.current.firstVisibleIndex;
+          
+          console.log('💾 Attempting to save position:', {
+            chatId,
+            visibleIndex,
+            totalMessages: msgs.length,
+            offset: currentScrollPosition.current.offset
+          });
+          
+          if (msgs.length === 0) {
+            console.log('⚠️ No messages to save position for');
+            return;
+          }
+          
+          // Validate index is within bounds
+          const indexToSave = Math.max(0, Math.min(visibleIndex, msgs.length - 1));
+          const messageToSave = msgs[indexToSave];
+          
+          if (messageToSave && messageToSave.id) {
+            await SQLiteService.saveScrollPosition({
+              chatId,
+              lastReadMessageId: messageToSave.id,
+              scrollYPosition: currentScrollPosition.current.offset,
+              unreadCount: 0, // Will be updated by unread count logic
+            });
+            console.log('✅ Saved scroll position:', {
+              chatId,
+              messageId: messageToSave.id,
+              index: indexToSave,
+              messageText: messageToSave.text?.substring(0, 30)
+            });
+          } else {
+            console.log('⚠️ Could not find valid message at index:', indexToSave);
+          }
+        } catch (error) {
+          console.error('❌ Error saving scroll position:', error);
+        }
+      };
+      
+      savePosition();
+      
+      // Clear scroll position save timer
+      if (scrollPositionSaveTimer.current) {
+        clearTimeout(scrollPositionSaveTimer.current);
+        scrollPositionSaveTimer.current = null;
+      }
+    }
+    
+    return () => {
+      if (scrollPositionSaveTimer.current) {
+        clearTimeout(scrollPositionSaveTimer.current);
+      }
+    };
+  }, [visible, chatId]);
 
   // Subscribe to typing indicators
   useEffect(() => {
@@ -376,18 +486,75 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     return timeDiff > 60000;
   };
 
-  // Scroll to bottom ONCE when chat first opens and messages load
+  // Scroll to last read position or bottom after messages load (only once)
   useEffect(() => {
-    if (visible && messages.length > 0 && flashListRef.current && !hasScrolledInitially.current) {
-      // Scroll after a short delay to ensure FlashList is ready
-      const timer = setTimeout(() => {
-        flashListRef.current?.scrollToEnd({ animated: false });
-        hasScrolledInitially.current = true; // Mark as scrolled to prevent re-scrolling
-      }, 150);
+    if (visible && chatId && listItems.length > 0 && flashListRef.current && !hasScrolledInitially.current) {
+      // Load saved scroll position from SQLite
+      const loadAndScrollToPosition = async () => {
+        // Double-check flag at the start (race condition guard)
+        if (hasScrolledInitially.current) {
+          return;
+        }
+        
+        try {
+          const savedPosition = await SQLiteService.getScrollPosition(chatId);
+          
+          // Wait for layout to be ready - increased delay for safety
+          setTimeout(() => {
+            // Triple-check before scrolling (in case multiple effects fired)
+            if (hasScrolledInitially.current || !flashListRef.current) {
+              return;
+            }
+            
+            try {
+              if (savedPosition && savedPosition.lastReadMessageId && messages.length > 0) {
+                // Find the index of the saved message
+                const savedMessageIndex = messages.findIndex(
+                  msg => msg.id === savedPosition.lastReadMessageId
+                );
+                
+                if (savedMessageIndex !== -1 && savedMessageIndex < listItems.length) {
+                  // Scroll to saved position
+                  console.log('📍 Scrolling to saved position:', {
+                    messageIndex: savedMessageIndex,
+                    messageId: savedPosition.lastReadMessageId,
+                  });
+                  
+                  flashListRef.current?.scrollToIndex({
+                    index: savedMessageIndex,
+                    animated: false,
+                    viewPosition: 0.5, // Center the message in view
+                  });
+                } else {
+                  // Saved message not found or out of bounds, scroll to bottom
+                  console.log('📍 Saved message not found, scrolling to bottom');
+                  if (listItems.length > 0) {
+                    flashListRef.current?.scrollToEnd({ animated: false });
+                  }
+                }
+              } else {
+                // No saved position, scroll to bottom (new chat or first time)
+                console.log('📍 No saved position, scrolling to bottom');
+                if (listItems.length > 0) {
+                  flashListRef.current?.scrollToEnd({ animated: false });
+                }
+              }
+              
+              hasScrolledInitially.current = true;
+            } catch (scrollError) {
+              console.error('Error scrolling:', scrollError);
+              hasScrolledInitially.current = true;
+            }
+          }, 300); // Increased delay to ensure FlashList layout is ready
+        } catch (error) {
+          console.error('Error loading scroll position:', error);
+          hasScrolledInitially.current = true;
+        }
+      };
       
-      return () => clearTimeout(timer);
+      loadAndScrollToPosition();
     }
-  }, [visible, messages.length]); // Only scroll once when messages first load
+  }, [visible, chatId, listItems.length]);
 
   // Handle jump to bottom
   const handleJumpToBottom = () => {
@@ -405,13 +572,13 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     try {
       await sendMessage(chatId, user.id, text);
       
-      // Scroll to bottom after sending (newest message)
-      setTimeout(() => {
+      // Immediately scroll to bottom after sending (newest message)
+      requestAnimationFrame(() => {
         if (flashListRef.current) {
           flashListRef.current.scrollToEnd({ animated: true });
           setShowJumpToBottom(false);
         }
-      }, 100);
+      });
     } catch (error) {
       console.error('Failed to send message:', error);
       Alert.alert('Error', 'Failed to send message. Please try again.');
@@ -428,13 +595,13 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     try {
       await sendImageMessage(chatId, user.id, imageUri, caption);
       
-      // Scroll to bottom after sending (newest message)
-      setTimeout(() => {
+      // Immediately scroll to bottom after sending (newest message)
+      requestAnimationFrame(() => {
         if (flashListRef.current) {
           flashListRef.current.scrollToEnd({ animated: true });
           setShowJumpToBottom(false);
         }
-      }, 100);
+      });
     } catch (error) {
       console.error('Failed to send image:', error);
       Alert.alert('Error', 'Failed to send image. Please try again.');
@@ -565,9 +732,39 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     }
   };
 
+  // Handle message press (for retry on failed messages)
+  const handleMessagePress = async (message: Message) => {
+    // If message is failed and user taps retry button, retry it
+    if (message.status === 'failed' && message.senderId === user?.id && chatId) {
+      try {
+        await retryFailedMessage(chatId, message.id);
+      } catch (error) {
+        console.error('Failed to retry message:', error);
+        Alert.alert('Error', 'Failed to retry message. Please try again.');
+      }
+    }
+  };
+
   // Handle long press (for delete, react, copy)
   const handleLongPress = (message: Message) => {
     const isDeleted = message.deletedForEveryone || (message.deletedFor || []).includes(user?.id || '');
+    
+    // If failed message, show delete option only
+    if (message.status === 'failed' && message.senderId === user?.id) {
+      Alert.alert(
+        'Delete Failed Message',
+        'This message failed to send. Do you want to delete it?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => handleDeleteForMe(message),
+          },
+        ]
+      );
+      return;
+    }
     
     // Don't show menu for deleted messages
     if (isDeleted) return;
@@ -600,8 +797,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     Alert.alert('Message Options', 'What would you like to do?', options);
   };
 
-  // Render list item
-  const renderItem: ListRenderItem<ListItem> = ({ item, index }) => {
+  // Render list item - memoized for performance
+  const renderItem: ListRenderItem<ListItem> = useCallback(({ item, index }) => {
     if (item.type === 'date') {
       return <DateSeparator date={item.data} />;
     }
@@ -624,10 +821,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         showAvatar={showAvatar}
         showTimestamp={true}
         isGroupChat={isGroupChat}
+        onPress={handleMessagePress}
         onLongPress={handleLongPress}
       />
     );
-  };
+  }, [user, isGroupChat, getUserProfile, handleMessagePress, handleLongPress]);
 
   // Get item type for FlashList optimization
   const getItemType = (item: ListItem) => {
@@ -643,23 +841,19 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
       statusBarTranslucent={true}
     >
-      <KeyboardAvoidingView 
-        style={{ flex: 1, backgroundColor: theme.colors.background }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
-        <StatusBar 
-          barStyle={theme.colors.background === '#000000' ? 'light-content' : 'dark-content'} 
-          backgroundColor="transparent" 
-          translucent={true} 
-        />
-          <View style={[styles.container, { 
-            backgroundColor: theme.colors.background,
-            paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 
-          }]}>
+      <StatusBar 
+        barStyle={theme.colors.background === '#000000' ? 'light-content' : 'dark-content'} 
+        backgroundColor="transparent" 
+        translucent={true} 
+      />
+      <Animated.View style={[styles.container, { 
+        backgroundColor: theme.colors.background,
+        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
+        paddingBottom: keyboardHeight,
+      }]}>
             
             {/* Header */}
             <View style={[styles.header, { 
@@ -667,7 +861,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               borderBottomWidth: 1,
               borderBottomColor: theme.colors.border,
             }]}>
-              <Pressable onPress={onClose} style={styles.backButton}>
+              <Pressable onPress={handleClose} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
               </Pressable>
 
@@ -720,48 +914,19 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
 
               {/* Action Buttons */}
               <View style={styles.headerActions}>
-                {isGroupChat ? (
-                  // Three-dots menu for groups
-                  <Pressable 
-                    style={styles.actionButton}
-                    onPress={() => setShowGroupSettings(true)}
-                  >
-                    <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
-                  </Pressable>
-                ) : (
-                  // Video and call buttons for one-on-one
-                  <>
-                    <Pressable 
-                      style={styles.actionButton}
-                      onPress={() => {
-                        // Video call - placeholder for future functionality
-                        console.log('Video call pressed');
-                      }}
-                    >
-                      <Ionicons name="videocam" size={24} color={theme.colors.text} />
-                    </Pressable>
-                    <Pressable 
-                      style={styles.actionButton}
-                      onPress={() => {
-                        // Phone call - placeholder for future functionality
-                        console.log('Phone call pressed');
-                      }}
-                    >
-                      <Ionicons name="call" size={24} color={theme.colors.text} />
-                    </Pressable>
-                  </>
-                )}
+                {/* Three-dot menu for both group and one-on-one chats */}
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={() => isGroupChat ? setShowGroupSettings(true) : setShowChatMenu(true)}
+                >
+                  <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+                </Pressable>
               </View>
 
             </View>
 
             {/* Messages List */}
-            {isLoadingMessages && messages.length === 0 ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-              </View>
-            ) : (
-              <FlashList
+            <FlashList
                 ref={flashListRef}
                 data={listItems}
                 renderItem={renderItem}
@@ -771,19 +936,38 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                     : `${item.type}-${index}`
                 }
                 getItemType={getItemType}
-                estimatedItemSize={100}
+                estimatedItemSize={80}
+                drawDistance={800}
+                estimatedListSize={{ height: 600, width: 400 }}
                 contentContainerStyle={styles.messagesListContent}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
+                removeClippedSubviews={Platform.OS === 'android' ? false : true}
                 onScroll={(event) => {
                   // Show jump to bottom button if user scrolls up
                   const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
                   const isNearBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
                   setShowJumpToBottom(!isNearBottom && listItems.length > 10);
+                  
+                  // Track scroll position for saving later
+                  currentScrollPosition.current.offset = contentOffset.y;
+                }}
+                onViewableItemsChanged={({ viewableItems }) => {
+                  // Track first visible item for scroll position restoration
+                  if (viewableItems.length > 0 && viewableItems[0].item.type === 'message') {
+                    const firstVisibleIndex = messages.findIndex(
+                      msg => msg.id === viewableItems[0].item.data.id
+                    );
+                    if (firstVisibleIndex >= 0) {
+                      currentScrollPosition.current.firstVisibleIndex = firstVisibleIndex;
+                    }
+                  }
+                }}
+                viewabilityConfig={{
+                  itemVisiblePercentThreshold: 50,
                 }}
                 scrollEventThrottle={400}
               />
-            )}
 
             {/* Jump to Bottom Button */}
             {showJumpToBottom && (
@@ -809,8 +993,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               userId={user?.id}
               userName={user?.displayName}
             />
-          </View>
-      </KeyboardAvoidingView>
+      </Animated.View>
 
       {/* Group Settings Modal */}
       {isGroupChat && (
@@ -818,7 +1001,64 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           visible={showGroupSettings}
           chatId={chatId}
           onClose={() => setShowGroupSettings(false)}
+          onChatDeleted={onClose} // Close parent ChatModal when user leaves group
         />
+      )}
+
+      {/* One-on-One Chat Menu Modal */}
+      {!isGroupChat && (
+        <Modal
+          visible={showChatMenu}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowChatMenu(false)}
+        >
+          <Pressable 
+            style={styles.menuOverlay}
+            onPress={() => setShowChatMenu(false)}
+          >
+            <View style={[styles.menuContainer, { backgroundColor: theme.colors.background }]}>
+              <Text style={[styles.menuTitle, { color: theme.colors.text }]}>Chat Options</Text>
+              
+              <Pressable
+                style={[styles.menuOption, { borderBottomColor: theme.colors.border }]}
+                onPress={() => {
+                  setShowChatMenu(false);
+                  Alert.alert(
+                    'Delete Chat',
+                    'Are you sure you want to delete this chat? This will only delete it from your device.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            if (chatId && user?.id) {
+                              // Delete all messages for this user
+                              const msgs = useChatStore.getState().messages;
+                              for (const msg of msgs) {
+                                await deleteMessageForMe(chatId, msg.id, user.id);
+                              }
+                              onClose();
+                              Alert.alert('Success', 'Chat deleted from your device');
+                            }
+                          } catch (error) {
+                            console.error('Error deleting chat:', error);
+                            Alert.alert('Error', 'Failed to delete chat');
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
+                <Text style={[styles.menuOptionText, { color: theme.colors.error }]}>Delete Chat</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
       )}
     </Modal>
   );
@@ -892,6 +1132,40 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  menuContainer: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  menuTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  menuOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

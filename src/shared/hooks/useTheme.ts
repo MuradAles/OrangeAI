@@ -2,6 +2,7 @@
  * useTheme Hook
  * 
  * Custom hook to access the current theme (light or dark mode)
+ * Now supports manual theme toggle with persistence
  * 
  * Usage:
  * const theme = useTheme();
@@ -13,27 +14,31 @@
  * });
  */
 
-import { darkTheme, lightTheme, Theme } from '@/theme';
-import { useColorScheme } from 'react-native';
+import { useThemeContext } from '@/shared/context/ThemeContext';
+import { Theme } from '@/theme';
 
 /**
- * Hook to get the current theme based on system color scheme
- * 
- * TODO: Phase 5 - Add theme persistence and manual toggle
- * For now, follows system theme automatically
+ * Hook to get the current theme
+ * Uses ThemeContext for manual toggle support
  */
 export const useTheme = (): Theme => {
-  const colorScheme = useColorScheme();
-  
-  // Return theme based on system preference
-  return colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useThemeContext();
+  return theme;
 };
 
 /**
  * Hook to get the current color scheme name
  */
 export const useThemeColorScheme = (): 'light' | 'dark' => {
-  const systemColorScheme = useColorScheme();
-  return systemColorScheme === 'dark' ? 'dark' : 'light';
+  const { isDark } = useThemeContext();
+  return isDark ? 'dark' : 'light';
+};
+
+/**
+ * Hook to get theme mode and toggle function
+ */
+export const useThemeMode = () => {
+  const { themeMode, setThemeMode } = useThemeContext();
+  return { themeMode, setThemeMode };
 };
 

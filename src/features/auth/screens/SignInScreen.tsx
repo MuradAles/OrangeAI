@@ -11,12 +11,12 @@ import { useAuthStore } from '@/store';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 export const SignInScreen: React.FC = () => {
@@ -71,7 +71,7 @@ export const SignInScreen: React.FC = () => {
       
       // Navigation handled by auth state listener in root layout
       console.log('✅ Sign in successful');
-    } catch (error: any) {
+    } catch {
       // Error is already displayed in UI via authError from store
       // No need for additional Alert popup
     }
@@ -162,7 +162,7 @@ export const SignInScreen: React.FC = () => {
         {/* Sign Up Link */}
         <View style={styles.footer}>
           <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
           </Text>
           <Button
             title="Sign Up"
