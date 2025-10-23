@@ -15,8 +15,10 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import { format, isToday, isYesterday } from 'date-fns';
-import { memo, useState } from 'react';
+import React, { memo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AICommandsMenu } from './AICommandsMenu';
+import { QuickActionsPopover } from './QuickActionsPopover';
 
 interface MessageBubbleProps {
   message: Message;
@@ -26,8 +28,14 @@ interface MessageBubbleProps {
   showAvatar: boolean; // Show avatar (first message in group)
   showTimestamp: boolean; // Show timestamp (last message in group or after 5 mins)
   isGroupChat?: boolean; // Is this a group chat? (show sender name on all received messages)
+  preferredLanguage?: string; // User's preferred language for translations
   onLongPress?: (message: Message) => void;
   onPress?: (message: Message) => void;
+  onQuickReaction?: (message: Message, emoji: string) => void; // Handle quick emoji reactions
+  onAITranslate?: (message: Message) => void; // AI translate command
+  onAISummarize?: (message: Message) => void; // AI summarize command
+  onAIExplain?: (message: Message) => void; // AI explain command
+  onAIRewrite?: (message: Message) => void; // AI rewrite command
 }
 
 export const MessageBubble = memo(({
@@ -38,8 +46,14 @@ export const MessageBubble = memo(({
   showAvatar,
   showTimestamp,
   isGroupChat = false,
+  preferredLanguage = 'en', // Default to English
   onLongPress,
   onPress,
+  onQuickReaction,
+  onAITranslate,
+  onAISummarize,
+  onAIExplain,
+  onAIRewrite,
 }: MessageBubbleProps) => {
   const theme = useTheme();
   const isSent = message.senderId === currentUserId;
@@ -47,6 +61,15 @@ export const MessageBubble = memo(({
   const [showFullImage, setShowFullImage] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  
+  // Translation state - automatically show translation when it becomes available
+  const [showTranslation, setShowTranslation] = useState(false);
+  
+  // Quick actions state
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showAICommands, setShowAICommands] = useState(false);
+  const [messagePosition, setMessagePosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const bubbleRef = useRef<View>(null);
 
   // Format timestamp
   const formatTimestamp = (timestamp: Date | number): string => {
@@ -98,6 +121,74 @@ export const MessageBubble = memo(({
     }
   };
 
+  // Check if translation exists for user's preferred language
+  const hasTranslation = message.translations && message.translations[preferredLanguage];
+  const translatedText = hasTranslation ? message.translations![preferredLanguage] : null;
+  
+  // Auto-show translation when it first becomes available (for ALL messages)
+  React.useEffect(() => {
+    if (translatedText) {
+      setShowTranslation(true);
+    }
+  }, [translatedText]);
+
+  // Handle tap to show quick actions
+  const handlePress = () => {
+    // Skip for deleted or failed messages
+    if (isDeleted || message.status === 'failed') {
+      onPress?.(message);
+      return;
+    }
+
+    // Measure bubble position on screen
+    bubbleRef.current?.measureInWindow((x, y, width, height) => {
+      setMessagePosition({ x, y, width, height });
+      setShowQuickActions(true);
+    });
+  };
+
+  // Handle long press to show AI commands
+  const handleLongPress = () => {
+    // Skip for deleted or failed messages
+    if (isDeleted || message.status === 'failed') {
+      onLongPress?.(message);
+      return;
+    }
+
+    // Measure bubble position on screen
+    bubbleRef.current?.measureInWindow((x, y, width, height) => {
+      setMessagePosition({ x, y, width, height });
+      setShowAICommands(true);
+    });
+  };
+
+  // Handle quick actions
+  const handleTranslate = () => {
+    onPress?.(message); // Trigger parent's translate action
+  };
+
+  // Handle AI commands
+  const handleAITranslate = () => {
+    onAITranslate?.(message);
+  };
+
+  const handleAISummarize = () => {
+    onAISummarize?.(message);
+  };
+
+  const handleAIExplain = () => {
+    onAIExplain?.(message);
+  };
+
+  const handleAIRewrite = () => {
+    onAIRewrite?.(message);
+  };
+
+  const handleReaction = (emoji: string) => {
+    // Quick reaction - trigger parent handler
+    onQuickReaction?.(message, emoji);
+  };
+
   return (
     <View style={[styles.container, isSent ? styles.sentContainer : styles.receivedContainer]}>
       {/* Avatar (for received messages, first in group) */}
@@ -117,8 +208,9 @@ export const MessageBubble = memo(({
 
       {/* Message Content */}
       <Pressable
-        onPress={() => onPress?.(message)}
-        onLongPress={() => onLongPress?.(message)}
+        ref={bubbleRef}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
         style={[
           styles.bubble,
           isSent 
@@ -223,25 +315,154 @@ export const MessageBubble = memo(({
                 </View>
                 {/* Caption */}
                 {message.caption && (
-                  <Text style={[
-                    theme.typography.body,
-                    styles.caption,
-                    { color: isSent ? theme.colors.messageText : theme.colors.text }
-                  ]}>
-                    {message.caption}
-                  </Text>
+                  <>
+                    {/* Translation Display for Image Caption - Show ABOVE original caption */}
+                    {showTranslation && translatedText && (
+                      <View style={[styles.translationContainer, { 
+                        backgroundColor: isSent ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)',
+                        borderBottomColor: isSent ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.1)',
+                        marginTop: 4,
+                      }]}>
+                        <View style={styles.translationHeader}>
+                          <Ionicons 
+                            name="language" 
+                            size={12} 
+                            color={isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary} 
+                          />
+                          <Text style={[styles.translationLabel, { 
+                            color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary 
+                          }]}>
+                            Translation
+                          </Text>
+                          <Pressable 
+                            onPress={() => setShowTranslation(false)}
+                            hitSlop={8}
+                          >
+                            <Ionicons 
+                              name="close-circle" 
+                              size={12} 
+                              color={isSent ? 'rgba(255,255,255,0.6)' : theme.colors.textSecondary} 
+                            />
+                          </Pressable>
+                        </View>
+                        <Text style={[
+                          theme.typography.body,
+                          styles.translationText,
+                          {
+                            color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived,
+                            fontWeight: '700', // Bold text
+                          }
+                        ]}>
+                          {translatedText}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Original Caption */}
+                    <Text style={[
+                      theme.typography.body,
+                      styles.caption,
+                      { color: isSent ? theme.colors.messageText : theme.colors.text }
+                    ]}>
+                      {message.caption}
+                    </Text>
+
+                    {/* Show translation button only if translation exists but is hidden */}
+                    {!showTranslation && translatedText && (
+                      <Pressable 
+                        style={styles.translateButton}
+                        onPress={() => setShowTranslation(true)}
+                        hitSlop={8}
+                      >
+                        <Ionicons 
+                          name="language" 
+                          size={12} 
+                          color={isSent ? 'rgba(255,255,255,0.6)' : theme.colors.textSecondary} 
+                        />
+                        <Text style={[styles.translateButtonText, { 
+                          color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary 
+                        }]}>
+                          See translation
+                        </Text>
+                      </Pressable>
+                    )}
+                  </>
                 )}
               </Pressable>
             )}
             
             {/* Text Message */}
             {message.type === 'text' && message.text && (
-              <Text style={[
-                theme.typography.body, 
-                { color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived }
-              ]}>
-                {message.text}
-              </Text>
+              <>
+                {/* Translation Display - Show ABOVE original message */}
+                {showTranslation && translatedText && (
+                  <View style={[styles.translationContainer, { 
+                    backgroundColor: isSent ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)',
+                    borderBottomColor: isSent ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.1)',
+                  }]}>
+                    <View style={styles.translationHeader}>
+                      <Ionicons 
+                        name="language" 
+                        size={12} 
+                        color={isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary} 
+                      />
+                      <Text style={[styles.translationLabel, { 
+                        color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary 
+                      }]}>
+                        Translation
+                      </Text>
+                      <Pressable 
+                        onPress={() => setShowTranslation(false)}
+                        hitSlop={8}
+                      >
+                        <Ionicons 
+                          name="close-circle" 
+                          size={12} 
+                          color={isSent ? 'rgba(255,255,255,0.6)' : theme.colors.textSecondary} 
+                        />
+                      </Pressable>
+                    </View>
+                    <Text style={[
+                      theme.typography.body,
+                      styles.translationText,
+                      { 
+                        color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived,
+                        fontWeight: '700', // Bold text
+                      }
+                    ]}>
+                      {translatedText}
+                    </Text>
+                  </View>
+                )}
+                
+                {/* Original Message */}
+                <Text style={[
+                  theme.typography.body, 
+                  { color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived }
+                ]}>
+                  {message.text}
+                </Text>
+                
+                {/* Show translation button only if translation exists but is hidden */}
+                {!showTranslation && translatedText && (
+                  <Pressable 
+                    style={styles.translateButton}
+                    onPress={() => setShowTranslation(true)}
+                    hitSlop={8}
+                  >
+                    <Ionicons 
+                      name="language" 
+                      size={12} 
+                      color={isSent ? 'rgba(255,255,255,0.6)' : theme.colors.textSecondary} 
+                    />
+                    <Text style={[styles.translateButtonText, { 
+                      color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary 
+                    }]}>
+                      See translation
+                    </Text>
+                  </Pressable>
+                )}
+              </>
             )}
           </>
         )}
@@ -345,6 +566,28 @@ export const MessageBubble = memo(({
           </Pressable>
         </Modal>
       )}
+
+      {/* Quick Actions Popover */}
+      <QuickActionsPopover
+        visible={showQuickActions}
+        onClose={() => setShowQuickActions(false)}
+        message={message}
+        messagePosition={messagePosition}
+        onTranslate={handleTranslate}
+        onReaction={handleReaction}
+      />
+
+      {/* AI Commands Menu */}
+      <AICommandsMenu
+        visible={showAICommands}
+        onClose={() => setShowAICommands(false)}
+        message={message}
+        messagePosition={messagePosition}
+        onTranslate={handleAITranslate}
+        onSummarize={handleAISummarize}
+        onExplain={handleAIExplain}
+        onRewrite={handleAIRewrite}
+      />
     </View>
   );
 }, (prevProps, nextProps) => {
@@ -359,7 +602,8 @@ export const MessageBubble = memo(({
     prevProps.showAvatar === nextProps.showAvatar &&
     prevProps.showTimestamp === nextProps.showTimestamp &&
     JSON.stringify(prevProps.message.reactions || {}) === JSON.stringify(nextProps.message.reactions || {}) &&
-    JSON.stringify(prevProps.message.deletedFor || []) === JSON.stringify(nextProps.message.deletedFor || [])
+    JSON.stringify(prevProps.message.deletedFor || []) === JSON.stringify(nextProps.message.deletedFor || []) &&
+    JSON.stringify(prevProps.message.translations || {}) === JSON.stringify(nextProps.message.translations || {})
   );
 });
 
@@ -547,6 +791,43 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  // Translation styles
+  translationContainer: {
+    marginBottom: 8,
+    paddingBottom: 8,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    borderBottomWidth: 1,
+    borderRadius: 8,
+  },
+  translationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  translationLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    flex: 1,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  translationText: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  translateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    paddingVertical: 2,
+  },
+  translateButtonText: {
+    fontSize: 11,
+    fontWeight: '400',
   },
 });
 

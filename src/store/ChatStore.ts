@@ -473,6 +473,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         deletedFor: [], // Not stored separately in SQLite
         deletedForEveryone: row.deletedForEveryone === 1,
         deletedAt: null, // Not stored in SQLite
+        translations: row.translations ? JSON.parse(row.translations) : {},
+        detectedLanguage: row.detectedLanguage || undefined,
         syncStatus: row.syncStatus as MessageSyncStatus,
       }));
       
@@ -717,7 +719,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Force new array to trigger React re-render
         let updatedMessages = currentMessages.map(existing => {
           const update = messagesToUpdate.find(m => m.id === existing.id);
-          return update ? { ...update } : existing; // Create new object to ensure re-render
+          if (update) {
+            // Preserve local-only fields (translations) when merging Firestore updates
+            // Firestore doesn't store translations, so we keep them from existing state
+            return {
+              ...update,
+              translations: existing.translations || {}, // Keep local translations
+              detectedLanguage: existing.detectedLanguage, // Keep detected language
+            };
+          }
+          return existing;
         });
         
         // Add new messages
@@ -742,7 +753,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
         
         // Sync new/updated messages to SQLite for offline access (non-blocking)
-        for (const message of newMessages) {
+        // Preserve translations from existing SQLite data
+        for (const message of updatedMessages.filter(m => 
+          newMessages.find(nm => nm.id === m.id)
+        )) {
           const messageRow: any = {
             id: message.id,
             chatId: message.chatId,
@@ -759,6 +773,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             reactions: JSON.stringify(message.reactions || {}),
             deletedForMe: 0,
             deletedForEveryone: message.deletedForEveryone ? 1 : 0,
+            translations: message.translations ? JSON.stringify(message.translations) : null,
+            detectedLanguage: message.detectedLanguage || null,
             syncStatus: 'synced',
           };
           // Non-blocking save, ignore errors

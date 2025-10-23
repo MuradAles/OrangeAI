@@ -299,8 +299,8 @@ class SQLiteServiceClass {
     await this.db!.runAsync(
       `INSERT OR REPLACE INTO messages 
        (id, chatId, senderId, text, timestamp, status, type, imageUrl, thumbnailUrl,
-        caption, reactions, deletedForMe, deletedForEveryone, syncStatus) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        caption, reactions, deletedForMe, deletedForEveryone, translations, detectedLanguage, syncStatus) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         message.id,
         message.chatId,
@@ -315,9 +315,52 @@ class SQLiteServiceClass {
         message.reactions, // JSON string
         message.deletedForMe ? 1 : 0,
         message.deletedForEveryone ? 1 : 0,
+        message.translations, // JSON string
+        message.detectedLanguage,
         message.syncStatus || 'synced',
       ]
     );
+  }
+
+  /**
+   * Update translation for a message (local only)
+   */
+  async updateMessageTranslation(
+    chatId: string,
+    messageId: string,
+    targetLanguage: string,
+    translation: string,
+    detectedLanguage?: string
+  ): Promise<void> {
+    // Get existing translations
+    const result = await this.db!.getFirstAsync<{ translations: string | null; detectedLanguage: string | null }>(
+      'SELECT translations, detectedLanguage FROM messages WHERE id = ? AND chatId = ?',
+      [messageId, chatId]
+    );
+
+    if (!result) {
+      console.warn(`Message ${messageId} not found in SQLite, cannot add translation`);
+      return;
+    }
+
+    // Parse existing translations
+    const existingTranslations = result.translations ? JSON.parse(result.translations) : {};
+    
+    // Add new translation
+    existingTranslations[targetLanguage] = translation;
+
+    // Update in database
+    await this.db!.runAsync(
+      'UPDATE messages SET translations = ?, detectedLanguage = ? WHERE id = ? AND chatId = ?',
+      [
+        JSON.stringify(existingTranslations),
+        detectedLanguage || result.detectedLanguage,
+        messageId,
+        chatId
+      ]
+    );
+
+    console.log(`✅ Translation saved locally for message ${messageId}`);
   }
 
   /**
