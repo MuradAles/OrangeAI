@@ -17,15 +17,15 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { AddMemberSheet } from './AddMemberSheet';
 
@@ -33,9 +33,10 @@ interface GroupSettingsModalProps {
   visible: boolean;
   chatId: string | null;
   onClose: () => void;
+  onChatDeleted?: () => void; // Callback when user leaves/deletes chat (to close parent ChatModal)
 }
 
-export const GroupSettingsModal = ({ visible, chatId, onClose }: GroupSettingsModalProps) => {
+export const GroupSettingsModal = ({ visible, chatId, onClose, onChatDeleted }: GroupSettingsModalProps) => {
   const theme = useTheme();
   const { user } = useAuthStore();
   const { chats, loadUserProfile } = useChatStore();
@@ -45,7 +46,7 @@ export const GroupSettingsModal = ({ visible, chatId, onClose }: GroupSettingsMo
   const [isEditingName, setIsEditingName] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [showAddMemberSheet, setShowAddMemberSheet] = useState(false);
-  const [members, setMembers] = useState<Array<User & { role: string; isOnline: boolean }>>([]);
+  const [members, setMembers] = useState<(User & { role: string; isOnline: boolean })[]>([]);
 
   // Get current chat
   const currentChat = chats.find(chat => chat.id === chatId);
@@ -221,60 +222,6 @@ export const GroupSettingsModal = ({ visible, chatId, onClose }: GroupSettingsMo
     }
   };
 
-  const handleRemoveMember = (member: User & { role: string; isOnline: boolean }) => {
-    if (!chatId || !user) return;
-
-    // Check if current user is admin
-    const isAdmin = currentChat?.groupAdminId === user.id;
-    if (!isAdmin) {
-      Alert.alert('Permission Denied', 'Only admin can remove members');
-      return;
-    }
-
-    // Can't remove admin
-    if (member.role === 'admin') {
-      Alert.alert('Cannot Remove', 'Admin cannot be removed. Admin must leave or transfer role first.');
-      return;
-    }
-
-    // Can't remove yourself (use Leave Group instead)
-    if (member.id === user.id) {
-      Alert.alert('Cannot Remove', 'Use "Leave Group" to leave the group');
-      return;
-    }
-
-    // Confirmation dialog
-    Alert.alert(
-      'Remove Member',
-      `Remove ${member.displayName} from the group?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsLoading(true);
-              await GroupService.removeMember(chatId, member.id, user.id);
-              
-              // Reload members list
-              await loadMembers();
-              
-              Alert.alert('Success', `${member.displayName} has been removed from the group`);
-            } catch (error) {
-              console.error('Failed to remove member:', error);
-              Alert.alert('Error', 'Failed to remove member');
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handleLeaveGroup = () => {
     if (!chatId || !user) return;
@@ -304,27 +251,28 @@ export const GroupSettingsModal = ({ visible, chatId, onClose }: GroupSettingsMo
           onPress: async () => {
             try {
               setIsLoading(true);
+              
+              // Leave group in Firestore
               await GroupService.leaveGroup(chatId, user.id);
               
-              // Delete from SQLite (local storage cleanup)
-              const { SQLiteService } = await import('@/database/SQLiteService');
-              await SQLiteService.deleteMessagesByChatId(chatId); // Delete all messages
-              await SQLiteService.deleteChatById(chatId); // Delete chat
-              
-              // Remove from local state
+              // Use the store's remove function for complete cleanup
               const { useChatStore } = await import('@/store');
-              useChatStore.setState(state => ({
-                chats: state.chats.filter(chat => chat.id !== chatId),
-                chatsVersion: state.chatsVersion + 1,
-              }));
+              await useChatStore.getState().removeChatLocally(chatId, user.id);
+              console.log('✅ Left group and cleaned up local data');
 
-              // Close modal and navigate back
+              // Close settings modal
               onClose();
               
-              Alert.alert('Left Group', 'You have left the group');
+              // Close parent chat modal if provided
+              onChatDeleted?.();
+              
+              // Show success message
+              setTimeout(() => {
+                Alert.alert('Left Group', 'You have left the group successfully');
+              }, 300);
             } catch (error) {
               console.error('Failed to leave group:', error);
-              Alert.alert('Error', 'Failed to leave group');
+              Alert.alert('Error', 'Failed to leave group. Please try again.');
             } finally {
               setIsLoading(false);
             }
@@ -339,21 +287,11 @@ export const GroupSettingsModal = ({ visible, chatId, onClose }: GroupSettingsMo
     const presence = presenceMap.get(item.id);
     const isOnline = presence?.isOnline || false;
 
-    // Check if current user is admin
-    const isAdmin = currentChat?.groupAdminId === user?.id;
-    
-    // Show remove button if: admin, not removing self, not removing admin
-    const canRemove = isAdmin && item.id !== user?.id && item.role !== 'admin';
-
     return (
-      <Pressable
-        onLongPress={() => canRemove && handleRemoveMember(item)}
-        style={({ pressed }) => [
+      <View
+        style={[
           styles.memberItem,
-          { 
-            borderBottomColor: theme.colors.border,
-            backgroundColor: pressed ? theme.colors.surface : 'transparent',
-          }
+          { borderBottomColor: theme.colors.border }
         ]}
       >
         <View style={styles.avatarWithIndicator}>
@@ -385,11 +323,7 @@ export const GroupSettingsModal = ({ visible, chatId, onClose }: GroupSettingsMo
           </Text>
         </View>
 
-        {/* Show remove icon for admin (subtle hint) */}
-        {canRemove && (
-          <Ionicons name="remove-circle-outline" size={20} color={theme.colors.textSecondary} />
-        )}
-      </Pressable>
+      </View>
     );
   };
 

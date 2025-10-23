@@ -38,6 +38,7 @@ export interface UserSearchResult {
 export interface UserProfileUpdate {
   displayName?: string;
   bio?: string;
+  profilePictureUrl?: string | null;
   phoneNumber?: string | null;
   phoneNumberVisible?: boolean;
 }

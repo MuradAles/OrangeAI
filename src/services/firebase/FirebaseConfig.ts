@@ -7,9 +7,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
-import { Auth, getAuth, initializeAuth } from 'firebase/auth';
-// @ts-ignore - getReactNativePersistence exists at runtime in Firebase 12.x but TypeScript defs may be outdated
-import { getReactNativePersistence } from 'firebase/auth';
+import { Auth, getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { Database, getDatabase } from 'firebase/database';
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
@@ -117,6 +115,6 @@ export { app, auth, database, firestore, storage };
 
 // Export Firebase SDK modules for use in services
   export * from 'firebase/app';
-  export type { User as FirebaseUser } from 'firebase/auth';
-  export type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+    export type { User as FirebaseUser } from 'firebase/auth';
+    export type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 

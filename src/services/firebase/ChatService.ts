@@ -281,8 +281,6 @@ export class ChatService {
       chatsQuery,
       async (snapshot) => {
         try {
-          console.log('🔄 Chat listener fired - processing', snapshot.docs.length, 'chats');
-          
           const chats: Chat[] = [];
           
           for (const doc of snapshot.docs) {
@@ -325,11 +323,9 @@ export class ChatService {
               inviteCode: data.inviteCode,
             };
             
-            console.log(`📝 Chat ${doc.id}: ${chat.groupName || 'one-on-one'}`);
             chats.push(chat);
           }
 
-          console.log('✅ Calling onUpdate with', chats.length, 'chats');
           onUpdate(chats);
         } catch (error) {
           onError(error as Error);
@@ -430,34 +426,5 @@ export class ChatService {
     }
   }
 
-  /**
-   * Delete a chat completely (hard delete for blocking)
-   * Deletes chat document and all messages subcollection
-   */
-  static async deleteChat(chatId: string): Promise<void> {
-    try {
-      const batch = writeBatch(firestore);
-      
-      // Delete all messages in the chat
-      const messagesRef = collection(firestore, 'chats', chatId, 'messages');
-      const messagesSnapshot = await getDocs(messagesRef);
-      
-      messagesSnapshot.forEach((messageDoc) => {
-        batch.delete(messageDoc.ref);
-      });
-      
-      // Delete the chat document itself
-      const chatRef = doc(firestore, 'chats', chatId);
-      batch.delete(chatRef);
-      
-      // Commit all deletes in one batch
-      await batch.commit();
-      
-      console.log(`✅ Chat ${chatId} and all messages deleted successfully`);
-    } catch (error) {
-      console.error('Error deleting chat:', error);
-      throw error;
-    }
-  }
 }
 

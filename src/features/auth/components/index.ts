@@ -1,0 +1,2 @@
+export { EditBioModal } from './EditBioModal';
+

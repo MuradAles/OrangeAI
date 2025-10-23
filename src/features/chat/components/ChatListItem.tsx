@@ -28,7 +28,7 @@ interface ChatListItemProps {
   onPress: (chatId: string) => void;
 }
 
-export const ChatListItem = React.memo(({
+const ChatListItemComponent = ({
   chat,
   currentUserId,
   otherUserName,
@@ -62,12 +62,6 @@ export const ChatListItem = React.memo(({
       return format(dateObj, 'MMM d');
     }
   }, [chat.lastMessageTime]);
-
-  // Truncate last message
-  const truncateMessage = (text: string, maxLength: number = 50): string => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
 
   // Check if last message was sent by current user
   const isLastMessageMine = chat.lastMessageSenderId === currentUserId;
@@ -202,7 +196,11 @@ export const ChatListItem = React.memo(({
       </View>
     </Pressable>
   );
-}, (prevProps, nextProps) => {
+};
+
+ChatListItemComponent.displayName = 'ChatListItem';
+
+export const ChatListItem = React.memo(ChatListItemComponent, (prevProps, nextProps) => {
   // Custom comparison function to prevent unnecessary re-renders
   return (
     prevProps.chat.id === nextProps.chat.id &&

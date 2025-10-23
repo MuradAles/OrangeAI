@@ -12,7 +12,7 @@ export type MessageType = 'text' | 'image';
 /**
  * Message status enum
  */
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read';
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 /**
  * Message sync status (for offline queue)

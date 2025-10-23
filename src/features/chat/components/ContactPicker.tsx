@@ -56,14 +56,6 @@ export const ContactPicker: React.FC<ContactPickerProps> = ({
     }
   };
 
-  const getButtonText = () => {
-    const count = selectedContactIds.size;
-    if (mode === 'single') return 'Select a friend';
-    if (count === 0) return 'Select friends';
-    if (count === 1) return 'Next (1 selected)';
-    return `Next (${count} selected)`;
-  };
-
   const renderContactItem = ({ item }: { item: Contact }) => {
     const isSelected = selectedContactIds.has(item.userId);
 

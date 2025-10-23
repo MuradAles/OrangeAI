@@ -122,10 +122,6 @@ export class MessageService {
                   if (!isOnline) {
                     recipientsToNotify.push(recipientId);
                     recipientNames.push(recipientUsername);
-                    console.log(`📱 Queuing push notification for ${recipientUsername} (offline)`);
-                  } else {
-                    // User is online - skip push notification (in-app notification will show instead)
-                    console.log(`📱 Skipping push notification for ${recipientUsername} (online - using in-app notification)`);
                   }
                 } else {
                   recipientNames.push('Unknown');
@@ -175,8 +171,6 @@ export class MessageService {
                   senderId,
                   sender.username
                 );
-              } else {
-                console.log('📱 No push notifications needed (all recipients are online and in chat)');
               }
             }
           }

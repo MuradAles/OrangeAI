@@ -257,49 +257,6 @@ export class GroupService {
   }
 
   /**
-   * Remove member from group
-   * Only admin can remove members
-   * Cannot remove admin (admin must leave or transfer role first)
-   */
-  static async removeMember(
-    groupId: string,
-    userId: string,
-    adminId: string
-  ): Promise<void> {
-    try {
-      // Check if user is admin
-      const chatRef = doc(firestore, 'chats', groupId);
-      const chatSnap = await getDoc(chatRef);
-      
-      if (!chatSnap.exists()) {
-        throw new Error('Group not found');
-      }
-
-      const groupData = chatSnap.data();
-      if (groupData.groupAdminId === userId) {
-        throw new Error('Cannot remove admin. Admin must leave or transfer role first.');
-      }
-
-      const batch = writeBatch(firestore);
-
-      // Use arrayRemove to atomically remove from participants array
-      batch.update(chatRef, {
-        participants: arrayRemove(userId),
-      });
-
-      // Delete participant document
-      const participantRef = doc(firestore, 'chats', groupId, 'participants', userId);
-      batch.delete(participantRef);
-
-      await batch.commit();
-      console.log('✅ Member removed from group:', userId);
-    } catch (error) {
-      console.error('❌ Failed to remove member:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Leave group
    * If admin leaves, transfer to oldest member
    * If last member leaves, delete group

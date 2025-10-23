@@ -49,7 +49,8 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
     // We import this dynamically to avoid circular dependency
     const getCurrentUserId = () => {
       try {
-        // @ts-ignore - dynamic import
+        // @ts-ignore - dynamic import to avoid circular dependency
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { useAuthStore } = require('@/store/AuthStore');
         return useAuthStore.getState().user?.id;
       } catch {
