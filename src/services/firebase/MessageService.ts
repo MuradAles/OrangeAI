@@ -136,7 +136,7 @@ export class MessageService {
                 senderId,
                 sender.username,
                 recipients,
-                recipients.map((id, i) => recipientNames[i] || 'Unknown'),
+                recipients.map((id: string, i: number) => recipientNames[i] || 'Unknown'),
                 messagePreview.substring(0, 50) + (messagePreview.length > 50 ? '...' : '')
               );
               

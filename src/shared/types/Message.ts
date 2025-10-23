@@ -124,4 +124,12 @@ export interface ScrollPosition {
   unreadCount: number;
 }
 
+/**
+ * Queued message for offline queue with retry metadata
+ */
+export interface QueuedMessage extends Message {
+  retryCount: number;
+  lastAttempt: number | null;
+}
+
 

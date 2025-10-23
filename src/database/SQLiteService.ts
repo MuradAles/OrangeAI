@@ -6,12 +6,12 @@
  */
 
 import {
-    ChatRow,
-    DatabaseInitResult,
-    FriendRequestRow,
-    MessageRow,
-    ScrollPositionRow,
-    UserRow,
+  ChatRow,
+  DatabaseInitResult,
+  FriendRequestRow,
+  MessageRow,
+  ScrollPositionRow,
+  UserRow,
 } from '@/shared/types';
 import * as SQLite from 'expo-sqlite';
 import { getPendingMigrations, validateMigrations } from './Migrations';
@@ -733,6 +733,42 @@ class SQLiteServiceClass {
       console.log(`✅ Deleted chat: ${chatId}`);
     } catch (error) {
       console.error('Error deleting chat by ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute multiple operations in a transaction
+   */
+  async transaction(operations: (() => Promise<any>)[]): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      for (const operation of operations) {
+        await operation();
+      }
+      console.log(`✅ Transaction completed with ${operations.length} operations`);
+    } catch (error) {
+      console.error('Transaction error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear all data from database
+   */
+  async clearAll(): Promise<void> {
+    this.ensureInitialized();
+    
+    try {
+      await this.db!.runAsync('DELETE FROM messages');
+      await this.db!.runAsync('DELETE FROM chats');
+      await this.db!.runAsync('DELETE FROM users');
+      await this.db!.runAsync('DELETE FROM scroll_positions');
+      await this.db!.runAsync('DELETE FROM friend_requests');
+      console.log('✅ All data cleared');
+    } catch (error) {
+      console.error('Error clearing data:', error);
       throw error;
     }
   }

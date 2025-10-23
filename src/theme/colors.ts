@@ -38,7 +38,10 @@ export interface ColorPalette {
   
   // Status colors
   success: string;
+  successLight: string;
   error: string;
+  errorLight: string;
+  errorBackground: string;
   warning: string;
   info: string;
   
@@ -108,7 +111,10 @@ export const lightColors: ColorPalette = {
   
   // Status
   success: '#34C759',
+  successLight: 'rgba(52, 199, 89, 0.1)',
   error: '#FF3B30',
+  errorLight: 'rgba(255, 59, 48, 0.1)',
+  errorBackground: 'rgba(255, 59, 48, 0.15)',
   warning: '#FF9500',
   info: '#007AFF',
   
@@ -178,7 +184,10 @@ export const darkColors: ColorPalette = {
   
   // Status
   success: '#32D74B',
+  successLight: 'rgba(50, 215, 75, 0.15)',
   error: '#FF453A',
+  errorLight: 'rgba(255, 69, 58, 0.15)',
+  errorBackground: 'rgba(255, 69, 58, 0.2)',
   warning: '#FF9F0A',
   info: '#0A84FF',
   

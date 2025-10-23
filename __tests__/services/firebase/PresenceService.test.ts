@@ -59,7 +59,7 @@ describe('PresenceService', () => {
       (onDisconnect as jest.Mock).mockReturnValue(mockOnDisconnect);
       (set as jest.Mock).mockResolvedValue(undefined);
 
-      await PresenceService.setOffline('user-123');
+      await PresenceService.setOffline('user-123', 'Test User');
 
       expect(set).toHaveBeenCalledWith(
         expect.anything(),
@@ -77,7 +77,7 @@ describe('PresenceService', () => {
       (onDisconnect as jest.Mock).mockReturnValue(mockOnDisconnect);
       (set as jest.Mock).mockResolvedValue(undefined);
 
-      await PresenceService.setOffline('user-123');
+      await PresenceService.setOffline('user-123', 'Test User');
 
       expect(mockOnDisconnect.cancel).toHaveBeenCalled();
     });
@@ -94,7 +94,7 @@ describe('PresenceService', () => {
 
       // Should not throw
       await expect(
-        PresenceService.setOffline('user-123')
+        PresenceService.setOffline('user-123', 'Test User')
       ).resolves.not.toThrow();
     });
   });
@@ -125,7 +125,8 @@ describe('PresenceService', () => {
 
       const unsubscribe = PresenceService.subscribeToPresence(
         'user-123',
-        mockCallback
+        mockCallback,
+        jest.fn()
       );
 
       expect(onValue).toHaveBeenCalled();
@@ -141,7 +142,7 @@ describe('PresenceService', () => {
         return jest.fn();
       });
 
-      PresenceService.subscribeToPresence('user-123', mockCallback);
+      PresenceService.subscribeToPresence('user-123', mockCallback, jest.fn());
 
       // Simulate snapshot
       const mockSnapshot = {
@@ -199,14 +200,15 @@ describe('PresenceService', () => {
       const unsubscribe = PresenceService.subscribeToTyping(
         'chat-123',
         'user-123',
-        mockCallback
+        mockCallback,
+        jest.fn()
       );
 
       expect(onValue).toHaveBeenCalled();
       expect(typeof unsubscribe).toBe('function');
     });
 
-    it.skip('should filter out current user from typing list - SKIPPED: Mock configuration issue', () => {
+    it.skip('should filter out current user from typing list - TODO: Fix in next PR', () => {
       const mockCallback = jest.fn();
       let snapshotCallback: any;
 
@@ -215,7 +217,7 @@ describe('PresenceService', () => {
         return jest.fn();
       });
 
-      PresenceService.subscribeToTyping('chat-123', 'user-123', mockCallback);
+      PresenceService.subscribeToTyping('chat-123', 'user-123', mockCallback, jest.fn());
 
       // Simulate snapshot with multiple users typing
       const mockSnapshot = {

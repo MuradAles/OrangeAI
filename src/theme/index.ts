@@ -186,6 +186,6 @@ export {
  * Export types
  */
     export type { ShadowStyle } from './shadows';
-    export type { ColorPalette, Theme };
+    export type { ColorPalette };
 
 

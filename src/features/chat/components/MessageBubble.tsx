@@ -294,7 +294,7 @@ export const MessageBubble = memo(({
         )}
 
         {/* Reactions */}
-        {Object.keys(message.reactions).length > 0 && (
+        {message.reactions && Object.keys(message.reactions).length > 0 && (
           <View style={styles.reactions}>
             {Object.entries(message.reactions).map(([emoji, users]) => (
               users.length > 0 && (

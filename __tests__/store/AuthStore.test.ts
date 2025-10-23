@@ -144,8 +144,19 @@ describe('AuthStore', () => {
     it('should clear all state on sign out', async () => {
       // Set up authenticated state
       useAuthStore.setState({
-        user: { id: 'user-123', username: 'test', displayName: 'Test', email: 'test@example.com' },
-        firebaseUser: { uid: 'user-123', email: 'test@example.com' },
+        user: { 
+          id: 'user-123', 
+          username: 'test', 
+          displayName: 'Test', 
+          email: 'test@example.com',
+          profilePictureUrl: null,
+          phoneNumber: null,
+          phoneNumberVisible: false,
+          isOnline: true,
+          lastSeen: null,
+          createdAt: Date.now()
+        },
+        firebaseUser: { uid: 'user-123', email: 'test@example.com' } as any,
         isAuthenticated: true,
       });
 
@@ -197,6 +208,12 @@ describe('AuthStore', () => {
         username: 'testuser',
         displayName: 'Old Name',
         email: 'test@example.com',
+        profilePictureUrl: null,
+        phoneNumber: null,
+        phoneNumberVisible: false,
+        isOnline: true,
+        lastSeen: null,
+        createdAt: Date.now()
       };
 
       useAuthStore.setState({ user: initialProfile });

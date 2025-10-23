@@ -1,0 +1,58 @@
+// Simplified UserService tests focusing on behavior
+import { UserService } from '@/services/firebase/UserService';
+
+// Mock Firebase
+jest.mock('firebase/firestore');
+jest.mock('@/services/firebase/FirebaseConfig', () => ({
+  firestore: {},
+}));
+
+// Use actual UserService implementation
+jest.mock('@/services/firebase/UserService', () => {
+  const actual = jest.requireActual('@/services/firebase/UserService');
+  return actual;
+});
+
+describe('UserService - Validation', () => {
+  describe('validateUsername', () => {
+    it('should validate valid usernames', () => {
+      expect(UserService.validateUsername('testuser')).toBe(true);
+      expect(UserService.validateUsername('test123')).toBe(true);
+      expect(UserService.validateUsername('test_user')).toBe(true);
+    });
+
+    it('should reject invalid usernames', () => {
+      expect(UserService.validateUsername('ab')).toBe(false); // Too short
+      expect(UserService.validateUsername('ThisHasUpperCase')).toBe(false); // Has uppercase
+      expect(UserService.validateUsername('test user')).toBe(false); // Has space
+      expect(UserService.validateUsername('test@user')).toBe(false); // Has special char
+      expect(UserService.validateUsername('123test')).toBe(false); // Starts with number
+    });
+  });
+
+  describe('validateDisplayName', () => {
+    it('should validate valid display names', () => {
+      expect(UserService.validateDisplayName('John Doe')).toBe(true);
+      expect(UserService.validateDisplayName('AB')).toBe(true); // Min 2 chars
+    });
+
+    it('should reject invalid display names', () => {
+      expect(UserService.validateDisplayName('J')).toBe(false); // Too short
+      expect(UserService.validateDisplayName('A'.repeat(51))).toBe(false); // Too long
+      expect(UserService.validateDisplayName('')).toBe(false); // Empty
+    });
+  });
+
+  describe('validateBio', () => {
+    it('should validate valid bios', () => {
+      expect(UserService.validateBio('')).toBe(true); // Optional
+      expect(UserService.validateBio('Short bio')).toBe(true);
+      expect(UserService.validateBio('A'.repeat(200))).toBe(true); // Max length
+    });
+
+    it('should reject invalid bios', () => {
+      expect(UserService.validateBio('A'.repeat(201))).toBe(false); // Too long
+    });
+  });
+});
+

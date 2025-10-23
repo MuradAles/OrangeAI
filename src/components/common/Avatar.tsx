@@ -38,9 +38,24 @@ export interface AvatarProps {
   isOnline?: boolean;
   
   /**
+   * Show border around avatar
+   */
+  showBorder?: boolean;
+  
+  /**
    * Custom container style
    */
   style?: ViewStyle;
+  
+  /**
+   * Test ID for testing
+   */
+  testID?: string;
+  
+  /**
+   * Accessibility label
+   */
+  accessibilityLabel?: string;
 }
 
 /**
@@ -52,7 +67,10 @@ export const Avatar: React.FC<AvatarProps> = ({
   size = 'medium',
   showOnline = false,
   isOnline = false,
+  showBorder = true,
   style,
+  testID,
+  accessibilityLabel,
 }) => {
   const theme = useTheme();
   
@@ -99,7 +117,7 @@ export const Avatar: React.FC<AvatarProps> = ({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: showBorder ? 1 : 0,
     borderColor: theme.colors.border,
     ...style,
   };
@@ -124,12 +142,17 @@ export const Avatar: React.FC<AvatarProps> = ({
   };
   
   return (
-    <View style={containerStyle}>
+    <View 
+      style={containerStyle}
+      testID={testID}
+      accessibilityLabel={accessibilityLabel || `${name}'s avatar`}
+    >
       {imageUrl ? (
         <Image
           source={{ uri: imageUrl }}
           style={styles.image}
           resizeMode="cover"
+          testID={testID ? `${testID}-image` : undefined}
         />
       ) : (
         <Text style={textStyle}>{initial}</Text>

@@ -27,6 +27,8 @@ interface MessageInputProps {
   userName?: string;
 }
 
+type TimeoutId = ReturnType<typeof setTimeout>;
+
 const MAX_LENGTH = 4096;
 const SHOW_COUNTER_AT = 3900;
 const TYPING_TIMEOUT = 3000; // Stop typing indicator after 3 seconds
@@ -45,7 +47,7 @@ export const MessageInput = ({
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(40);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<TimeoutId | null>(null);
   const isTypingRef = useRef(false);
 
   // Start typing indicator

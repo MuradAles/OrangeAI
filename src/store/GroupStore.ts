@@ -74,8 +74,13 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         memberIds
       );
 
-      // Save to SQLite
-      await SQLiteService.saveChat(group);
+      // Save to SQLite (convert Chat to ChatRow format)
+      const chatRow = {
+        ...group,
+        participants: JSON.stringify(group.participants),
+        type: group.type as string,
+      };
+      await SQLiteService.saveChat(chatRow as any);
 
       set({ 
         currentGroup: group,
@@ -104,14 +109,20 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       
       // If not in SQLite, fetch from Firestore
       if (!group) {
-        group = await GroupService.getGroup(groupId);
-        if (group) {
-          await SQLiteService.saveChat(group);
+        const fetchedGroup = await GroupService.getGroup(groupId);
+        if (fetchedGroup) {
+          const chatRow = {
+            ...fetchedGroup,
+            participants: JSON.stringify(fetchedGroup.participants),
+            type: fetchedGroup.type as string,
+          };
+          await SQLiteService.saveChat(chatRow as any);
+          group = fetchedGroup as any;
         }
       }
 
       set({ 
-        currentGroup: group,
+        currentGroup: group as any,
         isLoadingGroup: false,
       });
 
@@ -172,8 +183,13 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           groupIcon: icon || null,
         };
         
-        // Update SQLite
-        await SQLiteService.saveChat(updatedGroup);
+        // Update SQLite (convert Chat to ChatRow format)
+        const chatRow = {
+          ...updatedGroup,
+          participants: JSON.stringify(updatedGroup.participants),
+          type: updatedGroup.type as string,
+        };
+        await SQLiteService.saveChat(chatRow as any);
         
         set({ 
           currentGroup: updatedGroup,
@@ -253,7 +269,12 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           groupAdminId: newAdminId,
         };
         
-        await SQLiteService.saveChat(updatedGroup);
+        const chatRow = {
+          ...updatedGroup,
+          participants: JSON.stringify(updatedGroup.participants),
+          type: updatedGroup.type as string,
+        };
+        await SQLiteService.saveChat(chatRow as any);
         set({ currentGroup: updatedGroup });
       }
 
@@ -310,7 +331,12 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           inviteCode: newCode,
         };
         
-        await SQLiteService.saveChat(updatedGroup);
+        const chatRow = {
+          ...updatedGroup,
+          participants: JSON.stringify(updatedGroup.participants),
+          type: updatedGroup.type as string,
+        };
+        await SQLiteService.saveChat(chatRow as any);
         set({ currentGroup: updatedGroup });
       }
 

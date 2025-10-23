@@ -17,15 +17,15 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
 import { AddMemberSheet } from './AddMemberSheet';
 
@@ -158,7 +158,7 @@ export const GroupSettingsModal = ({ visible, chatId, onClose, onChatDeleted }: 
       // Upload image to Firebase Storage
       const imageUrl = await StorageService.uploadGroupIcon(
         result.assets[0].uri,
-        currentChat.groupName || 'Group'
+        currentChat?.groupName || 'Group'
       );
 
       // Update group in Firestore

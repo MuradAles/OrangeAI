@@ -247,7 +247,9 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     try {
       set({ blockedUsersLoading: true });
 
-      const blocked = await FriendRequestService.getBlockedUsers(userId);
+      // TODO: Implement getBlockedUsers in FriendRequestService
+      // const blocked = await FriendRequestService.getBlockedUsers(userId);
+      const blocked: any[] = [];
 
       set({ 
         blockedUsers: blocked, 
@@ -345,7 +347,9 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
    * Block a user
    */
   blockUser: async (userId: string, blockedUserId: string) => {
-    const result = await FriendRequestService.blockUser(userId, blockedUserId);
+    // TODO: Implement blockUser in FriendRequestService
+    // const result = await FriendRequestService.blockUser(userId, blockedUserId);
+    const result = { success: false, error: 'Block user not implemented' };
     
     if (result.success) {
       // Reload contacts and blocked users
@@ -360,7 +364,9 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
    * Unblock a user
    */
   unblockUser: async (userId: string, blockedUserId: string) => {
-    const result = await FriendRequestService.unblockUser(userId, blockedUserId);
+    // TODO: Implement unblockUser in FriendRequestService
+    // const result = await FriendRequestService.unblockUser(userId, blockedUserId);
+    const result = { success: false, error: 'Unblock user not implemented' };
     
     if (result.success) {
       // Reload blocked users
