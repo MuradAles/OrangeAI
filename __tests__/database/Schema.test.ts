@@ -151,7 +151,7 @@ describe('Database Schema', () => {
       ];
 
       requiredTables.forEach(table => {
-        expect(TABLES[table]).toBeDefined();
+        expect(TABLES[table as keyof typeof TABLES]).toBeDefined();
       });
     });
 

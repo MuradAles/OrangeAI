@@ -243,7 +243,7 @@ describe('GroupService', () => {
 
       (getDocs as jest.Mock).mockResolvedValue({
         docs: mockDocs,
-        forEach: function(callback) {
+        forEach: function(callback: (doc: any) => void) {
           mockDocs.forEach(callback);
         }
       });
@@ -263,7 +263,7 @@ describe('GroupService', () => {
 
       (getDocs as jest.Mock).mockResolvedValue({ 
         docs: [],
-        forEach: function(callback) {
+        forEach: function(callback: (doc: any) => void) {
           this.docs.forEach(callback);
         }
       });
@@ -357,7 +357,7 @@ describe('GroupService', () => {
 
       (getDocs as jest.Mock).mockResolvedValue({
         docs: mockDocs,
-        forEach: function(callback) {
+        forEach: function(callback: (doc: any) => void) {
           mockDocs.forEach(callback);
         }
       });
@@ -372,7 +372,7 @@ describe('GroupService', () => {
     it('should return empty array if no participants', async () => {
       (getDocs as jest.Mock).mockResolvedValue({ 
         docs: [],
-        forEach: function(callback) {
+        forEach: function(callback: (doc: any) => void) {
           this.docs.forEach(callback);
         }
       });

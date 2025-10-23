@@ -20,9 +20,9 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useChatStore.setState({
-      currentMessages: [],
-      activeChatId: null,
-      isLoading: false,
+      messages: [],
+      currentChatId: null,
+      isLoadingMessages: false,
       error: null,
     });
   });
@@ -40,20 +40,21 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.deleteMessageForMe as jest.Mock).mockResolvedValue(undefined);
 
       await act(async () => {
-        await useChatStore.getState().deleteMessageForMe('msg-1', 'user-1');
+        await useChatStore.getState().deleteMessageForMe('chat-1', 'msg-1', 'user-1');
       });
 
       expect(MessageService.deleteMessageForMe).toHaveBeenCalled();
       const calls = (MessageService.deleteMessageForMe as jest.Mock).mock.calls[0];
-      expect(calls[0]).toBe('msg-1');
-      expect(calls[1]).toBe('user-1');
+      expect(calls[0]).toBe('chat-1');
+      expect(calls[1]).toBe('msg-1');
+      expect(calls[2]).toBe('user-1');
     });
 
     it('should remove message from local state', async () => {
@@ -68,14 +69,14 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.deleteMessageForMe as jest.Mock).mockResolvedValue(undefined);
 
       await act(async () => {
-        await useChatStore.getState().deleteMessageForMe('msg-1', 'user-1');
+        await useChatStore.getState().deleteMessageForMe('chat-1', 'msg-1', 'user-1');
       });
 
       // Verify service was called correctly
@@ -98,8 +99,8 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.deleteMessageForMe as jest.Mock).mockRejectedValue(
@@ -107,7 +108,7 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
       );
 
       await expect(
-        useChatStore.getState().deleteMessageForMe('msg-1', 'user-1')
+        useChatStore.getState().deleteMessageForMe('chat-1', 'msg-1', 'user-1')
       ).rejects.toThrow('Delete failed');
     });
   });
@@ -125,8 +126,8 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.deleteMessageForEveryone as jest.Mock).mockResolvedValue(undefined);
@@ -152,8 +153,8 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.deleteMessageForEveryone as jest.Mock).mockRejectedValue(
@@ -177,8 +178,8 @@ describe('useMessageActions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.deleteMessageForEveryone as jest.Mock).mockResolvedValue(undefined);
