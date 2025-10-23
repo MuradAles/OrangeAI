@@ -26,9 +26,106 @@ if (typeof global.structuredClone === 'undefined') {
   global.structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
 }
 
-// Mock Expo winter runtime completely
+// Mock Expo winter runtime completely - MUST BE BEFORE OTHER MOCKS
 jest.mock('expo/src/winter/runtime.native', () => ({}), { virtual: true });
 jest.mock('expo/src/winter/installGlobal', () => ({}), { virtual: true });
+jest.mock('expo', () => ({
+  ...jest.requireActual('expo'),
+}));
+
+// Mock expo-file-system (full module)
+jest.mock('expo-file-system', () => ({
+  getInfoAsync: jest.fn(() => Promise.resolve({ exists: true, size: 5000000 })),
+  readAsStringAsync: jest.fn(() => Promise.resolve('')),
+  writeAsStringAsync: jest.fn(() => Promise.resolve()),
+  deleteAsync: jest.fn(() => Promise.resolve()),
+  documentDirectory: 'file:///mock/documents/',
+  cacheDirectory: 'file:///mock/cache/',
+  EncodingType: {
+    UTF8: 'utf8',
+    Base64: 'base64',
+  },
+}));
+
+// Mock @react-native-community/netinfo
+jest.mock('@react-native-community/netinfo', () => ({
+  fetch: jest.fn(() => Promise.resolve({
+    isConnected: true,
+    isInternetReachable: true,
+    type: 'wifi',
+  })),
+  addEventListener: jest.fn(() => jest.fn()),
+}));
+
+// Mock React Native (without requiring actual module to avoid turbo module errors)
+jest.mock('react-native', () => {
+  const React = require('react');
+  
+  // Mock TouchableOpacity to respect disabled prop
+  const MockTouchableOpacity = (props) => {
+    const { onPress, disabled, children, ...rest } = props;
+    
+    // Wrap onPress to check disabled state
+    const handlePress = (event) => {
+      if (!disabled && onPress) {
+        onPress(event);
+      }
+    };
+    
+    return React.createElement(
+      'TouchableOpacity',
+      {
+        ...rest,
+        onPress: handlePress,
+        disabled,
+      },
+      children
+    );
+  };
+  
+  return {
+    Platform: {
+      OS: 'ios',
+      Version: 123,
+      select: jest.fn((obj) => obj.ios || obj.default),
+      isTV: false,
+      isTesting: true,
+    },
+    Alert: {
+      alert: jest.fn(),
+      prompt: jest.fn(),
+    },
+    StyleSheet: {
+      create: jest.fn((styles) => styles),
+      flatten: jest.fn((style) => style),
+      hairlineWidth: 1,
+    },
+    Dimensions: {
+      get: jest.fn(() => ({ width: 375, height: 667 })),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    },
+    AppState: {
+      currentState: 'active',
+      addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+      removeEventListener: jest.fn(),
+    },
+    View: 'View',
+    Text: 'Text',
+    TextInput: 'TextInput',
+    ScrollView: 'ScrollView',
+    Image: 'Image',
+    TouchableOpacity: MockTouchableOpacity,
+    Pressable: 'Pressable',
+    FlatList: 'FlatList',
+    Modal: 'Modal',
+    ActivityIndicator: 'ActivityIndicator',
+    Clipboard: {
+      setString: jest.fn(),
+      getString: jest.fn(() => Promise.resolve('')),
+    },
+  };
+});
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -77,7 +174,12 @@ jest.mock('firebase/firestore', () => {
       data: () => ({}),
       id: 'mock-id'
     })),
-    getDocs: jest.fn(() => Promise.resolve({ docs: [] })),
+    getDocs: jest.fn(() => Promise.resolve({ 
+      docs: [],
+      forEach: function(callback) {
+        this.docs.forEach(callback);
+      }
+    })),
     setDoc: jest.fn(() => Promise.resolve()),
     updateDoc: jest.fn(() => Promise.resolve()),
     deleteDoc: jest.fn(() => Promise.resolve()),
@@ -94,6 +196,8 @@ jest.mock('firebase/firestore', () => {
     })),
     serverTimestamp: jest.fn(() => Date.now()),
     addDoc: jest.fn(() => Promise.resolve({ id: 'mock-message-id' })),
+    arrayUnion: jest.fn((...values) => ({ _methodName: 'arrayUnion', _elements: values })),
+    arrayRemove: jest.fn((...values) => ({ _methodName: 'arrayRemove', _elements: values })),
   };
 });
 
@@ -129,6 +233,25 @@ jest.mock('expo-sqlite', () => ({
     getFirstSync: jest.fn(),
     runSync: jest.fn(),
   })),
+  openDatabase: jest.fn(() => ({
+    transaction: jest.fn((callback) => {
+      const tx = {
+        executeSql: jest.fn((sql, params, success) => {
+          if (success) success(tx, { rows: { length: 0, item: () => ({}) } });
+        }),
+      };
+      callback(tx);
+    }),
+    readTransaction: jest.fn((callback) => {
+      const tx = {
+        executeSql: jest.fn((sql, params, success) => {
+          if (success) success(tx, { rows: { length: 0, item: () => ({}) } });
+        }),
+      };
+      callback(tx);
+    }),
+    close: jest.fn(),
+  })),
 }));
 
 // Mock expo-constants
@@ -146,10 +269,36 @@ jest.mock('expo-constants', () => ({
   }
 }));
 
+// Mock expo-device
+jest.mock('expo-device', () => ({
+  isDevice: true,
+  brand: 'Apple',
+  manufacturer: 'Apple',
+  modelName: 'iPhone 13',
+  osName: 'iOS',
+  osVersion: '15.0',
+  deviceName: 'Test iPhone',
+}));
+
+// Mock expo-notifications
+jest.mock('expo-notifications', () => ({
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  getExpoPushTokenAsync: jest.fn(() => Promise.resolve({ data: 'ExponentPushToken[mock-token]' })),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
+  setNotificationHandler: jest.fn(),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  setBadgeCountAsync: jest.fn(() => Promise.resolve()),
+  AndroidImportance: { MAX: 5, HIGH: 4, DEFAULT: 3, LOW: 2, MIN: 1 },
+}));
+
 // Mock expo-clipboard
 jest.mock('expo-clipboard', () => ({
   setStringAsync: jest.fn(),
   getStringAsync: jest.fn(),
+  setString: jest.fn(),
+  getString: jest.fn(),
 }));
 
 // Mock expo-image-picker
@@ -176,23 +325,53 @@ jest.mock('expo-file-system/legacy', () => ({
 // Mock services
 jest.mock('./src/database/SQLiteService', () => ({
   SQLiteService: {
+    initialize: jest.fn(() => Promise.resolve()),
     saveMessage: jest.fn(() => Promise.resolve()),
     updateMessage: jest.fn(() => Promise.resolve()),
+    updateMessageStatus: jest.fn(() => Promise.resolve()),
     deleteMessage: jest.fn(() => Promise.resolve()),
+    deleteMessageForMe: jest.fn(() => Promise.resolve()),
     getMessages: jest.fn(() => Promise.resolve([])),
     getMessageById: jest.fn(() => Promise.resolve(null)),
+    getPendingMessages: jest.fn(() => Promise.resolve([])),
     saveUser: jest.fn(() => Promise.resolve()),
+    getUser: jest.fn(() => Promise.resolve(null)),
+    getUserById: jest.fn(() => Promise.resolve(null)),
+    saveChat: jest.fn(() => Promise.resolve()),
+    getChat: jest.fn(() => Promise.resolve(null)),
+    getChatById: jest.fn(() => Promise.resolve(null)),
+    getChats: jest.fn(() => Promise.resolve([])),
+    updateChat: jest.fn(() => Promise.resolve()),
+    deleteChat: jest.fn(() => Promise.resolve()),
+    close: jest.fn(() => Promise.resolve()),
+    reset: jest.fn(() => Promise.resolve()),
+    getScrollPosition: jest.fn(() => Promise.resolve(null)),
+    saveScrollPosition: jest.fn(() => Promise.resolve()),
+    transaction: jest.fn(() => Promise.resolve()),
+    clearAll: jest.fn(() => Promise.resolve()),
   }
 }));
 
 jest.mock('./src/services/firebase/UserService', () => ({
   UserService: {
-    getUserById: jest.fn(() => Promise.resolve(null)),
+    createProfile: jest.fn(() => Promise.resolve()),
     getProfile: jest.fn(() => Promise.resolve(null)),
-    updateUser: jest.fn(() => Promise.resolve()),
     updateProfile: jest.fn(() => Promise.resolve()),
+    checkUsernameAvailability: jest.fn(() => Promise.resolve(true)),
     searchByUsername: jest.fn(() => Promise.resolve([])),
+    getUserByUsername: jest.fn(() => Promise.resolve(null)),
     getContacts: jest.fn(() => Promise.resolve([])),
+    updateOnlineStatus: jest.fn(() => Promise.resolve()),
+    updateActiveChatId: jest.fn(() => Promise.resolve()),
+    // Aliases
+    getUserById: jest.fn(() => Promise.resolve(null)),
+    createUserProfile: jest.fn(() => Promise.resolve()),
+    updateUserProfile: jest.fn(() => Promise.resolve()),
+    searchUsers: jest.fn(() => Promise.resolve([])),
+    deleteUserProfile: jest.fn(() => Promise.resolve()),
+    validateUsername: jest.fn(() => true),
+    validateDisplayName: jest.fn(() => true),
+    validateBio: jest.fn(() => true),
   }
 }));
 
@@ -212,4 +391,266 @@ global.console = {
   warn: jest.fn(),
   error: jest.fn(),
 };
+
+// Mock ThemeContext
+jest.mock('@/shared/context/ThemeContext', () => {
+  const React = require('react');
+  const mockTheme = {
+    colors: {
+      primary: '#4A90E2',
+      secondary: '#7B68EE',
+      background: '#FFFFFF',
+      surface: '#F5F5F5',
+      text: '#1A1A1A',
+      textSecondary: '#666666',
+      textTertiary: '#999999',
+      border: '#E0E0E0',
+      borderFocus: '#4A90E2',
+      error: '#F44336',
+      online: '#4CAF50',
+      offline: '#999999',
+      backgroundInput: '#F5F5F5',
+      // Button colors
+      buttonPrimary: '#4A90E2',
+      buttonPrimaryText: '#FFFFFF',
+      buttonSecondary: '#7B68EE',
+      buttonSecondaryText: '#FFFFFF',
+      buttonDisabled: '#CCCCCC',
+      buttonDisabledText: '#999999',
+    },
+    spacing: {
+      xs: 4,
+      sm: 8,
+      md: 16,
+      lg: 24,
+      xl: 32,
+      xxl: 48,
+    },
+    typography: {
+      fontFamily: {
+        regular: 'System',
+        medium: 'System',
+        bold: 'System',
+      },
+      fontSize: {
+        xs: 12,
+        sm: 14,
+        md: 16,
+        lg: 18,
+        xl: 20,
+        xxl: 24,
+      },
+      // Button typography
+      button: {
+        fontSize: 16,
+        fontWeight: '600',
+      },
+      buttonSmall: {
+        fontSize: 14,
+        fontWeight: '600',
+      },
+      buttonLarge: {
+        fontSize: 18,
+        fontWeight: '600',
+      },
+      // Input typography
+      input: {
+        fontSize: 16,
+      },
+      label: {
+        fontSize: 14,
+        fontWeight: '500',
+      },
+      caption: {
+        fontSize: 12,
+      },
+    },
+    borders: {
+      radius: {
+        sm: 4,
+        md: 8,
+        lg: 12,
+        xl: 16,
+        round: 9999,
+      },
+    },
+    // Component-specific styles
+    componentShadows: {
+      button: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+      },
+    },
+    componentSpacing: {
+      // Button spacing
+      buttonPadding: 12,
+      buttonPaddingSmall: 8,
+      buttonPaddingLarge: 16,
+      buttonGap: 8,
+      // Input spacing
+      inputPadding: 12,
+      inputLabelGap: 8,
+      // Avatar sizes
+      avatarSizeSmall: 32,
+      avatarSizeMedium: 48,
+      avatarSizeLarge: 64,
+      avatarSizeXLarge: 96,
+    },
+    componentBorderWidth: {
+      button: 1,
+      input: 1,
+      inputFocused: 2,
+    },
+    componentBorderRadius: {
+      button: 8,
+      input: 8,
+    },
+    innerShadow: {},
+    fontWeight: {
+      semiBold: '600',
+    },
+    getAvatarColor: jest.fn((name) => '#4A90E2'),
+  };
+
+  return {
+    ThemeProvider: ({ children }) => React.createElement(React.Fragment, {}, children),
+    useThemeContext: () => ({
+      theme: mockTheme,
+      themeMode: 'light',
+      setThemeMode: jest.fn(),
+      isDark: false,
+    }),
+  };
+});
+
+// Mock useTheme hook
+jest.mock('@/shared/hooks/useTheme', () => ({
+  useTheme: () => ({
+    colors: {
+      primary: '#4A90E2',
+      secondary: '#7B68EE',
+      background: '#FFFFFF',
+      surface: '#F5F5F5',
+      text: '#1A1A1A',
+      textSecondary: '#666666',
+      textTertiary: '#999999',
+      border: '#E0E0E0',
+      borderFocus: '#4A90E2',
+      error: '#F44336',
+      online: '#4CAF50',
+      offline: '#999999',
+      backgroundInput: '#F5F5F5',
+      // Button colors
+      buttonPrimary: '#4A90E2',
+      buttonPrimaryText: '#FFFFFF',
+      buttonSecondary: '#7B68EE',
+      buttonSecondaryText: '#FFFFFF',
+      buttonDisabled: '#CCCCCC',
+      buttonDisabledText: '#999999',
+    },
+    spacing: {
+      xs: 4,
+      sm: 8,
+      md: 16,
+      lg: 24,
+      xl: 32,
+      xxl: 48,
+    },
+    typography: {
+      fontFamily: {
+        regular: 'System',
+        medium: 'System',
+        bold: 'System',
+      },
+      fontSize: {
+        xs: 12,
+        sm: 14,
+        md: 16,
+        lg: 18,
+        xl: 20,
+        xxl: 24,
+      },
+      // Button typography
+      button: {
+        fontSize: 16,
+        fontWeight: '600',
+      },
+      buttonSmall: {
+        fontSize: 14,
+        fontWeight: '600',
+      },
+      buttonLarge: {
+        fontSize: 18,
+        fontWeight: '600',
+      },
+      // Input typography
+      input: {
+        fontSize: 16,
+      },
+      label: {
+        fontSize: 14,
+        fontWeight: '500',
+      },
+      caption: {
+        fontSize: 12,
+      },
+    },
+    borders: {
+      radius: {
+        sm: 4,
+        md: 8,
+        lg: 12,
+        xl: 16,
+        round: 9999,
+      },
+    },
+    // Component-specific styles
+    componentShadows: {
+      button: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+      },
+    },
+    componentSpacing: {
+      // Button spacing
+      buttonPadding: 12,
+      buttonPaddingSmall: 8,
+      buttonPaddingLarge: 16,
+      buttonGap: 8,
+      // Input spacing
+      inputPadding: 12,
+      inputLabelGap: 8,
+      // Avatar sizes
+      avatarSizeSmall: 32,
+      avatarSizeMedium: 48,
+      avatarSizeLarge: 64,
+      avatarSizeXLarge: 96,
+    },
+    componentBorderWidth: {
+      button: 1,
+      input: 1,
+      inputFocused: 2,
+    },
+    componentBorderRadius: {
+      button: 8,
+      input: 8,
+    },
+    innerShadow: {},
+    fontWeight: {
+      semiBold: '600',
+    },
+    getAvatarColor: jest.fn((name) => '#4A90E2'),
+  }),
+  useThemeColorScheme: () => 'light',
+  useThemeMode: () => ({
+    themeMode: 'light',
+    setThemeMode: jest.fn(),
+  }),
+}));
 

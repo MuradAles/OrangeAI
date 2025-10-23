@@ -313,7 +313,7 @@ export default function HomeScreen() {
             />
           }
           contentContainerStyle={
-            chats.length === 0 ? styles.flashListEmpty : undefined
+            chats.length === 0 ? { flexGrow: 1 } as any : undefined
           }
         />
       )}

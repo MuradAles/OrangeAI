@@ -98,7 +98,15 @@ describe('ContactStore', () => {
   describe('acceptFriendRequest', () => {
     it('should accept friend request and reload contacts', async () => {
       const mockContacts = [
-        { userId: 'user-2', displayName: 'New Friend', addedAt: Date.now() }
+        { 
+          userId: 'user-2', 
+          username: 'user2',
+          displayName: 'New Friend', 
+          profilePictureUrl: null,
+          isOnline: false,
+          lastSeen: Date.now(),
+          addedAt: Date.now() 
+        }
       ];
 
       useContactStore.setState({
@@ -107,7 +115,8 @@ describe('ContactStore', () => {
           fromUserId: 'user-2',
           toUserId: 'user-1',
           status: 'pending',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          respondedAt: null
         }]
       });
 
@@ -135,7 +144,8 @@ describe('ContactStore', () => {
           fromUserId: 'user-2',
           toUserId: 'user-1',
           status: 'pending',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          respondedAt: null
         }]
       });
 
@@ -162,7 +172,8 @@ describe('ContactStore', () => {
           fromUserId: 'user-1',
           toUserId: 'user-2',
           status: 'pending',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          respondedAt: null
         }]
       });
 
@@ -223,7 +234,15 @@ describe('ContactStore', () => {
     it('isContact should return true for existing contacts', () => {
       useContactStore.setState({
         contacts: [
-          { userId: 'user-2', displayName: 'Contact', addedAt: Date.now() }
+          { 
+            userId: 'user-2', 
+            username: 'user2',
+            displayName: 'Contact', 
+            profilePictureUrl: null,
+            isOnline: false,
+            lastSeen: Date.now(),
+            addedAt: Date.now() 
+          }
         ]
       });
 
@@ -239,7 +258,8 @@ describe('ContactStore', () => {
           fromUserId: 'user-2',
           toUserId: 'user-1',
           status: 'pending',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          respondedAt: null
         }]
       });
 
@@ -255,7 +275,8 @@ describe('ContactStore', () => {
           fromUserId: 'user-1',
           toUserId: 'user-2',
           status: 'pending',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          respondedAt: null
         }]
       });
 

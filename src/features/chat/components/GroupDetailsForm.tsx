@@ -110,7 +110,7 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
         <View style={styles.iconSection}>
           <Pressable onPress={handlePickImage} style={styles.iconButton}>
             {groupIcon ? (
-              <Avatar imageUrl={groupIcon} size={120} />
+              <Avatar name={groupName || 'Group'} imageUrl={groupIcon} size={120} />
             ) : (
               <View style={[styles.placeholderIcon, { backgroundColor: theme.colors.surface }]}>
                 <Ionicons name="camera" size={40} color={theme.colors.textSecondary} />

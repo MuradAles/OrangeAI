@@ -50,9 +50,9 @@ const ChatListItemComponent = ({
       return '';
     }
     
-    const dateObj = chat.lastMessageTime instanceof Date 
-      ? chat.lastMessageTime 
-      : new Date(chat.lastMessageTime);
+    const dateObj = typeof chat.lastMessageTime === 'number'
+      ? new Date(chat.lastMessageTime)
+      : chat.lastMessageTime;
     
     if (isToday(dateObj)) {
       return format(dateObj, 'h:mm a');

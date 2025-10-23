@@ -11,12 +11,12 @@ import { useAuthStore } from '@/store';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 
 export const SignInScreen: React.FC = () => {
@@ -138,7 +138,7 @@ export const SignInScreen: React.FC = () => {
               style={[
                 styles.errorContainer,
                 {
-                  backgroundColor: theme.colors.errorBackground || theme.colors.error + '15',
+                  backgroundColor: theme.colors.errorBackground,
                   borderColor: theme.colors.error,
                 },
               ]}

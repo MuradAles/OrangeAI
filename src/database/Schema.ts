@@ -9,6 +9,7 @@
  * Increment this when making schema changes
  */
 export const CURRENT_SCHEMA_VERSION = 1;
+export const DATABASE_VERSION = CURRENT_SCHEMA_VERSION; // Alias for tests
 
 /**
  * Database name
@@ -159,5 +160,20 @@ export const DROP_ALL_TABLES = [
   'DROP TABLE IF EXISTS users;',
   'DROP TABLE IF EXISTS metadata;',
 ];
+
+/**
+ * TABLES object for test compatibility
+ * Groups all table definitions
+ */
+export const TABLES = {
+  USERS: CREATE_USERS_TABLE,
+  CHATS: CREATE_CHATS_TABLE,
+  MESSAGES: CREATE_MESSAGES_TABLE,
+  SCROLL_POSITIONS: CREATE_SCROLL_POSITIONS_TABLE,
+  FRIEND_REQUESTS: CREATE_FRIEND_REQUESTS_TABLE,
+  SCHEMA_VERSION: CREATE_METADATA_TABLE, // metadata table stores schema version
+  MESSAGES_INDEX: CREATE_INDEXES[0],
+  MESSAGES_TIMESTAMP_INDEX: CREATE_INDEXES[1],
+};
 
 

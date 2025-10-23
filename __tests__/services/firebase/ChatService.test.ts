@@ -161,7 +161,7 @@ describe('ChatService', () => {
       const { updateDoc } = require('firebase/firestore');
       updateDoc.mockImplementation(mockUpdate);
 
-      await ChatService.markChatAsRead('chat-123', 'user-1');
+      await ChatService.markChatAsRead('chat-123', 'user-1', 'msg-123');
 
       expect(mockUpdate).toHaveBeenCalled();
     });
