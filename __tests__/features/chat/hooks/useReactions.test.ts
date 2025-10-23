@@ -17,9 +17,9 @@ describe('useReactions (Integrated in ChatStore)', () => {
     jest.clearAllMocks();
     // Reset ChatStore state
     useChatStore.setState({
-      currentMessages: [],
-      activeChatId: null,
-      isLoading: false,
+      messages: [],
+      currentChatId: null,
+      isLoadingMessages: false,
       error: null,
     });
   });
@@ -39,21 +39,22 @@ describe('useReactions (Integrated in ChatStore)', () => {
 
       // Setup initial state
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.addReaction as jest.Mock).mockResolvedValue(undefined);
 
       await act(async () => {
-        await useChatStore.getState().addReaction('msg-1', '👍', 'user-2');
+        await useChatStore.getState().addReaction('chat-1', 'msg-1', '👍', 'user-2');
       });
 
       expect(MessageService.addReaction).toHaveBeenCalled();
       const calls = (MessageService.addReaction as jest.Mock).mock.calls[0];
-      expect(calls[0]).toBe('msg-1');
-      expect(calls[1]).toBe('👍');
-      expect(calls[2]).toBe('user-2');
+      expect(calls[0]).toBe('chat-1');
+      expect(calls[1]).toBe('msg-1');
+      expect(calls[2]).toBe('👍');
+      expect(calls[3]).toBe('user-2');
     });
 
     it('should handle adding same emoji twice', async () => {
@@ -71,14 +72,14 @@ describe('useReactions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.addReaction as jest.Mock).mockResolvedValue(undefined);
 
       await act(async () => {
-        await useChatStore.getState().addReaction('msg-1', '👍', 'user-2');
+        await useChatStore.getState().addReaction('chat-1', 'msg-1', '👍', 'user-2');
       });
 
       // Should still call the service (service handles duplicate logic)
@@ -100,21 +101,22 @@ describe('useReactions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.addReaction as jest.Mock).mockResolvedValue(undefined);
 
       await act(async () => {
-        await useChatStore.getState().addReaction('msg-1', '❤️', 'user-3');
+        await useChatStore.getState().addReaction('chat-1', 'msg-1', '❤️', 'user-3');
       });
 
       expect(MessageService.addReaction).toHaveBeenCalled();
       const calls = (MessageService.addReaction as jest.Mock).mock.calls[0];
-      expect(calls[0]).toBe('msg-1');
-      expect(calls[1]).toBe('❤️');
-      expect(calls[2]).toBe('user-3');
+      expect(calls[0]).toBe('chat-1');
+      expect(calls[1]).toBe('msg-1');
+      expect(calls[2]).toBe('❤️');
+      expect(calls[3]).toBe('user-3');
     });
 
     it('should handle add reaction errors', async () => {
@@ -129,8 +131,8 @@ describe('useReactions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.addReaction as jest.Mock).mockRejectedValue(
@@ -138,7 +140,7 @@ describe('useReactions (Integrated in ChatStore)', () => {
       );
 
       await expect(
-        useChatStore.getState().addReaction('msg-1', '👍', 'user-2')
+        useChatStore.getState().addReaction('chat-1', 'msg-1', '👍', 'user-2')
       ).rejects.toThrow('Failed to add reaction');
     });
   });
@@ -159,21 +161,22 @@ describe('useReactions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.removeReaction as jest.Mock).mockResolvedValue(undefined);
 
       await act(async () => {
-        await useChatStore.getState().removeReaction('msg-1', '👍', 'user-2');
+        await useChatStore.getState().removeReaction('chat-1', 'msg-1', '👍', 'user-2');
       });
 
       expect(MessageService.removeReaction).toHaveBeenCalled();
       const calls = (MessageService.removeReaction as jest.Mock).mock.calls[0];
-      expect(calls[0]).toBe('msg-1');
-      expect(calls[1]).toBe('👍');
-      expect(calls[2]).toBe('user-2');
+      expect(calls[0]).toBe('chat-1');
+      expect(calls[1]).toBe('msg-1');
+      expect(calls[2]).toBe('👍');
+      expect(calls[3]).toBe('user-2');
     });
 
     it('should handle remove reaction errors', async () => {
@@ -191,8 +194,8 @@ describe('useReactions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.removeReaction as jest.Mock).mockRejectedValue(
@@ -200,7 +203,7 @@ describe('useReactions (Integrated in ChatStore)', () => {
       );
 
       await expect(
-        useChatStore.getState().removeReaction('msg-1', '👍', 'user-2')
+        useChatStore.getState().removeReaction('chat-1', 'msg-1', '👍', 'user-2')
       ).rejects.toThrow('Failed to remove reaction');
     });
   });
@@ -218,15 +221,15 @@ describe('useReactions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
-        activeChatId: 'chat-1',
+        messages: [message],
+        currentChatId: 'chat-1',
       });
 
       (MessageService.addReaction as jest.Mock).mockResolvedValue(undefined);
 
       // Service should handle validation
       await act(async () => {
-        await useChatStore.getState().addReaction('msg-1', '', 'user-2');
+        await useChatStore.getState().addReaction('chat-1', 'msg-1', '', 'user-2');
       });
 
       expect(MessageService.addReaction).toHaveBeenCalled();
@@ -249,7 +252,7 @@ describe('useReactions (Integrated in ChatStore)', () => {
       };
 
       useChatStore.setState({
-        currentMessages: [message],
+        messages: [message],
       });
 
       // Simulate real-time update
@@ -262,12 +265,12 @@ describe('useReactions (Integrated in ChatStore)', () => {
         };
 
         useChatStore.setState({
-          currentMessages: [updatedMessage],
+          messages: [updatedMessage],
         });
       });
 
       const state = useChatStore.getState();
-      const msg = state.currentMessages.find(m => m.id === 'msg-1');
+      const msg = state.messages[0];
       expect(msg?.reactions?.['👍']).toHaveLength(2);
     });
   });

@@ -64,9 +64,9 @@ describe('useTypingIndicator (Integrated in PresenceService)', () => {
 
       (PresenceService.subscribeToTyping as jest.Mock).mockReturnValue(mockUnsubscribe);
 
-      const unsubscribe = PresenceService.subscribeToTyping('chat-1', mockCallback);
+      const unsubscribe = PresenceService.subscribeToTyping('chat-1', 'user-1', mockCallback, jest.fn());
 
-      expect(PresenceService.subscribeToTyping).toHaveBeenCalledWith('chat-1', mockCallback);
+      expect(PresenceService.subscribeToTyping).toHaveBeenCalledWith('chat-1', 'user-1', mockCallback, expect.any(Function));
       expect(unsubscribe).toBe(mockUnsubscribe);
     });
 
@@ -75,13 +75,13 @@ describe('useTypingIndicator (Integrated in PresenceService)', () => {
       let typingCallback: any;
 
       (PresenceService.subscribeToTyping as jest.Mock).mockImplementation(
-        (chatId, callback) => {
-          typingCallback = callback;
+        (chatId, userId, onUpdate, onError) => {
+          typingCallback = onUpdate;
           return jest.fn();
         }
       );
 
-      PresenceService.subscribeToTyping('chat-1', mockCallback);
+      PresenceService.subscribeToTyping('chat-1', 'user-1', mockCallback, jest.fn());
 
       // Simulate typing update
       act(() => {
@@ -95,7 +95,7 @@ describe('useTypingIndicator (Integrated in PresenceService)', () => {
       const mockUnsubscribe = jest.fn();
       (PresenceService.subscribeToTyping as jest.Mock).mockReturnValue(mockUnsubscribe);
 
-      const unsubscribe = PresenceService.subscribeToTyping('chat-1', jest.fn());
+      const unsubscribe = PresenceService.subscribeToTyping('chat-1', 'user-1', jest.fn(), jest.fn());
       
       act(() => {
         unsubscribe();
@@ -108,7 +108,7 @@ describe('useTypingIndicator (Integrated in PresenceService)', () => {
   describe('Typing Indicator Display', () => {
     it('should show single user typing', () => {
       const typingUsers = { 'user-2': true };
-      const userProfiles = { 'user-2': { displayName: 'John' } };
+      const userProfiles: Record<string, { displayName: string }> = { 'user-2': { displayName: 'John' } };
 
       const displayText = Object.entries(typingUsers)
         .filter(([, isTyping]) => isTyping)
@@ -120,7 +120,7 @@ describe('useTypingIndicator (Integrated in PresenceService)', () => {
 
     it('should show multiple users typing', () => {
       const typingUsers = { 'user-2': true, 'user-3': true };
-      const userProfiles = {
+      const userProfiles: Record<string, { displayName: string }> = {
         'user-2': { displayName: 'John' },
         'user-3': { displayName: 'Jane' },
       };
@@ -171,7 +171,7 @@ describe('useTypingIndicator (Integrated in PresenceService)', () => {
 
         timeoutId = setTimeout(() => {
           sendTyping();
-        }, 500);
+        }, 500) as any;
       };
 
       // Simulate rapid typing

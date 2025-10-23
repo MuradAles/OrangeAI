@@ -10,9 +10,9 @@ describe('GroupStore', () => {
     jest.clearAllMocks();
     // Reset store state before each test
     useGroupStore.setState({
-      groups: [],
-      currentGroupParticipants: [],
-      isLoading: false,
+      currentGroup: null,
+      groupParticipants: new Map(),
+      isCreatingGroup: false,
       error: null,
     });
   });
@@ -26,7 +26,10 @@ describe('GroupStore', () => {
         groupName: 'Test Group',
         groupAdminId: 'user-1',
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        lastMessageText: '',
+        lastMessageTime: Date.now(),
+        lastMessageSenderId: '',
+        createdBy: 'user-1',
       };
 
       (GroupService.createGroup as jest.Mock).mockResolvedValue(mockChat);
@@ -100,10 +103,13 @@ describe('GroupStore', () => {
         groupName: 'Old Name',
         groupAdminId: 'user-1',
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        lastMessageText: '',
+        lastMessageTime: Date.now(),
+        lastMessageSenderId: '',
+        createdBy: 'user-1',
       };
 
-      useGroupStore.setState({ groups: [initialGroup] });
+      useGroupStore.setState({ currentGroup: initialGroup });
 
       (GroupService.updateGroupInfo as jest.Mock).mockResolvedValue(undefined);
 
@@ -158,7 +164,10 @@ describe('GroupStore', () => {
         participants: ['user-1', 'user-2'],
         groupAdminId: 'user-1',
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        lastMessageText: '',
+        lastMessageTime: Date.now(),
+        lastMessageSenderId: '',
+        createdBy: 'user-1',
       };
 
       useGroupStore.setState({ currentGroup: initialGroup });
@@ -257,7 +266,10 @@ describe('GroupStore', () => {
         groupAdminId: 'user-1',
         inviteCode: 'OLD123',
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        lastMessageText: '',
+        lastMessageTime: Date.now(),
+        lastMessageSenderId: '',
+        createdBy: 'user-1',
       };
 
       useGroupStore.setState({ currentGroup: initialGroup });
@@ -298,22 +310,22 @@ describe('GroupStore', () => {
 
     it('should reset state', () => {
       useGroupStore.setState({
-        groups: [{ id: 'group-1' } as Chat],
-        isLoading: true,
+        currentGroup: { id: 'group-1' } as Chat,
+        isUpdatingGroup: true,
         error: 'Some error',
       });
 
       // Manually reset state
       useGroupStore.setState({
-        groups: [],
-        currentGroupParticipants: [],
-        isLoading: false,
+        currentGroup: null,
+        groupParticipants: new Map(),
+        isUpdatingGroup: false,
         error: null,
       });
 
       const state = useGroupStore.getState();
-      expect(state.groups).toEqual([]);
-      expect(state.isLoading).toBe(false);
+      expect(state.currentGroup).toBeNull();
+      expect(state.isUpdatingGroup).toBe(false);
       expect(state.error).toBeNull();
     });
 
@@ -322,7 +334,7 @@ describe('GroupStore', () => {
 
       await useGroupStore.getState().createGroup('Test', undefined, undefined, 'user-1', ['user-2']);
 
-      expect(useGroupStore.getState().isLoading).toBe(false);
+      expect(useGroupStore.getState().isCreatingGroup).toBe(false);
     });
   });
 });
