@@ -26,7 +26,16 @@
   - `firebase/auth` - Email/Password authentication
   - `firebase/firestore` - NoSQL database with real-time listeners
   - `firebase/storage` - Image and file storage
+  - `firebase/functions` - Cloud Functions callable API
 - **Firebase Cloud Messaging:** Push notifications (via FCM tokens)
+- **Firebase Cloud Functions (v2):** Serverless backend for AI processing
+  - **Node.js:** 22
+  - **firebase-functions:** ^6.6.0
+  - **firebase-admin:** ^12.7.0
+  - **TypeScript:** ^5.7.3
+- **OpenAI SDK:** ^6.6.0 for AI translation
+  - **Model:** GPT-3.5-turbo (cost-efficient)
+  - **Use Case:** Context-aware message translation
 
 ### Local Storage
 - **Expo SQLite:** 11.x (built-in SQL database)
@@ -81,6 +90,8 @@ Accessed via: `expo-constants` (already installed)
 - ✅ Firestore Database enabled
 - ✅ Firebase Storage enabled
 - ✅ Firebase Cloud Messaging enabled
+- ✅ Firebase Cloud Functions enabled (translateMessage deployed)
+- ✅ OpenAI API integrated for translation
 
 **Required Firestore Indexes:**
 ```
@@ -141,6 +152,14 @@ MessageAI/
 │       ├── utils/               # Helper functions
 │       ├── hooks/               # Custom hooks
 │       └── components/          # Shared smart components
+├── functions/                   # ✨ Firebase Cloud Functions (NEW)
+│   ├── src/
+│   │   ├── index.ts            # Function exports
+│   │   └── services/
+│   │       └── TranslationService.ts
+│   ├── .env                    # OpenAI API key
+│   ├── package.json            # Node.js dependencies
+│   └── tsconfig.json           # TypeScript config
 ├── assets/                      # Images, fonts, etc.
 ├── .env                        # Environment variables (not committed)
 ├── .env.example                # Template for environment variables

@@ -351,6 +351,91 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
+      {/* Translation Language */}
+      <Card style={styles.card}>
+        <Text
+          style={[
+            theme.typography.h4,
+            { color: theme.colors.text, marginBottom: 16 },
+          ]}
+        >
+          Translation Language
+        </Text>
+
+        <View style={styles.languageRow}>
+          <View style={styles.themeInfo}>
+            <View style={styles.themeIconContainer}>
+              <Ionicons 
+                name="language" 
+                size={20} 
+                color={theme.colors.primary} 
+              />
+            </View>
+            <View>
+              <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]}>
+                Preferred Language
+              </Text>
+              <Text style={[theme.typography.bodySmall, { color: theme.colors.textSecondary }]}>
+                Messages will translate to this language
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Language Grid */}
+        <View style={styles.languageGrid}>
+          {[
+            { code: 'en', label: 'English' },
+            { code: 'es', label: 'Español' },
+            { code: 'fr', label: 'Français' },
+            { code: 'de', label: 'Deutsch' },
+            { code: 'it', label: 'Italiano' },
+            { code: 'pt', label: 'Português' },
+            { code: 'ru', label: 'Русский' },
+            { code: 'ja', label: '日本語' },
+            { code: 'ko', label: '한국어' },
+            { code: 'zh', label: '中文' },
+            { code: 'ar', label: 'العربية' },
+            { code: 'hi', label: 'हिन्दी' },
+          ].map((lang) => (
+            <Pressable
+              key={lang.code}
+              style={[
+                styles.languageButton,
+                (user?.preferredLanguage || 'en') === lang.code && { 
+                  backgroundColor: theme.colors.primary,
+                  borderColor: theme.colors.primary,
+                },
+                { borderColor: theme.colors.border },
+              ]}
+              onPress={async () => {
+                try {
+                  if (!user?.id) return;
+                  await UserService.updateProfile(user.id, { preferredLanguage: lang.code });
+                  await updateUserProfile({ preferredLanguage: lang.code });
+                } catch (error) {
+                  console.error('Error updating language:', error);
+                  Alert.alert('Error', 'Failed to update language preference');
+                }
+              }}
+            >
+              <Text
+                style={[
+                  theme.typography.bodySmall,
+                  { 
+                    color: (user?.preferredLanguage || 'en') === lang.code 
+                      ? '#fff' 
+                      : theme.colors.text,
+                  },
+                ]}
+              >
+                {lang.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Card>
+
       {/* Theme Settings */}
       <Card style={styles.card}>
         <Text
@@ -540,6 +625,23 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  languageRow: {
+    marginBottom: 16,
+  },
+  languageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  languageButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: '30%',
     alignItems: 'center',
   },
   actions: {

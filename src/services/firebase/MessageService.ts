@@ -323,6 +323,9 @@ export class MessageService {
               deletedFor: data.deletedFor || [],
               deletedForEveryone: data.deletedForEveryone || false,
               deletedAt: data.deletedAt ? data.deletedAt.toDate() : null,
+              // Translations are stored locally only, not in Firestore
+              translations: {},
+              detectedLanguage: undefined,
               syncStatus: 'synced',
             });
           });

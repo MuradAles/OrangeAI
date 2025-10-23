@@ -75,6 +75,8 @@ export interface MessageRow {
   reactions: string | null;         // JSON object
   deletedForMe: number;             // SQLite boolean (0 or 1)
   deletedForEveryone: number;       // SQLite boolean (0 or 1)
+  translations: string | null;      // JSON object of translations
+  detectedLanguage: string | null;  // ISO 639-1 language code
   syncStatus: string;               // MessageSyncStatus as string
 }
 

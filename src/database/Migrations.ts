@@ -25,6 +25,19 @@ export const migrations: Migration[] = [
       'DROP TABLE IF EXISTS metadata;',
     ],
   },
+  {
+    version: 2,
+    name: 'Add translations columns to messages',
+    up: [
+      'ALTER TABLE messages ADD COLUMN translations TEXT;',
+      'ALTER TABLE messages ADD COLUMN detectedLanguage TEXT;',
+    ],
+    down: [
+      // SQLite doesn't support DROP COLUMN easily, so we'd need to recreate the table
+      // For simplicity, we'll leave these columns if rolling back
+      'UPDATE messages SET translations = NULL, detectedLanguage = NULL;',
+    ],
+  },
 ];
 
 /**

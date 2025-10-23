@@ -8,7 +8,7 @@
  * Database schema version
  * Increment this when making schema changes
  */
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2; // v2: Added translations column
 export const DATABASE_VERSION = CURRENT_SCHEMA_VERSION; // Alias for tests
 
 /**
@@ -73,6 +73,8 @@ export const CREATE_MESSAGES_TABLE = `
     reactions TEXT,
     deletedForMe INTEGER DEFAULT 0,
     deletedForEveryone INTEGER DEFAULT 0,
+    translations TEXT,
+    detectedLanguage TEXT,
     syncStatus TEXT DEFAULT 'synced',
     FOREIGN KEY (chatId) REFERENCES chats(id) ON DELETE CASCADE
   );

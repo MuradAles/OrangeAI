@@ -18,6 +18,7 @@ import { DateSeparator } from './DateSeparator';
 import { GroupSettingsModal } from './GroupSettingsModal';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
+import { MessageOptionsSheet } from './MessageOptionsSheet';
 import { TypingIndicator } from './TypingIndicator';
 
 interface ChatModalProps {
@@ -65,6 +66,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showMessageOptions, setShowMessageOptions] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const flashListRef = useRef<any>(null);
   const hasScrolledInitially = useRef(false);
   const isCleaningUp = useRef(false); // Prevent duplicate cleanup alerts
@@ -732,7 +735,36 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     }
   };
 
-  // Handle message press (for retry on failed messages)
+  // Handle quick emoji reaction (from quick actions popover)
+  const handleQuickReaction = async (message: Message, emoji: string) => {
+    if (!user?.id || !chatId) return;
+    
+    try {
+      await addReaction(chatId, message.id, emoji, user.id);
+    } catch (error) {
+      console.error('Failed to add quick reaction:', error);
+      Alert.alert('Error', 'Failed to add reaction');
+    }
+  };
+
+  // Handle AI Commands
+  const handleAITranslate = async (message: Message) => {
+    await handleTranslateMessage(message);
+  };
+
+  const handleAISummarize = async (message: Message) => {
+    Alert.alert('AI Summarize', 'Summarize feature coming soon!');
+  };
+
+  const handleAIExplain = async (message: Message) => {
+    Alert.alert('AI Explain', 'Explain feature coming soon!');
+  };
+
+  const handleAIRewrite = async (message: Message) => {
+    Alert.alert('AI Rewrite', 'Rewrite feature coming soon!');
+  };
+
+  // Handle message press (for retry on failed messages, or translate from quick actions)
   const handleMessagePress = async (message: Message) => {
     // If message is failed and user taps retry button, retry it
     if (message.status === 'failed' && message.senderId === user?.id && chatId) {
@@ -742,6 +774,105 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         console.error('Failed to retry message:', error);
         Alert.alert('Error', 'Failed to retry message. Please try again.');
       }
+    } else if ((message.type === 'text' && message.text) || (message.type === 'image' && message.caption)) {
+      // For text messages or images with captions, trigger translation (called from quick actions)
+      await handleTranslateMessage(message);
+    }
+  };
+
+  // Handle translate message
+  const handleTranslateMessage = async (message: Message) => {
+    // Check if message has text to translate
+    const textToTranslate = message.type === 'text' ? message.text : message.caption;
+    
+    if (!textToTranslate) {
+      Alert.alert('Error', 'No text to translate in this message');
+      return;
+    }
+
+    try {
+      // Import Firebase Functions and Config
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions, auth } = await import('@/services/firebase/FirebaseConfig');
+      
+      // Verify user is authenticated
+      if (!auth.currentUser) {
+        throw new Error('You must be signed in to translate messages');
+      }
+      
+      // Get user's preferred language (default to English)
+      const targetLanguage = user?.preferredLanguage || 'en';
+      
+      // Check if translation already exists
+      if (message.translations && message.translations[targetLanguage]) {
+        console.log('✅ Translation already exists, showing it');
+        return;
+      }
+      
+      // Get fresh ID token to ensure auth is valid
+      const idToken = await auth.currentUser.getIdToken(true);
+      console.log('🔑 Got auth token:', idToken.substring(0, 20) + '...');
+      
+      // Show loading
+      console.log('🌐 Translating message...', {
+        messageId: message.id,
+        chatId: chatId,
+        userId: auth.currentUser.uid,
+        targetLanguage,
+      });
+      
+      // Call the Cloud Function
+      const translateFn = httpsCallable(functions, 'translateMessage');
+      const result: any = await translateFn({
+        messageId: message.id,
+        chatId: chatId,
+        targetLanguage,
+        messageText: textToTranslate, // Pass the actual text to translate
+      });
+
+      console.log('✅ Translation result:', result.data);
+
+      if (result.data.success) {
+        // Save translation locally to SQLite
+        const { SQLiteService } = await import('@/database/SQLiteService');
+        await SQLiteService.updateMessageTranslation(
+          chatId!,
+          message.id,
+          targetLanguage,
+          result.data.translated,
+          result.data.detectedLanguage
+        );
+
+        // Update the message in state to trigger UI update
+        const { messages } = useChatStore.getState();
+        const updatedMessages = messages.map(msg => {
+          if (msg.id === message.id) {
+            return {
+              ...msg,
+              translations: {
+                ...msg.translations,
+                [targetLanguage]: result.data.translated,
+              },
+              detectedLanguage: result.data.detectedLanguage || msg.detectedLanguage,
+            };
+          }
+          return msg;
+        });
+        
+        // Update state
+        useChatStore.setState({ messages: updatedMessages });
+        
+        console.log('✅ Translation saved locally and UI updated');
+      } else {
+        throw new Error(result.data.error || 'Translation failed');
+      }
+    } catch (error: any) {
+      console.error('❌ Translation error:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      Alert.alert(
+        'Translation Failed',
+        error.message || 'Could not translate message. Please try again.'
+      );
     }
   };
 
@@ -769,33 +900,47 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     // Don't show menu for deleted messages
     if (isDeleted) return;
     
-    const options = [
-      {
-        text: 'React',
-        onPress: () => handleAddReaction(message),
-      },
-      {
-        text: 'Copy',
-        onPress: () => handleCopyMessage(message),
-      },
-      {
-        text: 'Delete for Me',
-        onPress: () => handleDeleteForMe(message),
-        style: 'destructive' as const,
-      },
-      ...(message.senderId === user?.id ? [{
-        text: 'Delete for Everyone',
-        onPress: () => handleDeleteForEveryone(message),
-        style: 'destructive' as const,
-      }] : []),
-      {
-        text: 'Cancel',
-        style: 'cancel' as const,
-      },
-    ];
-    
-    Alert.alert('Message Options', 'What would you like to do?', options);
+    // Open the message options sheet
+    setSelectedMessage(message);
+    setShowMessageOptions(true);
   };
+
+  // Build message options for the sheet
+  const messageOptions = useMemo(() => {
+    if (!selectedMessage) return [];
+    
+    const options = [];
+    
+    // Copy option
+    options.push({
+      id: 'copy',
+      label: 'Copy',
+      icon: 'copy-outline' as const,
+      onPress: () => handleCopyMessage(selectedMessage),
+    });
+    
+    // Delete for me
+    options.push({
+      id: 'delete-me',
+      label: 'Delete for Me',
+      icon: 'trash-outline' as const,
+      onPress: () => handleDeleteForMe(selectedMessage),
+      destructive: true,
+    });
+    
+    // Delete for everyone (only for own messages)
+    if (selectedMessage.senderId === user?.id) {
+      options.push({
+        id: 'delete-everyone',
+        label: 'Delete for Everyone',
+        icon: 'trash' as const,
+        onPress: () => handleDeleteForEveryone(selectedMessage),
+        destructive: true,
+      });
+    }
+    
+    return options;
+  }, [selectedMessage, user, handleCopyMessage, handleDeleteForMe, handleDeleteForEveryone]);
 
   // Render list item - memoized for performance
   const renderItem: ListRenderItem<ListItem> = useCallback(({ item, index }) => {
@@ -821,11 +966,17 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         showAvatar={showAvatar}
         showTimestamp={true}
         isGroupChat={isGroupChat}
+        preferredLanguage={user?.preferredLanguage || 'en'}
         onPress={handleMessagePress}
         onLongPress={handleLongPress}
+        onQuickReaction={handleQuickReaction}
+        onAITranslate={handleAITranslate}
+        onAISummarize={handleAISummarize}
+        onAIExplain={handleAIExplain}
+        onAIRewrite={handleAIRewrite}
       />
     );
-  }, [user, isGroupChat, getUserProfile, handleMessagePress, handleLongPress]);
+  }, [user, isGroupChat, getUserProfile, handleMessagePress, handleLongPress, handleQuickReaction, handleAITranslate, handleAISummarize, handleAIExplain, handleAIRewrite]);
 
   // Get item type for FlashList optimization
   const getItemType = (item: ListItem) => {
@@ -1004,6 +1155,17 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           onChatDeleted={onClose} // Close parent ChatModal when user leaves group
         />
       )}
+
+      {/* Message Options Sheet */}
+      <MessageOptionsSheet
+        visible={showMessageOptions}
+        message={selectedMessage}
+        options={messageOptions}
+        onClose={() => {
+          setShowMessageOptions(false);
+          setSelectedMessage(null);
+        }}
+      />
 
       {/* One-on-One Chat Menu Modal */}
       {!isGroupChat && (

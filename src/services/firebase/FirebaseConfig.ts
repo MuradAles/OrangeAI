@@ -10,6 +10,7 @@ import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, getAuth, initializeAuth } from 'firebase/auth';
 import { Database, getDatabase } from 'firebase/database';
 import { Firestore, getFirestore } from 'firebase/firestore';
+import { Functions, getFunctions } from 'firebase/functions';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 
@@ -47,6 +48,7 @@ let auth: Auth;
 let firestore: Firestore;
 let storage: FirebaseStorage;
 let database: Database;
+let functions: Functions;
 
 /**
  * Initialize Firebase services
@@ -87,6 +89,9 @@ export const initializeFirebase = () => {
       // Initialize Realtime Database
       database = getDatabase(app);
       
+      // Initialize Cloud Functions (region must match deployment region)
+      functions = getFunctions(app, 'us-central1');
+      
       console.log('_______________________________________________');
       console.log('🔥 FIREBASE INITIALIZED');
       console.log('_______________________________________________\n');
@@ -98,9 +103,10 @@ export const initializeFirebase = () => {
       firestore = getFirestore(app);
       storage = getStorage(app);
       database = getDatabase(app);
+      functions = getFunctions(app, 'us-central1');
     }
     
-    return { app, auth, firestore, storage, database };
+    return { app, auth, firestore, storage, database, functions };
     
   } catch (error) {
     console.error('❌ Error initializing Firebase:', error);
@@ -115,11 +121,11 @@ export const getFirebaseServices = () => {
   if (!app) {
     throw new Error('Firebase not initialized. Call initializeFirebase() first.');
   }
-  return { app, auth, firestore, storage, database };
+  return { app, auth, firestore, storage, database, functions };
 };
 
 // Export Firebase services for direct import
-export { app, auth, database, firestore, storage };
+export { app, auth, database, firestore, functions, storage };
 
 // Export Firebase SDK modules for use in services
   export * from 'firebase/app';

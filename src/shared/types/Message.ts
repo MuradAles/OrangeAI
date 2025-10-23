@@ -44,6 +44,10 @@ export interface Message {
   deletedForEveryone?: boolean;     // True if deleted for everyone
   deletedAt?: number | null;        // Timestamp when deleted
   
+  // AI Translation
+  translations?: MessageTranslations; // Translations { "es": "Translated text", "fr": "..." }
+  detectedLanguage?: string;         // Auto-detected source language (ISO 639-1 code)
+  
   // Local fields (SQLite only)
   syncStatus?: MessageSyncStatus;   // synced | pending | failed (for offline queue)
   
@@ -59,6 +63,15 @@ export interface Message {
  */
 export interface MessageReactions {
   [emoji: string]: string[];
+}
+
+/**
+ * Message translations map
+ * Key: language code (ISO 639-1), Value: translated text
+ * Example: { "es": "¡Hola!", "fr": "Bonjour!", "de": "Hallo!" }
+ */
+export interface MessageTranslations {
+  [languageCode: string]: string;
 }
 
 /**

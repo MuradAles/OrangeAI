@@ -69,7 +69,47 @@ Data Layer (Firebase + SQLite)
 - Active state (Zustand stores)
 - Temporary data
 
-### 5. Optimistic Updates
+### 5. Local-Only Storage Pattern (NEW)
+
+**Pattern:** Store user-specific data locally without cloud sync for privacy.
+
+**Use Cases:**
+- Message translations (each user translates differently)
+- Local annotations or notes
+- Private bookmarks or tags
+- User-specific metadata
+
+**Implementation (Translation Example):**
+```
+Translation Flow:
+1. User requests translation → Call Cloud Function
+2. Cloud Function translates → Returns result (no Firestore save)
+3. Client receives result → Save to SQLite locally
+4. Update UI state → Manual state update to trigger re-render
+5. Firestore sync → Preserve local-only fields during merge
+6. App reload → Load from SQLite, Firestore never overwrites
+```
+
+**Critical Merge Logic:**
+```typescript
+// In ChatStore.ts - Preserve local fields during Firestore merge
+const update = messagesToUpdate.find(m => m.id === existing.id);
+if (update) {
+  return {
+    ...update, // Firestore data
+    translations: existing.translations || {}, // Keep local
+    detectedLanguage: existing.detectedLanguage, // Keep local
+  };
+}
+```
+
+**Why:** 
+- Privacy: Data never leaves device (except API call)
+- Personalization: Each user has their own data
+- Performance: No network overhead for retrieval
+- Storage: Scales with user's needs, not cloud costs
+
+### 6. Optimistic Updates
 
 **Pattern:** Show result immediately, sync in background.
 
@@ -84,7 +124,7 @@ Send Message:
 
 **Why:** Perceived instant performance, better UX.
 
-### 6. Message Queue System
+### 7. Message Queue System
 
 **Pattern:** Queue operations when offline, process when online.
 
@@ -422,4 +462,100 @@ Slide out LEFT (off-screen)
 - Toast notifications for user-facing errors
 - Loading states for async operations
 - Empty states for no data
+
+## AI Translation Architecture (Phase 6)
+
+### Pattern: Serverless AI Processing with Cloud Functions
+
+**Architecture:**
+```
+React Native App (MessageBubble)
+    ↓ (httpsCallable)
+Firebase Cloud Function (translateMessage)
+    ↓
+TranslationService
+    ↓
+OpenAI GPT-3.5-turbo API
+    ↓
+Firestore (cache translation)
+    ↓
+React Native App (display translation)
+```
+
+### Implementation Details
+
+**1. Cloud Function Endpoint:**
+- **Location:** `functions/src/index.ts`
+- **Function:** `translateMessage` (callable HTTPS function)
+- **Authentication:** Requires authenticated user
+- **Input Validation:** Checks messageId, chatId, targetLanguage
+- **Error Handling:** Wraps errors in HttpsError for client
+
+**2. Translation Service:**
+- **Location:** `functions/src/services/TranslationService.ts`
+- **Lazy Initialization:** OpenAI client initialized on first use (avoids deployment issues)
+- **Context Loading:** Fetches last 10 messages from Firestore for conversation context
+- **Prompt Engineering:** Builds context-aware translation prompt
+- **Language Detection:** Auto-detects source language using GPT-3.5-turbo
+- **Caching:** Saves translations to Firestore for instant re-use
+
+**3. Client Integration:**
+- **Component:** `MessageBubble.tsx`
+- **Firebase Functions:** Imported from `FirebaseConfig.ts`
+- **User Flow:**
+  1. User taps "Translate" button
+  2. Language selector modal appears
+  3. Selection triggers Cloud Function call
+  4. Loading state shown during translation
+  5. Translation displayed inline with original message
+  6. Close button to hide translation
+
+**4. Data Flow:**
+```
+User taps Translate
+    ↓
+Select target language
+    ↓
+Call translateMessage Cloud Function
+    ↓
+Load last 10 messages for context (~450 tokens)
+    ↓
+Build prompt with context + current message
+    ↓
+Call OpenAI API (gpt-3.5-turbo, temp=0.3)
+    ↓
+Save translation to Firestore (messages/{id}/translations/{lang})
+    ↓
+Return translation to client
+    ↓
+Display inline in MessageBubble
+```
+
+**5. Caching Strategy:**
+- **First Request:** Calls OpenAI (~2-4 seconds)
+- **Subsequent Requests:** Returns cached translation (<200ms)
+- **Cache Location:** `messages/{messageId}.translations.{languageCode}`
+- **Cost Savings:** Eliminates duplicate API calls
+
+**6. Cost Optimization:**
+- **Model:** GPT-3.5-turbo (not GPT-4) for cost efficiency
+- **Context Window:** Limited to last 10 messages (~450 tokens)
+- **Temperature:** 0.3 for consistent, deterministic translations
+- **Max Tokens:** 500 for translation output
+- **Caching:** Prevents redundant API calls
+- **Estimated Cost:** ~$0.0008 per translation
+
+**7. Security:**
+- **API Key:** Stored in Cloud Functions environment (.env)
+- **Authentication:** All requests require Firebase Auth
+- **Validation:** Input validation prevents malformed requests
+- **Firestore Rules:** Already allow authenticated users to update messages
+
+**Why Cloud Functions?**
+- ✅ Serverless (no server management)
+- ✅ Secure API key storage
+- ✅ Auto-scaling
+- ✅ Firebase Auth integration
+- ✅ Access to Firestore server-side
+- ✅ Cost-effective (pay per use)
 

@@ -16,6 +16,7 @@ export interface User {
   phoneNumber: string | null;       // Optional phone number
   phoneNumberVisible: boolean;      // Phone number visibility setting
   bio?: string;                     // Optional bio
+  preferredLanguage?: string;       // Preferred language for translations (ISO 639-1 code)
   isOnline: boolean;                // Current online status
   lastSeen: number | null;          // Timestamp of last activity (null if online)
   createdAt: number;                // Account creation timestamp
@@ -41,6 +42,7 @@ export interface UserProfileUpdate {
   profilePictureUrl?: string | null;
   phoneNumber?: string | null;
   phoneNumberVisible?: boolean;
+  preferredLanguage?: string;
 }
 
 /**
