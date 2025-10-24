@@ -78,13 +78,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const currentScrollPosition = useRef<{ offset: number; firstVisibleIndex: number }>({ offset: 0, firstVisibleIndex: 0 });
   const scrollPositionSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const keyboardHeight = useRef(new Animated.Value(0)).current;
-  
-  // Viewport-based translation tracking
-  const translatingMessages = useRef(new Set<string>()); // Messages currently being translated
-  const translatedMessagesCache = useRef(new Set<string>()); // Messages already translated
-  const translationQueue = useRef<string[]>([]); // Queue of messages to translate
-  const isProcessingQueue = useRef(false); // Flag to prevent multiple queue processors
-  const collectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // Timer for batching messages
 
   const { subscribeToUser } = usePresenceStore();
   const presenceMap = usePresenceStore(state => state.presenceMap);
@@ -220,18 +213,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       };
       
       loadAutoTranslateSetting();
-      
-      // Reset translation tracking when opening chat
-      translatingMessages.current.clear();
-      translatedMessagesCache.current.clear();
-      translationQueue.current = [];
-      isProcessingQueue.current = false;
-      
-      // Clear collection timer
-      if (collectionTimer.current) {
-        clearTimeout(collectionTimer.current);
-        collectionTimer.current = null;
-      }
     } else if (!visible) {
       // Clear active chat ID when modal closes
       setActiveChatId(null);
@@ -294,14 +275,12 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
             if (isCleaningUp.current) return; // Prevent duplicate cleanup
             isCleaningUp.current = true;
             
-            console.log('🚪 User removed from group, cleaning up...');
             
             // Clean up local storage using store function
             const cleanup = async () => {
               try {
                 // Use the store's remove function to ensure complete cleanup
                 await useChatStore.getState().removeChatLocally(chatId, user.id);
-                console.log('✅ Chat removed from local state after group removal');
                 
                 // Close modal
                 onClose();
@@ -329,14 +308,12 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           if (isCleaningUp.current) return; // Prevent duplicate cleanup
           isCleaningUp.current = true;
           
-          console.log('🚪 Permission denied - user was removed from group');
           
           // Clean up local storage using store function
           const cleanup = async () => {
             try {
               // Use the store's remove function to ensure complete cleanup
               await useChatStore.getState().removeChatLocally(chatId, user.id);
-              console.log('✅ Chat removed from local state after permission error');
               
               // Close modal
               onClose();
@@ -385,15 +362,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           const msgs = useChatStore.getState().messages; // Get fresh messages from store
           const visibleIndex = currentScrollPosition.current.firstVisibleIndex;
           
-          console.log('💾 Attempting to save position:', {
-            chatId,
-            visibleIndex,
-            totalMessages: msgs.length,
-            offset: currentScrollPosition.current.offset
-          });
           
           if (msgs.length === 0) {
-            console.log('⚠️ No messages to save position for');
             return;
           }
           
@@ -408,14 +378,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               scrollYPosition: currentScrollPosition.current.offset,
               unreadCount: 0, // Will be updated by unread count logic
             });
-            console.log('✅ Saved scroll position:', {
-              chatId,
-              messageId: messageToSave.id,
-              index: indexToSave,
-              messageText: messageToSave.text?.substring(0, 30)
-            });
           } else {
-            console.log('⚠️ Could not find valid message at index:', indexToSave);
           }
         } catch (error) {
           console.error('❌ Error saving scroll position:', error);
@@ -573,10 +536,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                 
                 if (savedMessageIndex !== -1 && savedMessageIndex < listItems.length) {
                   // Scroll to saved position
-                  console.log('📍 Scrolling to saved position:', {
-                    messageIndex: savedMessageIndex,
-                    messageId: savedPosition.lastReadMessageId,
-                  });
                   
                   flashListRef.current?.scrollToIndex({
                     index: savedMessageIndex,
@@ -585,13 +544,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                   });
                 } else {
                   // Saved message not found or out of bounds, scroll to bottom
-                  console.log('📍 Saved message not found, scrolling to bottom');
                   if (listItems.length > 0) {
                     // Add safety check for layout readiness
                     try {
                       flashListRef.current?.scrollToEnd({ animated: false });
                     } catch (scrollError) {
-                      console.log('⚠️ Layout not ready for scrollToEnd, retrying...');
                       // Retry after a short delay
                       setTimeout(() => {
                         try {
@@ -605,13 +562,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                 }
               } else {
                 // No saved position, scroll to bottom (new chat or first time)
-                console.log('📍 No saved position, scrolling to bottom');
                 if (listItems.length > 0) {
                   // Add safety check for layout readiness
                   try {
                     flashListRef.current?.scrollToEnd({ animated: false });
                   } catch (scrollError) {
-                    console.log('⚠️ Layout not ready for scrollToEnd, retrying...');
                     // Retry after a short delay
                     setTimeout(() => {
                       try {
@@ -647,7 +602,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         flashListRef.current.scrollToEnd({ animated: true });
         setShowJumpToBottom(false);
       } catch (scrollError) {
-        console.log('⚠️ Layout not ready for jump to bottom, retrying...');
         // Retry after a short delay
         setTimeout(() => {
           try {
@@ -674,27 +628,18 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       return;
     }
 
-    console.log('📊 Generating chat summary...', { chatId, messageCount: messages.length, preferredLanguage: user?.preferredLanguage });
     setIsGeneratingSummary(true);
     try {
       // Generate summary in user's preferred language
       const summary = await CulturalService.generateChatSummary(chatId, user?.preferredLanguage || 'en');
-      console.log('✅ Summary generated:', {
-        length: summary?.length,
-        preview: summary ? summary.substring(0, 100) + '...' : 'EMPTY',
-        type: typeof summary
-      });
       
       if (!summary || summary.trim().length === 0) {
-        console.log('❌ Summary is empty or null');
         Alert.alert('Error', 'Summary generation returned empty result. Please try again.');
         return;
       }
       
-      console.log('📊 Setting summary to state and opening modal');
       setChatSummary(summary);
       setShowChatSummary(true);
-      console.log('📊 Modal should be visible now');
     } catch (error) {
       console.error('❌ Failed to generate chat summary:', error);
       Alert.alert('Error', 'Failed to generate chat summary. Please try again.');
@@ -718,7 +663,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
             flashListRef.current.scrollToEnd({ animated: true });
             setShowJumpToBottom(false);
           } catch (scrollError) {
-            console.log('⚠️ Layout not ready for scroll after send, retrying...');
             // Retry after a short delay
             setTimeout(() => {
               try {
@@ -754,7 +698,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
             flashListRef.current.scrollToEnd({ animated: true });
             setShowJumpToBottom(false);
           } catch (scrollError) {
-            console.log('⚠️ Layout not ready for scroll after image send, retrying...');
             // Retry after a short delay
             setTimeout(() => {
               try {
@@ -872,221 +815,156 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     }
   };
 
-  // Viewport-based lazy translation - collect messages with 500ms window
-  const translateVisibleMessages = useCallback(async (messageIds: string[]) => {
-    if (!autoTranslateEnabled || !user?.preferredLanguage || !chatId) return;
-    
-    // Filter messages that need translation
-    const messagesToTranslate = messageIds.filter(msgId => {
-      // Skip if already translated or currently translating
-      if (translatedMessagesCache.current.has(msgId) || translatingMessages.current.has(msgId)) {
-        return false;
-      }
-      
-      // Skip if already in the queue
-      if (translationQueue.current.includes(msgId)) {
-        return false;
-      }
-      
-      // Check if it's a message from another user
-      const message = messages.find(m => m.id === msgId);
-      if (!message || message.senderId === user.id || message.type !== 'text' || !message.text) {
-        return false;
-      }
-      
-      // Skip if message already has a translation for this language
-      if (message.translations && user.preferredLanguage && message.translations[user.preferredLanguage]) {
-        console.log(`⏭️ Skipping ${msgId.slice(0, 8)} - already has translation`);
-        translatedMessagesCache.current.add(msgId); // Mark as translated
-        return false;
-      }
-      
-      return true;
-    });
-    
-    if (messagesToTranslate.length === 0) {
-      console.log(`📍 Viewport: Checked ${messageIds.length} messages, 0 need translation`);
+  // Handle translate previous messages
+  const handleTranslatePrevious = async (count: number = 20) => {
+    if (!user?.preferredLanguage || !chatId) {
+      Alert.alert('Error', 'Please set your preferred language in profile settings');
       return;
     }
     
-    console.log(`📍 Viewport: Found ${messagesToTranslate.length} messages to translate (out of ${messageIds.length} detected)`);
-    console.log(`   Messages: ${messagesToTranslate.map(id => id.slice(0, 8)).join(', ')}`);
+    // STEP 1: Get last N messages
+    const lastMessages = messages.slice(-count);
     
-    // Mark as translating immediately to prevent duplicates
-    messagesToTranslate.forEach(msgId => translatingMessages.current.add(msgId));
+    // STEP 2: Filter out messages we DON'T need to translate
+    const messagesToCheck = lastMessages.filter(msg => 
+      msg.senderId !== user.id &&  // Skip my own messages
+      msg.type === 'text' &&       // Skip non-text (images, etc)
+      msg.text &&                  // Skip empty messages
+      (!user.preferredLanguage || !msg.translations?.[user.preferredLanguage])  // Skip already translated
+    );
     
-    // Add to queue
-    translationQueue.current.push(...messagesToTranslate);
-    
-    // Clear existing timer
-    if (collectionTimer.current) {
-      clearTimeout(collectionTimer.current);
+    if (messagesToCheck.length === 0) {
+      Alert.alert('Nothing to translate', 'All recent messages are already translated or in your language');
+      return;
     }
     
-    // Start 10ms collection window - process almost immediately
-    collectionTimer.current = setTimeout(() => {
-      if (translationQueue.current.length > 0 && !isProcessingQueue.current) {
-        console.log(`⏱️ Collection window ended, processing ${translationQueue.current.length} messages`);
-        processTranslationQueue();
-      }
-    }, 10);
-  }, [autoTranslateEnabled, user, chatId, messages]);
-
-  // Process translation queue - translate 3 messages at a time
-  const processTranslationQueue = useCallback(async () => {
-    if (isProcessingQueue.current || translationQueue.current.length === 0) return;
+    // STEP 3: Quick language detection for each message
+    Alert.alert('Checking messages...', `Analyzing ${messagesToCheck.length} messages`);
     
-    isProcessingQueue.current = true;
+    const messagesToTranslate: Message[] = [];
     
     try {
-      // Check network connectivity
-      const NetInfo = (await import('@react-native-community/netinfo')).default;
-      const netState = await NetInfo.fetch();
-      
-      if (!netState.isConnected) {
-        console.log('⚠️ No internet - skipping translation');
-        isProcessingQueue.current = false;
-        return;
-      }
-      
-      // Import Firebase functions
       const { httpsCallable } = await import('firebase/functions');
       const { functions } = await import('@/services/firebase/FirebaseConfig');
-      const translateFn = httpsCallable(functions, 'translateMessage');
+      const quickDetectFn = httpsCallable(functions, 'quickDetectLanguage');
       
-      // Process ALL messages in the queue - send individual calls in parallel
-      const allMessagesToTranslate = translationQueue.current.splice(0); // Take ALL messages
-      
-      // Get message data (messages are already marked as translating when added to queue)
-      const messagesToTranslate = allMessagesToTranslate
-        .map(msgId => messages.find(m => m.id === msgId))
-        .filter(msg => msg != null);
+      for (const msg of messagesToCheck) {
+        try {
+          // Quick detect first 5 words
+          const firstWords = msg.text!.split(/\s+/).slice(0, 5).join(' ');
+          
+          const result: any = await quickDetectFn({ text: firstWords });
+          const detectedLang = result?.data?.language;
+          
+          // Skip if same language as user's preferred
+          if (detectedLang === user.preferredLanguage) {
+            continue;
+          }
+          
+          // Add to translation list
+          messagesToTranslate.push(msg);
+        } catch (error) {
+          console.warn('Language detection failed, will translate anyway:', error);
+          messagesToTranslate.push(msg);
+        }
+      }
       
       if (messagesToTranslate.length === 0) {
-        isProcessingQueue.current = false;
+        Alert.alert('Nothing to translate', 'All messages are already in your language!');
         return;
       }
       
-      console.log(`🚀 Sending ${messagesToTranslate.length} translation requests in parallel...`);
-      
-      // Send ALL individual translation calls simultaneously
-      // Each will complete independently and update the UI progressively
-      await Promise.allSettled(
-        messagesToTranslate.map(async (message) => {
-          try {
-            // Quick language check - if message is already in target language, skip
-            const messageText = message!.text!;
-            const firstWords = messageText.split(/\s+/).slice(0, 5).join(' '); // First 5 words
-            
-            // Import quick detection
-            const { httpsCallable: quickCallable } = await import('firebase/functions');
-            const { functions: quickFunctions } = await import('@/services/firebase/FirebaseConfig');
-            const quickDetectFn = quickCallable(quickFunctions, 'quickDetectLanguage');
-            
-            try {
-              const quickResult: any = await quickDetectFn({ text: firstWords });
-              const detectedLang = quickResult?.data?.language;
-              
-              if (detectedLang === user!.preferredLanguage) {
-                console.log(`⏭️ Skipping ${message!.id.slice(0, 8)} - already in ${user!.preferredLanguage} (detected: ${detectedLang})`);
-                translatedMessagesCache.current.add(message!.id);
-                translatingMessages.current.delete(message!.id);
-                return; // Skip this message
-              }
-            } catch (detectError) {
-              console.warn('Quick detection failed, proceeding with translation:', detectError);
-              // Continue with translation if detection fails
-            }
-            
-            const result: any = await translateFn({
-              messageId: message!.id,
-              chatId: chatId!,
-              targetLanguage: user!.preferredLanguage!,
-              messageText: message!.text,
-            });
-            
-            // Mark as translated
-            translatedMessagesCache.current.add(message!.id);
-            console.log(`✅ Translated: ${message!.id.slice(0, 8)}`);
-            
-            // Update local state immediately to show translation in UI
-            if (result?.data?.translated) {
-              // Build the translation object matching MessageTranslation type
-              const translationObject = {
-                text: result.data.translated,
-                culturalAnalysis: result.data.culturalAnalysis || undefined,
-                translatedAt: Date.now()
-              };
-              
-              // Save translation to SQLite for persistence
-              try {
-                const { SQLiteService } = await import('@/database/SQLiteService');
-                await SQLiteService.updateMessageTranslation(
-                  chatId!,
-                  message!.id,
-                  user!.preferredLanguage!,
-                  translationObject,
-                  result.data.detectedLanguage || 'unknown'
-                );
-                console.log(`💾 Saved translation to SQLite for ${message!.id.slice(0, 8)}`);
-              } catch (sqlError: any) {
-                console.error(`❌ Failed to save translation to SQLite:`, sqlError.message);
-              }
-              
-              // Get current messages array from store (flat array for current chat)
-              const state = useChatStore.getState();
-              const currentMessages = state.messages;
-              
-              if (Array.isArray(currentMessages)) {
-                // Find and update the specific message
-                const messageIndex = currentMessages.findIndex(m => m.id === message!.id);
-                
-                if (messageIndex !== -1) {
-                  const updatedMessage = {
-                    ...currentMessages[messageIndex],
-                    translations: {
-                      ...(currentMessages[messageIndex].translations || {}),
-                      [user!.preferredLanguage!]: translationObject
-                    }
-                  };
-                  
-                  // Create new messages array with updated message (immutable update)
-                  const newMessages = [
-                    ...currentMessages.slice(0, messageIndex),
-                    updatedMessage,
-                    ...currentMessages.slice(messageIndex + 1)
-                  ];
-                  
-                  // Update state - messages is a flat array, not keyed by chatId
-                  useChatStore.setState({
-                    messages: newMessages
-                  });
-                  
-                  console.log(`🎨 UI updated with translation for ${message!.id.slice(0, 8)}`);
-                  console.log(`📝 Translation text:`, result.data.translated.substring(0, 50) + '...');
-                } else {
-                  console.warn(`⚠️ Message ${message!.id.slice(0, 8)} not found in current messages array`);
-                }
-              }
-            } else {
-              console.warn(`⚠️ No translation in result for ${message!.id.slice(0, 8)}`);
-            }
-          } catch (error: any) {
-            console.error(`❌ Failed to translate ${message!.id.slice(0, 8)}:`, error.message);
-          } finally {
-            // Remove from translating set
-            translatingMessages.current.delete(message!.id);
-          }
-        })
-      );
-      
-      console.log(`✅ All ${messagesToTranslate.length} translation requests completed`);
+      // STEP 4: Translate immediately without confirmation
+      await translateMessagesInParallel(messagesToTranslate);
     } catch (error) {
-      console.error('Translation queue error:', error);
-    } finally {
-      isProcessingQueue.current = false;
+      console.error('Failed to check messages:', error);
+      Alert.alert('Error', 'Failed to analyze messages. Please try again.');
     }
-  }, [chatId, user, messages]);
+  };
+
+  // Translate multiple messages in parallel
+  const translateMessagesInParallel = async (messagesToTranslate: Message[]) => {
+    if (!user?.preferredLanguage || !chatId) return;
+    
+    // Show loading
+    Alert.alert('Translating...', `Translating ${messagesToTranslate.length} messages`);
+    
+    // Translate all in parallel
+    const results = await Promise.allSettled(
+      messagesToTranslate.map(async (msg) => {
+        try {
+          const { httpsCallable } = await import('firebase/functions');
+          const { functions } = await import('@/services/firebase/FirebaseConfig');
+          const translateFn = httpsCallable(functions, 'translateMessage');
+          
+          const result: any = await translateFn({
+            messageId: msg.id,
+            chatId: chatId,
+            targetLanguage: user.preferredLanguage,
+            messageText: msg.text,
+          });
+          
+          // Build translation object
+          const translationObject = {
+            text: result.data.translated,
+            culturalAnalysis: result.data.culturalAnalysis || undefined,
+            translatedAt: Date.now()
+          };
+          
+          // Save to SQLite
+          try {
+            const { SQLiteService } = await import('@/database/SQLiteService');
+            await SQLiteService.updateMessageTranslation(
+              chatId,
+              msg.id,
+              user.preferredLanguage!,
+              translationObject,
+              result.data.detectedLanguage || 'unknown'
+            );
+          } catch (sqlError) {
+            console.error('Failed to save translation to SQLite:', sqlError);
+          }
+          
+          // Update UI
+          const state = useChatStore.getState();
+          const currentMessages = state.messages;
+          const messageIndex = currentMessages.findIndex(m => m.id === msg.id);
+          
+          if (messageIndex !== -1) {
+            const updatedMessage = {
+              ...currentMessages[messageIndex],
+              translations: {
+                ...(currentMessages[messageIndex].translations || {}),
+                [user.preferredLanguage!]: translationObject
+              }
+            };
+            
+            const newMessages = [
+              ...currentMessages.slice(0, messageIndex),
+              updatedMessage,
+              ...currentMessages.slice(messageIndex + 1)
+            ];
+            
+            useChatStore.setState({ messages: newMessages });
+          }
+          
+          return { success: true };
+        } catch (error) {
+          console.error('Translation failed:', error);
+          return { success: false, error };
+        }
+      })
+    );
+    
+    // Count successes
+    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    
+    // Show result
+    Alert.alert(
+      'Translation Complete', 
+      `✅ Successfully translated ${successCount} out of ${messagesToTranslate.length} messages!`
+    );
+  };
 
   // Handle add emoji reaction
   const handleAddReaction = (message: Message) => {
@@ -1208,21 +1086,13 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       
       // Check if translation already exists
       if (message.translations && message.translations[targetLanguage]) {
-        console.log('✅ Translation already exists, showing it');
         return;
       }
       
       // Get fresh ID token to ensure auth is valid
       const idToken = await auth.currentUser.getIdToken(true);
-      console.log('🔑 Got auth token:', idToken.substring(0, 20) + '...');
       
       // Show loading
-      console.log('🌐 Translating message...', {
-        messageId: message.id,
-        chatId: chatId,
-        userId: auth.currentUser.uid,
-        targetLanguage,
-      });
       
       // Call the Cloud Function
       const translateFn = httpsCallable(functions, 'translateMessage');
@@ -1233,13 +1103,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         messageText: textToTranslate, // Pass the actual text to translate
       });
 
-      console.log('✅ Translation result:', JSON.stringify(result.data, null, 2));
-      console.log('🔍 Cultural analysis in result:', {
-        hasCulturalAnalysis: !!result.data.culturalAnalysis,
-        culturalPhrasesCount: result.data.culturalAnalysis?.culturalPhrases?.length || 0,
-        slangExpressionsCount: result.data.culturalAnalysis?.slangExpressions?.length || 0,
-        fullCulturalAnalysis: result.data.culturalAnalysis,
-      });
 
       if (result.data.success) {
         // Prepare translation object with cultural analysis and formality
@@ -1253,13 +1116,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           } : undefined,
         };
         
-        console.log('📦 Translation data to save:', {
-          text: translationData.text.substring(0, 50),
-          formalityLevel: translationData.formalityLevel,
-          hasCulturalAnalysis: !!translationData.culturalAnalysis,
-          culturalPhrasesCount: translationData.culturalAnalysis?.culturalPhrases?.length || 0,
-          slangExpressionsCount: translationData.culturalAnalysis?.slangExpressions?.length || 0,
-        });
 
         // Save translation locally to SQLite (with full cultural analysis object)
         const { SQLiteService } = await import('@/database/SQLiteService');
@@ -1290,10 +1146,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         // Update state
         useChatStore.setState({ messages: updatedMessages });
         
-        console.log('✅ Translation saved locally with cultural analysis and UI updated', {
-          culturalPhrasesFound: translationData.culturalAnalysis?.culturalPhrases.length || 0,
-          slangExpressionsFound: translationData.culturalAnalysis?.slangExpressions.length || 0,
-        });
       } else {
         throw new Error(result.data.error || 'Translation failed');
       }
@@ -1403,11 +1255,12 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         onQuickReaction={handleQuickReaction}
         onAITranslate={handleAITranslate}
         onAISummarize={handleAISummarize}
+        onTranslate20={() => handleTranslatePrevious(20)}
         onCopyMessage={handleCopyMessage}
         onDeleteForEveryone={handleDeleteForEveryone}
       />
     );
-  }, [user, isGroupChat, getUserProfile, handleMessagePress, handleLongPress, handleQuickReaction, handleAITranslate, handleAISummarize, handleCopyMessage, handleDeleteForEveryone]);
+  }, [user, isGroupChat, getUserProfile, handleMessagePress, handleLongPress, handleQuickReaction, handleAITranslate, handleAISummarize, handleTranslatePrevious, handleCopyMessage, handleDeleteForEveryone]);
 
   // Get item type for FlashList optimization
   const getItemType = (item: ListItem) => {
@@ -1571,18 +1424,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                     );
                     if (firstVisibleIndex >= 0) {
                       currentScrollPosition.current.firstVisibleIndex = firstVisibleIndex;
-                    }
-                  }
-                  
-                  // Viewport-based auto-translation: translate visible messages (immediate)
-                  if (autoTranslateEnabled) {
-                    const visibleMessageIds = viewableItems
-                      .filter(item => item.item.type === 'message')
-                      .map(item => item.item.data.id);
-                    
-                    if (visibleMessageIds.length > 0) {
-                      // Translate immediately - no debounce delay
-                      translateVisibleMessages(visibleMessageIds);
                     }
                   }
                 }}

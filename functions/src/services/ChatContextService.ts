@@ -9,12 +9,12 @@ import * as admin from 'firebase-admin';
 import * as logger from 'firebase-functions/logger';
 import { aiModel } from '../config/ai-sdk.config';
 import {
-    ChatContext,
-    ContextGenerationMode,
-    ContextGenerationResult,
-    ContextUpdateTrigger,
-    Message,
-    UpdateHistoryEntry,
+  ChatContext,
+  ContextGenerationMode,
+  ContextGenerationResult,
+  ContextUpdateTrigger,
+  Message,
+  UpdateHistoryEntry,
 } from '../shared/types/ChatContext';
 
 // Initialize Firebase Admin if not already initialized
@@ -417,7 +417,9 @@ Create a friendly summary in this format:
 💬 Conversation Style:
 [Description of the mood and tone]
 
-IMPORTANT: Generate the summary in ${languageName}. Keep it concise and user-friendly.`;
+IMPORTANT: Generate the summary in ${languageName}. Keep it concise and user-friendly.
+
+CRITICAL: The entire summary must be written in ${languageName}. Do not use any other language.`;
 
         const { text: summary } = await generateText({
           model: aiModel,
@@ -470,7 +472,9 @@ Create a friendly summary in this format:
 💬 Conversation Style:
 [Description of the mood and tone]
 
-IMPORTANT: Generate the summary in ${languageName}. Keep it concise and user-friendly.`;
+IMPORTANT: Generate the summary in ${languageName}. Keep it concise and user-friendly.
+
+CRITICAL: The entire summary must be written in ${languageName}. Do not use any other language.`;
 
       const { text: summary } = await generateText({
         model: aiModel,

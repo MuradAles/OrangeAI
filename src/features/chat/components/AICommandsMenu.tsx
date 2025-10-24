@@ -20,11 +20,13 @@ interface AICommandsMenuProps {
   message: Message;
   messagePosition: { x: number; y: number; width: number; height: number };
   onSummarize: () => void;
+  onTranslate20: () => void;
 }
 
-// Long press menu shows: Summary only (Auto-Translate moved to navbar)
+// Long press menu shows: Summary and Translate 20 messages
 const AI_COMMANDS = [
   { id: 'summarize', label: 'Summary', icon: 'sparkles' as const, color: '#34C759' },
+  { id: 'translate20', label: 'Translate 20', icon: 'text' as const, color: '#007AFF' },
 ];
 
 export const AICommandsMenu: React.FC<AICommandsMenuProps> = ({

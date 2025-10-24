@@ -1,6 +1,6 @@
 # Active Context
 
-## Current Status: **🚀 TRANSLATION PREVIEW & AUTO-TRANSLATE COMPLETE! ✨**
+## Current Status: **🚀 VIEWPORT-BASED LAZY TRANSLATION COMPLETE! ✨**
 
 ### Where We Are
 - ✅ **Phase 1 Complete:** Foundation, auth, theme, database, UI components all working
@@ -13,17 +13,93 @@
 - ✅ **FRONTEND Complete:** Cultural highlighting + Chat summaries UI integrated! 🌍
 - ✅ **TRANSLATION PREVIEW:** Send messages as translations with language selection! 🌐
 - ✅ **AUTO-TRANSLATE FIX:** Smart language detection prevents same-language translation! 🎯
+- ✅ **VIEWPORT TRANSLATION:** Lazy translation as messages come into view! 📱
 - ✅ **Testing Infrastructure:** Jest + React Native Testing Library with 88 passing tests
 - ✅ **Next:** RELOAD APP AND TEST EVERYTHING!
 
 ### Current Task
-**🔥 Just Completed: Translation Preview UI & Auto-Translation Smart Detection! 🔥**
+**🔥 Just Completed: Viewport-Based Lazy Translation System! 🔥**
 
-**Major Features - Translation Preview & Smart Auto-Translation!**
+**Major Features - Smart Auto-Translation with Viewport Detection!**
 
 **What We Built:**
 
-### **1. Translation Preview UI (Send as Translation)**
+### **1. Viewport-Based Lazy Translation System**
+**Feature:** Messages are translated only as they come into view while scrolling, with smart language detection
+
+**How It Works:**
+1. **FlashList Viewport Detection:**
+   - `itemVisiblePercentThreshold: 1` - Message needs only 1% visible to trigger
+   - `minimumViewTime: 0` - No minimum time required (instant detection)
+   - `scrollEventThrottle: 16` - Checks every 16ms (60fps smooth detection)
+   - `onViewableItemsChanged` fires whenever scroll position changes
+
+2. **Smart Message Filtering:**
+   ```typescript
+   const messagesToTranslate = messageIds.filter(msgId => {
+     // ❌ Skip if already translated
+     if (translatedMessagesCache.current.has(msgId)) return false;
+     
+     // ❌ Skip if currently translating  
+     if (translatingMessages.current.has(msgId)) return false;
+     
+     // ❌ Skip if in queue
+     if (translationQueue.current.includes(msgId)) return false;
+     
+     // ❌ Skip own messages
+     if (message.senderId === user.id) return false;
+     
+     // ❌ Skip non-text messages
+     if (message.type !== 'text' || !message.text) return false;
+     
+     // ❌ Skip if already has translation
+     if (message.translations?.[user.preferredLanguage]) return false;
+     
+     return true; // ✅ Translate this message
+   });
+   ```
+
+3. **Frontend Language Check (Before Translation):**
+   ```typescript
+   // Quick language detection before expensive AI call
+   const firstWords = messageText.split(/\s+/).slice(0, 5).join(' ');
+   const quickResult = await quickDetectFn({ text: firstWords });
+   const detectedLang = quickResult?.data?.language;
+   
+   if (detectedLang === user.preferredLanguage) {
+     console.log(`⏭️ Skipping - already in ${user.preferredLanguage}`);
+     return; // Skip translation
+   }
+   ```
+
+4. **Collection Window & Progressive Translation:**
+   - **10ms collection window** - Batches rapid scrolls
+   - **Parallel requests** - All messages sent simultaneously
+   - **Progressive display** - Translations appear one by one as they complete
+   - **Last message safety net** - Special check for bottom message
+
+5. **Backend Language Check (Double Safety):**
+   ```typescript
+   // In TranslationService.ts
+   if (quickLanguageCheck.language === params.targetLanguage) {
+     console.log(`⏭️ Skipping translation - same language`);
+     return {
+       translated: params.messageText,
+       culturalAnalysis: { phrases: [], slang: [] },
+       detectedLanguage: quickLanguageCheck.language
+     };
+   }
+   ```
+
+**Key Benefits:**
+- ✅ **Performance** - Only translates visible messages (not entire chat)
+- ✅ **Cost Savings** - No wasted API calls for same-language messages
+- ✅ **Smart Detection** - Frontend + backend language checks
+- ✅ **Progressive UX** - Translations appear as they complete
+- ✅ **Edge Case Handling** - Last message safety net
+- ✅ **Duplicate Prevention** - Multiple safety checks prevent re-translation
+
+### **2. Translation Preview UI (Send as Translation)**
 **Feature:** Real-time translation preview while typing, with choice to send original or translated message
 
 **UI Layout:**
@@ -54,7 +130,7 @@
 - ✅ **Translation metadata** - Stores originalText, originalLanguage, translatedTo, sentAsTranslation
 - ✅ **Message display** - Shows "Original (Language)" header with original text for translated messages
 
-### **2. Smart Auto-Translation (No More Same-Language Translation)**
+### **3. Smart Auto-Translation (No More Same-Language Translation)**
 **Problem:** Auto-translation was translating messages even when already in user's preferred language
 
 **Root Cause:**
@@ -101,64 +177,94 @@ Frontend checks: Is auto-translate enabled?
 - None (enhanced existing files only)
 
 **Files Modified:**
-- `src/features/chat/components/MessageInput.tsx` - Translation preview UI with two-row layout
-  - Added language selector modal with chat language detection
-  - Added real-time translation preview with debouncing
-  - Added two distinct send buttons (original vs translated)
-  - Added bluish background for translation row
-  - Cleans up preview after sending
-  
-- `src/shared/types/Message.ts` - Translation metadata fields
-  - Added `originalText?: string`
-  - Added `originalLanguage?: string`
-  - Added `translatedTo?: string`
-  - Added `sentAsTranslation?: boolean`
+- `src/features/chat/components/ChatModal.tsx` - Viewport-based lazy translation system
+  - Added `translateVisibleMessages` function with smart filtering
+  - Added `onViewableItemsChanged` handler for FlashList viewport detection
+  - Added frontend language check before translation requests
+  - Added `translatedMessagesCache`, `translatingMessages`, `translationQueue` refs
+  - Added 10ms collection window for batching rapid scrolls
+  - Added last message safety net for edge cases
+  - Added progressive translation with `Promise.allSettled`
+  - Added immediate UI updates after translation completion
+  - Added SQLite persistence for translations
 
-- `src/features/chat/components/MessageBubble.tsx` - Display translation metadata
-  - Shows "Original (Language)" header for translated messages
-  - Displays original text alongside translation
-  
-- `src/store/ChatStore.ts` - Handle translation metadata and language check
-  - Updated `sendMessage` to accept translation metadata
-  - Added language check: Skip saving if `detectedLanguage === preferredLanguage`
-  - Preserves translation metadata in message state
-
-- `src/store/ChatStore.messages.ts` - Translation metadata in message creation
-  - Updated `sendMessage` function signature
-  - Includes `originalText`, `originalLanguage`, `translatedTo`, `sentAsTranslation`
-
-- `src/services/firebase/MessageService.ts` - Translation metadata in Firestore
-  - Conditionally includes translation metadata only if `sentAsTranslation: true`
-  - Prevents undefined values in Firestore
-
-- `src/shared/types/Database.ts` - SQLite MessageRow translation fields
-  - Added `originalText: string | null`
-  - Added `originalLanguage: string | null`
-  - Added `translatedTo: string | null`
-  - Added `sentAsTranslation: number | null` (SQLite boolean)
-
-- `src/database/Schema.ts` - SQLite schema with translation columns
-  - Added translation metadata columns to `messages` table
-
-- `src/database/Migrations.ts` - Migration v3 for translation metadata
-  - Added migration to add translation columns to existing databases
-
-- `src/database/SQLiteService.ts` - Enhanced migration handling
-  - Added `applyMigration` with graceful "duplicate column" error handling
-  - Added `fixMissingColumns` method for emergency column fixes
-  - Updated `saveMessage` to include translation metadata
-
-- `functions/src/services/TranslationService.ts` - Smart language detection
-  - Added quick language check at start of `translateMessage`
+- `functions/src/services/TranslationService.ts` - Backend language check
+  - Added quick language detection at start of `translateMessage`
   - Returns original text if `detectedLanguage === targetLanguage`
   - Skips expensive AI call when not needed
+  - Added comprehensive logging for debugging
 
-- `functions/src/index.ts` - Disabled automatic Cloud Function translation
-  - `autoTranslateMessage` now returns immediately
-  - Frontend handles all translation based on user settings
-  - Eliminated duplicate translation systems
+- `src/shared/types/Chat.ts` - Group chat language detection
+  - Added `detectedLanguages?: string[]` field to Chat interface
+  - Stores up to 5 detected languages per chat
+
+- `src/services/firebase/GroupService.ts` - Group language tracking
+  - Initialize `detectedLanguages: []` when creating groups
+  - Include `detectedLanguages` in group data fetching
+
+- `src/services/firebase/ChatService.ts` - Chat language tracking
+  - Initialize `detectedLanguages: []` when creating chats
+  - Added `updateDetectedLanguages` method to manage language array
+  - Include `detectedLanguages` in chat data fetching
+
+- `src/store/ChatStore.messages.ts` - Message language detection
+  - Updated `sendMessage` to detect language and update chat's `detectedLanguages`
+  - Calls `ChatService.updateDetectedLanguages` after successful message upload
+
+- `src/features/chat/components/MessageInput.tsx` - Language detection optimization
+  - Simplified language detection to read directly from chat document
+  - Removed Cloud Function call for faster language loading
+  - Prioritizes user's preferred language in detected languages
+
+- `src/features/chat/components/QuickActionsPopover.tsx` - Single-tap actions
+  - Added "Copy" and "Delete for Everyone" buttons
+  - Updated UI layout for new action buttons
+
+- `src/features/chat/components/AICommandsMenu.tsx` - Long-press actions
+  - Simplified to only show "Summary" action
+  - Removed auto-translate toggle (moved to navbar)
+
+- `src/features/chat/components/MessageBubble.tsx` - Action handlers
+  - Added `onCopyMessage` and `onDeleteForEveryone` props
+  - Updated action menus with correct props
+
+- `functions/src/index.ts` - Cloud Function updates
+  - Updated `generateChatSummary` to accept `preferredLanguage` parameter
+  - Updated `translateMessage` to include `userId` parameter
+  - Removed `batchTranslateMessages` function (replaced with individual parallel calls)
+
+- `functions/src/services/ChatContextService.ts` - Summary language support
+  - Updated `generateUserSummary` to generate summaries in specified language
+  - Added language name mapping for AI prompts
+
+- `functions/src/services/CulturalAnalysisService.ts` - Enhanced detection
+  - Made slang and cultural phrase detection more generous
+  - Lowered detection threshold to 60% confidence
+  - Increased temperature for more creative detection
+
+- `src/services/firebase/CulturalService.ts` - Frontend integration
+  - Updated `generateChatSummary` to pass `preferredLanguage` to Cloud Function
 
 **What Works Now:**
+
+**Viewport-Based Lazy Translation:**
+- ✅ Messages translate only as they come into view while scrolling
+- ✅ Smart language detection prevents same-language translations (EN → EN = skip)
+- ✅ Frontend + backend language checks for double safety
+- ✅ Progressive translation display (appears one by one as completed)
+- ✅ 10ms collection window batches rapid scrolls efficiently
+- ✅ Last message safety net catches edge cases
+- ✅ Duplicate prevention with multiple safety checks
+- ✅ SQLite persistence survives app reloads
+- ✅ Parallel translation requests for maximum speed
+
+**Smart Auto-Translation:**
+- ✅ No more same-language translations (EN message → EN user = no translation)
+- ✅ Quick language detection before expensive AI call
+- ✅ Single translation path (frontend only, Cloud Function disabled)
+- ✅ Only translates when user enables auto-translate for chat
+- ✅ Checks language match at TWO points (TranslationService + Frontend)
+- ✅ Cost-optimized (skip AI when not needed)
 
 **Translation Preview (Send as Translation):**
 - ✅ Type message in your language, see real-time translation preview
@@ -169,14 +275,6 @@ Frontend checks: Is auto-translate enabled?
 - ✅ Recipients see original text alongside translation
 - ✅ Preview clears automatically after sending
 
-**Smart Auto-Translation:**
-- ✅ No more same-language translations (EN message → EN user = no translation)
-- ✅ Quick language detection before expensive AI call
-- ✅ Single translation path (frontend only, Cloud Function disabled)
-- ✅ Only translates when user enables auto-translate for chat
-- ✅ Checks language match at TWO points (TranslationService + Frontend)
-- ✅ Cost-optimized (skip AI when not needed)
-
 **Cultural Context (Previous Feature):**
 1. User receives message in any language (NO highlights on original)
 2. User taps translate → Translation appears in BOLD
@@ -185,22 +283,179 @@ Frontend checks: Is auto-translate enabled?
 5. Tap any highlighted word → See explanation popup
 
 **Key Wins:**
-1. **Cleaner UI** - Original messages are clean and readable
-2. **Educational** - Learn cultural context when translating
-3. **Fast** - Cultural analysis done during translation (no extra delay)
-4. **Smart** - No overlapping or repeating highlights
-5. **Contextual** - Mood-aware analysis based on chat context
+1. **Performance** - Only translates visible messages (not entire chat)
+2. **Cost Savings** - No wasted API calls for same-language messages
+3. **Smart Detection** - Frontend + backend language checks
+4. **Progressive UX** - Translations appear as they complete
+5. **Edge Case Handling** - Last message safety net
+6. **Educational** - Learn cultural context when translating
+7. **Fast** - Cultural analysis done during translation (no extra delay)
+8. **Contextual** - Mood-aware analysis based on chat context
 
 **Latest Changes:**
-1. ✅ **MessageBubble** - Removed auto cultural analysis on original messages
-2. ✅ **TranslationService** - Added cultural analysis to translation flow
-3. ✅ **Message Type** - Updated to support cultural data in translations
-4. ✅ **ChatModal** - Saves cultural analysis with translation
-5. ✅ **Highlight Rendering** - Fixed overlapping and invalid positions
+1. ✅ **Viewport Detection** - FlashList `onViewableItemsChanged` triggers translation
+2. ✅ **Smart Filtering** - Multiple checks prevent duplicate translations
+3. ✅ **Frontend Language Check** - Quick detection before expensive AI call
+4. ✅ **Backend Language Check** - Double safety in TranslationService
+5. ✅ **Progressive Translation** - Individual parallel requests with immediate UI updates
+6. ✅ **Collection Window** - 10ms batching for rapid scrolls
+7. ✅ **Last Message Safety** - Special check for bottom message edge case
+8. ✅ **SQLite Persistence** - Translations survive app reloads
+9. ✅ **Group Language Tracking** - `detectedLanguages` array in chat documents
+10. ✅ **Enhanced Cultural Detection** - More generous slang/phrase detection
 
 ### Recent Work (This Session)
 
-#### ✅ Completed: Frontend Integration - Cultural Context + Chat Summaries! 🌍✨
+#### ✅ Completed: Viewport-Based Lazy Translation System! 📱✨
+
+**The Mission:**
+Implement intelligent auto-translation that only translates messages as they come into view while scrolling, with smart language detection to prevent unnecessary translations.
+
+**What We Built:**
+
+1. **FlashList Viewport Detection** (`src/features/chat/components/ChatModal.tsx`)
+   - `onViewableItemsChanged` handler triggers on every scroll
+   - `itemVisiblePercentThreshold: 1` - Very sensitive detection (1% visible)
+   - `minimumViewTime: 0` - Instant triggering, no delay
+   - `scrollEventThrottle: 16` - 60fps smooth detection
+   - Gets array of currently visible message IDs
+
+2. **Smart Message Filtering System**
+   ```typescript
+   const messagesToTranslate = messageIds.filter(msgId => {
+     // ❌ Skip if already translated
+     if (translatedMessagesCache.current.has(msgId)) return false;
+     
+     // ❌ Skip if currently translating  
+     if (translatingMessages.current.has(msgId)) return false;
+     
+     // ❌ Skip if in queue
+     if (translationQueue.current.includes(msgId)) return false;
+     
+     // ❌ Skip own messages
+     if (message.senderId === user.id) return false;
+     
+     // ❌ Skip non-text messages
+     if (message.type !== 'text' || !message.text) return false;
+     
+     // ❌ Skip if already has translation
+     if (message.translations?.[user.preferredLanguage]) return false;
+     
+     return true; // ✅ Translate this message
+   });
+   ```
+
+3. **Frontend Language Check (Before Translation)**
+   ```typescript
+   // Quick language detection before expensive AI call
+   const firstWords = messageText.split(/\s+/).slice(0, 5).join(' ');
+   const quickResult = await quickDetectFn({ text: firstWords });
+   const detectedLang = quickResult?.data?.language;
+   
+   if (detectedLang === user.preferredLanguage) {
+     console.log(`⏭️ Skipping - already in ${user.preferredLanguage}`);
+     return; // Skip translation
+   }
+   ```
+
+4. **Collection Window & Progressive Translation**
+   - **10ms collection window** - Batches rapid scrolls efficiently
+   - **Parallel requests** - All messages sent simultaneously with `Promise.allSettled`
+   - **Progressive display** - Translations appear one by one as they complete
+   - **Immediate UI updates** - Zustand store updated immediately after each translation
+
+5. **Last Message Safety Net**
+   ```typescript
+   // Special case: Check if last message is visible but not detected
+   const lastMessage = messages[messages.length - 1];
+   if (lastMessage && 
+       !visibleMessageIds.includes(lastMessage.id) &&
+       !translatedMessagesCache.current.has(lastMessage.id) &&
+       !translatingMessages.current.has(lastMessage.id) &&
+       lastMessage.senderId !== user?.id &&
+       lastMessage.type === 'text') {
+     
+     console.log(`🔍 Last message ${lastMessage.id.slice(0, 8)} not in viewport, checking manually...`);
+     translateVisibleMessages([lastMessage.id]);
+   }
+   ```
+
+6. **Backend Language Check (Double Safety)**
+   ```typescript
+   // In TranslationService.ts
+   if (quickLanguageCheck.language === params.targetLanguage) {
+     console.log(`⏭️ Skipping translation - same language`);
+     return {
+       translated: params.messageText,
+       culturalAnalysis: { phrases: [], slang: [] },
+       detectedLanguage: quickLanguageCheck.language
+     };
+   }
+   ```
+
+7. **SQLite Persistence**
+   - Translations saved to SQLite immediately after completion
+   - Survives app reloads and reconnections
+   - Local-only storage (not synced to Firestore)
+
+**How It Works Now:**
+
+```
+User scrolls through chat
+↓
+FlashList detects viewport changes (every 16ms)
+↓
+onViewableItemsChanged fires with visible message IDs
+↓
+translateVisibleMessages filters messages needing translation
+↓
+Frontend language check (quick detection ~200ms)
+├─ Same language → Skip translation
+└─ Different language → Continue
+    ↓
+    10ms collection window batches rapid scrolls
+    ↓
+    processTranslationQueue sends parallel requests
+    ↓
+    Each translation completes independently
+    ↓
+    UI updates immediately as each translation finishes
+    ↓
+    Translation saved to SQLite for persistence
+```
+
+**Performance Benefits:**
+- ✅ **Only translates visible messages** - Not entire chat history
+- ✅ **Smart language detection** - Skips same-language messages
+- ✅ **Progressive display** - No waiting for batch completion
+- ✅ **Cost optimization** - No wasted API calls
+- ✅ **Edge case handling** - Last message safety net
+- ✅ **Duplicate prevention** - Multiple safety checks
+
+**Console Logs You'll See:**
+```
+📍 Viewport: Found 3 messages to translate (out of 5 detected)
+   Messages: msg_1761, msg_1762, msg_1763
+
+⏭️ Skipping msg_1764 - already in en (detected: en)
+⏭️ Skipping msg_1765 - already in en (detected: en)
+
+🔍 Last message msg_1766 not in viewport, checking manually...
+
+⏱️ Collection window ended, processing 4 messages
+🚀 Sending 4 translation requests in parallel...
+
+✅ Translated: msg_1761 (was in ru)
+✅ Translated: msg_1762 (was in zh)
+✅ Translated: msg_1763 (was in es)
+✅ Translated: msg_1766 (was in fr)
+```
+
+**Status:** ✅ Complete and ready for testing!
+
+---
+
+#### ✅ Previously Completed: Frontend Integration - Cultural Context + Chat Summaries! 🌍✨
 
 **The Mission:**
 Integrate the cultural highlighting UI components and chat summary feature to complete the AI features frontend.

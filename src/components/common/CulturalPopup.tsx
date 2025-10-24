@@ -62,6 +62,11 @@ export const CulturalPopup: React.FC<CulturalPopupProps> = ({
               <Text style={styles.phraseText}>
                 "{isCultural ? culturalPhrase.phrase : slangExpression.slang}"
               </Text>
+              {!isCultural && slangExpression.translatedWord && (
+                <Text style={styles.translatedText}>
+                  {slangExpression.slang} / {slangExpression.translatedWord}
+                </Text>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -69,6 +74,14 @@ export const CulturalPopup: React.FC<CulturalPopupProps> = ({
                 {isCultural ? culturalPhrase.explanation : slangExpression.standardMeaning}
               </Text>
             </View>
+
+            {!isCultural && slangExpression.fullExplanation && (
+              <View style={styles.fullExplanationSection}>
+                <Text style={styles.fullExplanationText}>
+                  {slangExpression.fullExplanation}
+                </Text>
+              </View>
+            )}
 
             {isCultural && culturalPhrase.culturalContext && (
               <View style={styles.contextBadge}>
@@ -153,6 +166,14 @@ const styles = StyleSheet.create({
     color: '#495057',
     textAlign: 'center',
   },
+  translatedText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6C757D',
+    textAlign: 'center',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   section: {
     marginBottom: 12,
   },
@@ -169,6 +190,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#212529',
     textAlign: 'center',
+  },
+  fullExplanationSection: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#28A745',
+  },
+  fullExplanationText: {
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#495057',
+    textAlign: 'left',
   },
   exampleText: {
     fontSize: 15,
