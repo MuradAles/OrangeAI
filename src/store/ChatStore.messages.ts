@@ -15,7 +15,12 @@ import { Message, MessageStatus } from '@/shared/types';
 
 export const createMessageActions = (set: any, get: any) => ({
   // Send a new message (optimistic update)
-  sendMessage: async (chatId: string, senderId: string, text: string) => {
+  sendMessage: async (chatId: string, senderId: string, text: string, translationMetadata?: {
+    originalText?: string;
+    originalLanguage?: string;
+    translatedTo?: string;
+    sentAsTranslation?: boolean;
+  }) => {
     try {
       // Generate a unique message ID (will be used in both local state and Firestore)
       // This prevents duplicates because Firestore will use the same ID
@@ -38,6 +43,11 @@ export const createMessageActions = (set: any, get: any) => ({
         deletedForEveryone: false,
         deletedAt: null,
         syncStatus: 'pending',
+        // Translation metadata
+        originalText: translationMetadata?.originalText,
+        originalLanguage: translationMetadata?.originalLanguage,
+        translatedTo: translationMetadata?.translatedTo,
+        sentAsTranslation: translationMetadata?.sentAsTranslation,
       };
 
       // Add to state immediately (optimistic update)
@@ -62,13 +72,18 @@ export const createMessageActions = (set: any, get: any) => ({
         deletedForMe: 0,
         deletedForEveryone: 0,
         syncStatus: optimisticMessage.syncStatus,
+        // Translation metadata
+        originalText: optimisticMessage.originalText,
+        originalLanguage: optimisticMessage.originalLanguage,
+        translatedTo: optimisticMessage.translatedTo,
+        sentAsTranslation: optimisticMessage.sentAsTranslation ? 1 : 0,
       };
       // Non-blocking save, ignore errors
       SQLiteService.saveMessage(messageRow).catch(() => {});
 
       // Upload to Firestore in background with the same ID
       try {
-        await MessageService.sendMessage(chatId, senderId, text, messageId);
+        await MessageService.sendMessage(chatId, senderId, text, messageId, undefined, translationMetadata);
         
         // FIRST: Increment unread count for other participants (before updating chat document)
         const { chats } = get();
@@ -84,6 +99,16 @@ export const createMessageActions = (set: any, get: any) => ({
           }
         } else {
           console.warn(`⚠️ Chat ${chatId} not found in local state when trying to increment unread count`);
+        }
+        
+        // DETECT LANGUAGE and update chat's detectedLanguages array (non-blocking)
+        // Use originalLanguage from translation metadata if available, otherwise detect
+        const detectedLanguage = translationMetadata?.originalLanguage;
+        if (detectedLanguage) {
+          // Non-blocking language update - don't wait for it
+          ChatService.updateDetectedLanguages(chatId, detectedLanguage).catch((error) => {
+            console.error('❌ Error updating detected languages:', error);
+          });
         }
         
         // THEN: Update last message in chat with 'sent' status and the message timestamp

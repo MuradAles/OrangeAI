@@ -48,6 +48,12 @@ export interface Message {
   translations?: MessageTranslations; // Translations { "es": "Translated text", "fr": "..." }
   detectedLanguage?: string;         // Auto-detected source language (ISO 639-1 code)
   
+  // Translation metadata (for sent-as-translation feature)
+  originalText?: string;             // Original text when sent as translation
+  originalLanguage?: string;         // Language of original text (ISO 639-1)
+  translatedTo?: string;             // Target language for translation (ISO 639-1)
+  sentAsTranslation?: boolean;       // True if message was sent as translation
+  
   // Local fields (SQLite only)
   syncStatus?: MessageSyncStatus;   // synced | pending | failed (for offline queue)
   
@@ -78,10 +84,12 @@ export interface MessageTranslations {
 }
 
 /**
- * Single translation with optional cultural analysis
+ * Single translation with optional cultural analysis and formality detection
  */
 export interface MessageTranslation {
   text: string;
+  formalityLevel?: 'casual' | 'formal' | 'professional' | 'friendly'; // Detected formality level
+  formalityIndicators?: string[]; // What made us detect this level (e.g., ["informal greeting", "slang"])
   culturalAnalysis?: {
     culturalPhrases: Array<{
       phrase: string;

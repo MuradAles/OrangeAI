@@ -68,6 +68,9 @@ class SQLiteServiceClass {
         console.log('✅ Database is up to date');
       }
 
+      // Emergency fix: Check for missing columns (in case migrations didn't work)
+      await this.fixMissingColumns();
+
       this.isInitialized = true;
 
       return {
@@ -115,6 +118,12 @@ class SQLiteServiceClass {
             // Use runAsync instead of execAsync for better compatibility
             await this.db!.runAsync(statement);
           } catch (stmtError: any) {
+            // If column already exists, continue (for ALTER TABLE ADD COLUMN)
+            if (stmtError.message.includes('duplicate column name') || 
+                stmtError.message.includes('already exists')) {
+              console.log(`   ⚠️ Column already exists, skipping: ${statement.substring(0, 50)}...`);
+              continue;
+            }
             console.error(`   ❌ Statement ${statementIndex} failed:`, stmtError.message);
             console.error(`   📄 SQL: ${statement.substring(0, 100)}...`);
             throw stmtError;
@@ -136,11 +145,110 @@ class SQLiteServiceClass {
   }
 
   /**
-   * Execute raw SQL (for testing/debugging)
+   * Force run all pending migrations (for debugging)
    */
-  async executeRaw(sql: string, params: any[] = []): Promise<any> {
+  async forceRunMigrations(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    return await this.db.runAsync(sql, params);
+    
+    const currentVersion = await this.getCurrentVersion();
+    console.log(`🔄 Force running migrations from version ${currentVersion}`);
+    
+    const pendingMigrations = getPendingMigrations(currentVersion);
+    
+    if (pendingMigrations.length > 0) {
+      console.log(`🔄 Applying ${pendingMigrations.length} migrations...`);
+      
+      for (const migration of pendingMigrations) {
+        await this.applyMigration(migration);
+      }
+      
+      console.log('✅ All migrations applied successfully');
+    } else {
+      console.log('✅ Database is up to date');
+    }
+  }
+
+  /**
+   * Check database schema and fix missing columns (emergency fix)
+   */
+  async fixMissingColumns(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    console.log('🔧 Checking for missing columns...');
+    
+    // Check if translations column exists
+    try {
+      await this.db.runAsync('SELECT translations FROM messages LIMIT 1');
+      console.log('✅ translations column exists');
+    } catch (error: any) {
+      if (error.message.includes('no such column')) {
+        console.log('⚠️ translations column missing, adding...');
+        await this.db.runAsync('ALTER TABLE messages ADD COLUMN translations TEXT;');
+        console.log('✅ translations column added');
+      }
+    }
+    
+    // Check if detectedLanguage column exists
+    try {
+      await this.db.runAsync('SELECT detectedLanguage FROM messages LIMIT 1');
+      console.log('✅ detectedLanguage column exists');
+    } catch (error: any) {
+      if (error.message.includes('no such column')) {
+        console.log('⚠️ detectedLanguage column missing, adding...');
+        await this.db.runAsync('ALTER TABLE messages ADD COLUMN detectedLanguage TEXT;');
+        console.log('✅ detectedLanguage column added');
+      }
+    }
+    
+    // Check if originalText column exists
+    try {
+      await this.db.runAsync('SELECT originalText FROM messages LIMIT 1');
+      console.log('✅ originalText column exists');
+    } catch (error: any) {
+      if (error.message.includes('no such column')) {
+        console.log('⚠️ originalText column missing, adding...');
+        await this.db.runAsync('ALTER TABLE messages ADD COLUMN originalText TEXT;');
+        console.log('✅ originalText column added');
+      }
+    }
+    
+    // Check if originalLanguage column exists
+    try {
+      await this.db.runAsync('SELECT originalLanguage FROM messages LIMIT 1');
+      console.log('✅ originalLanguage column exists');
+    } catch (error: any) {
+      if (error.message.includes('no such column')) {
+        console.log('⚠️ originalLanguage column missing, adding...');
+        await this.db.runAsync('ALTER TABLE messages ADD COLUMN originalLanguage TEXT;');
+        console.log('✅ originalLanguage column added');
+      }
+    }
+    
+    // Check if translatedTo column exists
+    try {
+      await this.db.runAsync('SELECT translatedTo FROM messages LIMIT 1');
+      console.log('✅ translatedTo column exists');
+    } catch (error: any) {
+      if (error.message.includes('no such column')) {
+        console.log('⚠️ translatedTo column missing, adding...');
+        await this.db.runAsync('ALTER TABLE messages ADD COLUMN translatedTo TEXT;');
+        console.log('✅ translatedTo column added');
+      }
+    }
+    
+    // Check if sentAsTranslation column exists
+    try {
+      await this.db.runAsync('SELECT sentAsTranslation FROM messages LIMIT 1');
+      console.log('✅ sentAsTranslation column exists');
+    } catch (error: any) {
+      if (error.message.includes('no such column')) {
+        console.log('⚠️ sentAsTranslation column missing, adding...');
+        await this.db.runAsync('ALTER TABLE messages ADD COLUMN sentAsTranslation INTEGER DEFAULT 0;');
+        console.log('✅ sentAsTranslation column added');
+      }
+    }
+    
+    console.log('✅ Column check complete');
   }
 
   /**
@@ -299,8 +407,9 @@ class SQLiteServiceClass {
     await this.db!.runAsync(
       `INSERT OR REPLACE INTO messages 
        (id, chatId, senderId, text, timestamp, status, type, imageUrl, thumbnailUrl,
-        caption, reactions, deletedForMe, deletedForEveryone, translations, detectedLanguage, syncStatus) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        caption, reactions, deletedForMe, deletedForEveryone, translations, detectedLanguage, syncStatus,
+        originalText, originalLanguage, translatedTo, sentAsTranslation) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         message.id,
         message.chatId,
@@ -318,6 +427,10 @@ class SQLiteServiceClass {
         message.translations, // JSON string
         message.detectedLanguage,
         message.syncStatus || 'synced',
+        message.originalText,
+        message.originalLanguage,
+        message.translatedTo,
+        message.sentAsTranslation ? 1 : 0,
       ]
     );
   }

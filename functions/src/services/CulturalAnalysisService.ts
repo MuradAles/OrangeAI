@@ -34,14 +34,38 @@ export interface CulturalAnalysisResult {
 
 export class CulturalAnalysisService {
   /**
+   * Helper to get language name from code
+   */
+  private static getLanguageName(code: string): string {
+    const languageNames: Record<string, string> = {
+      'en': 'English',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+      'ru': 'Russian',
+      'ja': 'Japanese',
+      'ko': 'Korean',
+      'zh': 'Chinese',
+      'ar': 'Arabic',
+      'hi': 'Hindi',
+      'tr': 'Turkish',
+    };
+    return languageNames[code] || 'English';
+  }
+  
+  /**
    * Analyze text for cultural phrases and slang expressions (now mood-aware)
+   * @param targetLanguage - Language for explanations (e.g., 'ru' for Russian explanations)
    */
   static async analyzeCulturalContext(
     text: string,
     language: string,
     messageId: string,
     chatMood?: string,
-    relationship?: string
+    relationship?: string,
+    targetLanguage?: string
   ): Promise<CulturalAnalysisResult> {
     try {
       logger.info('Starting mood-aware cultural analysis', {
@@ -64,31 +88,32 @@ export class CulturalAnalysisService {
         };
       }
 
-      // Step 1: Detect cultural phrases (now mood-aware)
+      // Step 1: Detect cultural phrases (now mood-aware and localized)
       const culturalPhrases = await this.detectCulturalPhrases(
         text,
         language,
         chatMood,
-        relationship
+        relationship,
+        targetLanguage
       );
 
-      // Step 2: Detect slang expressions (now mood-aware)
+      // Step 2: Detect slang expressions (now mood-aware and localized)
       const slangExpressions = await this.detectSlangExpressions(
         text,
         language,
         chatMood,
-        relationship
+        relationship,
+        targetLanguage
       );
 
-      // Step 3: Enhance with web search for high-confidence phrases
-      const enhancedPhrases = await this.enhanceWithWebSearch(culturalPhrases, language);
+      // Step 3: REMOVED fake web search enhancement (was adding 2-5 seconds with no real benefit)
 
       const result: CulturalAnalysisResult = {
         messageId,
-        culturalPhrases: enhancedPhrases,
+        culturalPhrases: culturalPhrases,
         slangExpressions,
         analysisTimestamp: Date.now(),
-        webSearchUsed: enhancedPhrases.some(p => p.confidence > 0.8)
+        webSearchUsed: false, // No longer using web search
       };
 
       logger.info('Mood-aware cultural analysis completed', {
@@ -118,15 +143,18 @@ export class CulturalAnalysisService {
   }
 
   /**
-   * Detect cultural phrases using AI SDK (now mood-aware)
+   * Detect cultural phrases using AI SDK (now mood-aware and localized)
    */
   private static async detectCulturalPhrases(
     text: string,
     language: string,
     chatMood?: string,
-    relationship?: string
+    relationship?: string,
+    targetLanguage?: string
   ): Promise<CulturalPhrase[]> {
     try {
+      const explanationLanguage = targetLanguage ? this.getLanguageName(targetLanguage) : 'English';
+      
       let prompt = `Analyze this text for cultural phrases, idioms, metaphors, and culture-specific expressions. `;
       
       if (chatMood) {
@@ -137,6 +165,7 @@ export class CulturalAnalysisService {
         prompt += `Relationship: "${relationship}". `;
       }
       
+      prompt += `⚠️ IMPORTANT: Provide ALL explanations in ${explanationLanguage}. `;
       prompt += `Respond with ONLY a JSON array in this exact format:
 [
   {
@@ -158,30 +187,39 @@ POSITION CALCULATION:
 - Position = [startIndex, endIndex]
 - VERIFY position matches the actual text before responding
 
-WHAT TO DETECT (BE VERY GENEROUS):
-✅ Idioms and metaphors (e.g., "break a leg", "red as a tomato", "spill the tea")
+WHAT TO DETECT (BE EXTREMELY GENEROUS - INCLUDE EVERYTHING):
+✅ Idioms and metaphors (e.g., "break a leg", "red as a tomato", "spill the tea", "blow off steam")
 ✅ Cultural references that only locals would understand
 ✅ Expressions unique to that culture/language
 ✅ Figurative language and colorful expressions
 ✅ Traditional sayings or proverbs
-✅ Pop culture references
-✅ Regional expressions
+✅ Pop culture references (movies, TV, memes, etc.)
+✅ Regional expressions and local slang
+✅ Food/sports/historical references
+✅ Expressions with non-literal meanings
+✅ Comparisons and similes ("like a...", "as...as...")
 ✅ ANY phrase that might confuse someone from another culture
+✅ WHEN IN DOUBT, INCLUDE IT!
 
 IMPORTANT RULES:
-- BE GENEROUS: If it sounds like it might have cultural meaning, INCLUDE IT
+- BE EXTREMELY GENEROUS: When uncertain if something is cultural, ALWAYS INCLUDE IT
+- Lower your detection threshold - we want MORE results, not fewer
+- Borderline cases? INCLUDE THEM
+- Might be cultural? INCLUDE IT
+- Could be confusing? INCLUDE IT
 - Don't limit to specific words - analyze the actual meaning
 - Language-agnostic: detect cultural expressions in ANY language
-- Explanation = MAXIMUM 5 WORDS
-- CulturalContext = MAXIMUM 3 WORDS
-- Better to include too many than miss important ones
+- Explanation = MAXIMUM 6 WORDS (can be longer if needed)
+- CulturalContext = MAXIMUM 4 WORDS (can be longer if needed)
+- It's BETTER to include too many than to miss any
+- Minimum confidence score: 60 (even low-confidence matches should be included)
 ${chatMood ? `- Adjust to mood: "${chatMood}"` : ''}
 ${relationship === 'close friends' || relationship === 'family' ? '- Include informal expressions' : ''}`;
 
       const { text: response } = await generateText({
         model: aiModel,
         prompt: prompt,
-        temperature: 0.1, // Low temperature for consistent analysis
+        temperature: 0.3, // Higher temperature for more generous detection
       });
 
       // Parse JSON response - handle markdown code blocks
@@ -192,7 +230,18 @@ ${relationship === 'close friends' || relationship === 'family' ? '- Include inf
       
       const phrases = JSON.parse(cleanResponse);
       
-      return Array.isArray(phrases) ? phrases : [];
+      // Filter to only include items with confidence >= 60 (very permissive)
+      const filteredPhrases = Array.isArray(phrases) 
+        ? phrases.filter((p: CulturalPhrase) => p.confidence >= 60)
+        : [];
+      
+      logger.info('Cultural phrase detection completed', {
+        totalDetected: phrases.length,
+        afterFiltering: filteredPhrases.length,
+        minConfidence: 60
+      });
+      
+      return filteredPhrases;
     } catch (error) {
       logger.error('Cultural phrase detection error:', error);
       return [];
@@ -200,15 +249,18 @@ ${relationship === 'close friends' || relationship === 'family' ? '- Include inf
   }
 
   /**
-   * Detect slang expressions using AI SDK (now mood-aware)
+   * Detect slang expressions using AI SDK (now mood-aware and localized)
    */
   private static async detectSlangExpressions(
     text: string,
     language: string,
     chatMood?: string,
-    relationship?: string
+    relationship?: string,
+    targetLanguage?: string
   ): Promise<SlangExpression[]> {
     try {
+      const explanationLanguage = targetLanguage ? this.getLanguageName(targetLanguage) : 'English';
+      
       let prompt = `Analyze this text for slang, informal language, abbreviations, and trendy expressions. `;
       
       if (chatMood) {
@@ -219,6 +271,7 @@ ${relationship === 'close friends' || relationship === 'family' ? '- Include inf
         prompt += `Relationship: "${relationship}". `;
       }
       
+      prompt += `⚠️ IMPORTANT: Provide ALL explanations (standardMeaning and usage) in ${explanationLanguage}. `;
       prompt += `Respond with ONLY a JSON array in this exact format:
 [
   {
@@ -239,31 +292,40 @@ POSITION CALCULATION:
 - Position = [startIndex, endIndex]
 - VERIFY position matches the actual text before responding
 
-WHAT TO DETECT (BE VERY GENEROUS):
-✅ Internet slang and text speak (e.g., "lol", "brb", "ngl", "fr")
-✅ Informal contractions (e.g., "tryna", "gonna", "wanna", "gotta")
-✅ Trendy expressions (e.g., "fire", "lit", "cap", "bussin", "slay", "vibe")
-✅ Casual address terms (e.g., "bro", "dude", "homie", "fam")
-✅ Generation-specific slang (Gen Z, Millennial, etc.)
-✅ Platform-specific lingo (TikTok, Twitter, etc.)
-✅ Regional/dialect informal words
-✅ Shortened words and abbreviations
-✅ ANY informal or trendy expression in ANY language
+WHAT TO DETECT (BE EXTREMELY GENEROUS - INCLUDE EVERYTHING):
+✅ Internet slang and text speak (e.g., "lol", "brb", "ngl", "fr", "omg", "tbh", "imo")
+✅ Informal contractions (e.g., "tryna", "gonna", "wanna", "gotta", "kinda", "sorta")
+✅ Trendy expressions (e.g., "fire", "lit", "cap", "bussin", "slay", "vibe", "bet", "mood", "tea", "facts")
+✅ Casual address terms (e.g., "bro", "dude", "homie", "fam", "sis", "bestie", "mate")
+✅ Generation-specific slang (Gen Z, Millennial, Gen X, etc.)
+✅ Platform-specific lingo (TikTok, Twitter, Instagram, Discord, etc.)
+✅ Regional/dialect informal words (UK, US, Aussie, etc.)
+✅ Shortened words and abbreviations ("congrats", "thx", "pls", "ur")
+✅ Intensifiers and emphasis words ("so", "really", "totally", "absolutely" when used casually)
+✅ Filler words used informally ("like", "literally", "basically", "actually")
+✅ ANY informal, trendy, or casual expression in ANY language
+✅ WHEN IN DOUBT, INCLUDE IT!
 
 IMPORTANT RULES:
-- BE VERY GENEROUS: If it sounds informal/casual/trendy, INCLUDE IT
+- BE EXTREMELY GENEROUS: When uncertain if something is slang, ALWAYS INCLUDE IT
+- Lower your detection threshold - we want MORE results, not fewer
+- Borderline cases? INCLUDE THEM
+- Might be informal? INCLUDE IT
+- Could be slang? INCLUDE IT
+- Sounds casual or trendy? INCLUDE IT
 - Don't hardcode specific words - analyze what sounds casual in context
 - Language-agnostic: detect informal expressions in ANY language
-- StandardMeaning = MAXIMUM 3 WORDS
-- Usage = MAXIMUM 2 WORDS (e.g., "greeting", "praise", "dismissal")
-- Better to over-include than miss slang
+- StandardMeaning = MAXIMUM 4 WORDS (can be longer if needed)
+- Usage = MAXIMUM 3 WORDS (can be more specific)
+- It's BETTER to over-include than to miss any slang
+- Minimum confidence score: 60 (even low-confidence matches should be included)
 ${chatMood && (chatMood.includes('playful') || chatMood.includes('casual')) ? '- Extra casual/playful mood - include more' : ''}
 ${relationship === 'colleagues' || relationship === 'professional' ? '- Focus on professional jargon too' : '- Include all casual language'}`;
 
       const { text: response } = await generateText({
         model: aiModel,
         prompt: prompt,
-        temperature: 0.1, // Low temperature for consistent analysis
+        temperature: 0.3, // Higher temperature for more generous detection
       });
 
       // Parse JSON response - handle markdown code blocks
@@ -274,88 +336,22 @@ ${relationship === 'colleagues' || relationship === 'professional' ? '- Focus on
       
       const slang = JSON.parse(cleanResponse);
       
-      return Array.isArray(slang) ? slang : [];
+      // Filter to only include items with confidence >= 60 (very permissive)
+      const filteredSlang = Array.isArray(slang) 
+        ? slang.filter((s: SlangExpression) => s.confidence >= 60)
+        : [];
+      
+      logger.info('Slang detection completed', {
+        totalDetected: slang.length,
+        afterFiltering: filteredSlang.length,
+        minConfidence: 60
+      });
+      
+      return filteredSlang;
     } catch (error) {
       logger.error('Slang detection error:', error);
       return [];
     }
   }
 
-  /**
-   * Enhance cultural phrases with web search for high-confidence phrases
-   */
-  private static async enhanceWithWebSearch(
-    phrases: CulturalPhrase[],
-    language: string
-  ): Promise<CulturalPhrase[]> {
-    try {
-      const enhancedPhrases: CulturalPhrase[] = [];
-
-      for (const phrase of phrases) {
-        if (phrase.confidence > 0.8) {
-          // For high-confidence phrases, try to get more detailed context
-          const enhanced = await this.searchCulturalContext(phrase.phrase, language);
-          if (enhanced) {
-            enhancedPhrases.push({
-              ...phrase,
-              explanation: enhanced.explanation,
-              culturalContext: enhanced.culturalContext,
-              examples: enhanced.examples
-            });
-          } else {
-            enhancedPhrases.push(phrase);
-          }
-        } else {
-          enhancedPhrases.push(phrase);
-        }
-      }
-
-      return enhancedPhrases;
-    } catch (error) {
-      logger.error('Web search enhancement error:', error);
-      return phrases; // Return original phrases if enhancement fails
-    }
-  }
-
-  /**
-   * Search for cultural context using AI SDK (simulated web search)
-   */
-  private static async searchCulturalContext(
-    phrase: string,
-    language: string
-  ): Promise<{ explanation: string; culturalContext: string; examples: string[] } | null> {
-    try {
-      const prompt = `Provide detailed cultural context for this phrase. 
-Respond with ONLY a JSON object in this exact format:
-{
-  "explanation": "Detailed explanation of the phrase",
-  "culturalContext": "Cultural background and significance",
-  "examples": ["Example 1", "Example 2", "Example 3"]
-}
-
-Phrase: "${phrase}"
-Language: ${language}
-
-Provide comprehensive cultural context including:
-- Origin and history
-- Cultural significance
-- When and how it's used
-- Regional variations
-- Modern usage`;
-
-      const { text: response } = await generateText({
-        model: aiModel,
-        prompt: prompt,
-        temperature: 0.3, // Slightly higher for more creative explanations
-      });
-
-      // Parse JSON response
-      const context = JSON.parse(response.trim());
-      
-      return context;
-    } catch (error) {
-      logger.error('Cultural context search error:', error);
-      return null;
-    }
-  }
 }

@@ -35,10 +35,10 @@ interface MessageBubbleProps {
   onLongPress?: (message: Message) => void;
   onPress?: (message: Message) => void;
   onQuickReaction?: (message: Message, emoji: string) => void; // Handle quick emoji reactions
-  onAITranslate?: (message: Message) => void; // AI translate command
-  onAISummarize?: (message: Message) => void; // AI summarize command
-  onAIExplain?: (message: Message) => void; // AI explain command
-  onAIRewrite?: (message: Message) => void; // AI rewrite command
+  onAITranslate?: (message: Message) => void; // AI translate command (single tap - one-time translation)
+  onAISummarize?: (message: Message) => void; // AI summarize command (long press - chat summary)
+  onCopyMessage?: (message: Message) => void; // Copy message text (single tap)
+  onDeleteForEveryone?: (message: Message) => void; // Delete message for everyone (single tap)
 }
 
 export const MessageBubble = memo(({
@@ -57,8 +57,8 @@ export const MessageBubble = memo(({
   onQuickReaction,
   onAITranslate,
   onAISummarize,
-  onAIExplain,
-  onAIRewrite,
+  onCopyMessage,
+  onDeleteForEveryone,
 }: MessageBubbleProps) => {
   const theme = useTheme();
   const isSent = message.senderId === currentUserId;
@@ -210,17 +210,19 @@ export const MessageBubble = memo(({
     onAISummarize?.(message);
   };
 
-  const handleAIExplain = () => {
-    onAIExplain?.(message);
-  };
-
-  const handleAIRewrite = () => {
-    onAIRewrite?.(message);
-  };
-
   const handleReaction = (emoji: string) => {
     // Quick reaction - trigger parent handler
     onQuickReaction?.(message, emoji);
+  };
+
+  // Handle copy message
+  const handleCopyMessage = () => {
+    onCopyMessage?.(message);
+  };
+
+  // Handle delete for everyone
+  const handleDeleteForEveryone = () => {
+    onDeleteForEveryone?.(message);
   };
 
   // Handle cultural phrase tap
@@ -501,6 +503,23 @@ export const MessageBubble = memo(({
                           }]}>
                             Translation
                           </Text>
+                          
+                          {/* Formality Badge */}
+                          {translationData && typeof translationData !== 'string' && translationData.formalityLevel && (
+                            <View style={[styles.formalityBadge, {
+                              backgroundColor: isSent ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
+                            }]}>
+                              <Text style={[styles.formalityText, {
+                                color: isSent ? 'rgba(255,255,255,0.8)' : theme.colors.textSecondary,
+                              }]}>
+                                {translationData.formalityLevel === 'casual' && '😊 Casual'}
+                                {translationData.formalityLevel === 'formal' && '👔 Formal'}
+                                {translationData.formalityLevel === 'professional' && '💼 Professional'}
+                                {translationData.formalityLevel === 'friendly' && '🤗 Friendly'}
+                              </Text>
+                            </View>
+                          )}
+                          
                           <Pressable 
                             onPress={() => setShowTranslation(false)}
                             hitSlop={8}
@@ -578,6 +597,23 @@ export const MessageBubble = memo(({
                       }]}>
                         Translation
                       </Text>
+                      
+                      {/* Formality Badge */}
+                      {translationData && typeof translationData !== 'string' && translationData.formalityLevel && (
+                        <View style={[styles.formalityBadge, {
+                          backgroundColor: isSent ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
+                        }]}>
+                          <Text style={[styles.formalityText, {
+                            color: isSent ? 'rgba(255,255,255,0.8)' : theme.colors.textSecondary,
+                          }]}>
+                            {translationData.formalityLevel === 'casual' && '😊 Casual'}
+                            {translationData.formalityLevel === 'formal' && '👔 Formal'}
+                            {translationData.formalityLevel === 'professional' && '💼 Professional'}
+                            {translationData.formalityLevel === 'friendly' && '🤗 Friendly'}
+                          </Text>
+                        </View>
+                      )}
+                      
                       <Pressable 
                         onPress={() => setShowTranslation(false)}
                         hitSlop={8}
@@ -609,6 +645,32 @@ export const MessageBubble = memo(({
                 ]}>
                   {message.text}
                 </Text>
+                
+                {/* Translation Metadata - Show original text when sent as translation */}
+                {message.sentAsTranslation && message.originalText && (
+                  <View style={[styles.translationMetadata, { 
+                    backgroundColor: isSent ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    borderLeftColor: isSent ? 'rgba(255,255,255,0.3)' : theme.colors.primary,
+                  }]}>
+                    <View style={styles.translationMetadataHeader}>
+                      <Ionicons 
+                        name="language" 
+                        size={12} 
+                        color={isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary} 
+                      />
+                      <Text style={[styles.translationMetadataLabel, { 
+                        color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary 
+                      }]}>
+                        Original ({message.originalLanguage?.toUpperCase() || 'Unknown'})
+                      </Text>
+                    </View>
+                    <Text style={[styles.translationMetadataText, { 
+                      color: isSent ? 'rgba(255,255,255,0.8)' : theme.colors.textSecondary 
+                    }]}>
+                      {message.originalText}
+                    </Text>
+                  </View>
+                )}
                 
                 {/* Show translation button only if translation exists but is hidden */}
                 {!showTranslation && translatedText && (
@@ -734,7 +796,7 @@ export const MessageBubble = memo(({
         </Modal>
       )}
 
-      {/* Quick Actions Popover */}
+      {/* Quick Actions Popover - Single Tap Menu */}
       <QuickActionsPopover
         visible={showQuickActions}
         onClose={() => setShowQuickActions(false)}
@@ -742,18 +804,17 @@ export const MessageBubble = memo(({
         messagePosition={messagePosition}
         onTranslate={handleTranslate}
         onReaction={handleReaction}
+        onCopy={handleCopyMessage}
+        onDeleteForEveryone={handleDeleteForEveryone}
       />
 
-      {/* AI Commands Menu */}
+      {/* AI Commands Menu - Long Press Menu */}
       <AICommandsMenu
         visible={showAICommands}
         onClose={() => setShowAICommands(false)}
         message={message}
         messagePosition={messagePosition}
-        onTranslate={handleAITranslate}
         onSummarize={handleAISummarize}
-        onExplain={handleAIExplain}
-        onRewrite={handleAIRewrite}
       />
 
       {/* Cultural Popup (for translation highlights) */}
@@ -992,6 +1053,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  formalityBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  formalityText: {
+    fontSize: 9,
+    fontWeight: '600',
+  },
   translationText: {
     fontSize: 15,
     lineHeight: 22,
@@ -1006,6 +1077,31 @@ const styles = StyleSheet.create({
   translateButtonText: {
     fontSize: 11,
     fontWeight: '400',
+  },
+  // Translation metadata styles (for sent-as-translation feature)
+  translationMetadata: {
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+  },
+  translationMetadataHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  translationMetadataLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  translationMetadataText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    lineHeight: 16,
   },
 });
 

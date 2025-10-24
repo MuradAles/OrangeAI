@@ -35,6 +35,9 @@ export interface Chat {
   groupAdminId?: string | null;     // Current admin user ID
   inviteCode?: string | null;       // Permanent invite code for groups
   
+  // Language detection for auto-translation
+  detectedLanguages?: string[];     // Array of detected language codes (max 5)
+  
   // UI-specific fields (not in Firestore)
   unreadCount?: number;             // Local unread count (from SQLite)
   otherUserName?: string;           // For one-on-one: other user's display name

@@ -1,6 +1,6 @@
 # Active Context
 
-## Current Status: **🚀 ALL AI FEATURES OPTIMIZED & READY TO TEST! ✨**
+## Current Status: **🚀 TRANSLATION PREVIEW & AUTO-TRANSLATE COMPLETE! ✨**
 
 ### Where We Are
 - ✅ **Phase 1 Complete:** Foundation, auth, theme, database, UI components all working
@@ -11,21 +11,173 @@
 - ✅ **Phase 6 Complete:** AI-powered message translation with OpenAI GPT-3.5-turbo + Local-only storage! 🎉
 - ✅ **REFACTOR Complete:** Per-chat context system replaces per-message embeddings (1000x more efficient!)
 - ✅ **FRONTEND Complete:** Cultural highlighting + Chat summaries UI integrated! 🌍
+- ✅ **TRANSLATION PREVIEW:** Send messages as translations with language selection! 🌐
+- ✅ **AUTO-TRANSLATE FIX:** Smart language detection prevents same-language translation! 🎯
 - ✅ **Testing Infrastructure:** Jest + React Native Testing Library with 88 passing tests
 - ✅ **Next:** RELOAD APP AND TEST EVERYTHING!
 
 ### Current Task
-**🔥 Just Completed: Cultural/Slang Highlights ONLY in Translations! 🔥**
+**🔥 Just Completed: Translation Preview UI & Auto-Translation Smart Detection! 🔥**
 
-**Major UX Improvement - Cleaner, More Intuitive!**
+**Major Features - Translation Preview & Smart Auto-Translation!**
 
-**What Changed:**
-- ❌ **Removed** cultural highlights from original messages (no more cluttered UI)
-- ✅ **Added** cultural/slang highlighting ONLY in translations
-- ✅ **Fixed** overlapping highlight issues
-- ✅ **Improved** translation flow with cultural analysis
+**What We Built:**
+
+### **1. Translation Preview UI (Send as Translation)**
+**Feature:** Real-time translation preview while typing, with choice to send original or translated message
+
+**UI Layout:**
+- **Row 1 (Translation Preview - Bluish Background):**
+  ```
+  [Translation Preview Text] [🌐 Language] [🌐📤 Send]
+  ```
+- **Row 2 (Input Field):**
+  ```
+  [📷 Image] [Input Field] [📤 Send Original]
+  ```
+
+**How It Works:**
+1. User types message in their language
+2. Auto-detects chat languages and provides dropdown
+3. Real-time translation preview appears in Row 1 (bluish background)
+4. User can choose:
+   - Send original message (Row 2 send button)
+   - Send translated message (Row 1 send button)
+5. Translation preview clears after sending
+
+**Key Features:**
+- ✅ **Chat language detection** - Analyzes recent messages to suggest languages
+- ✅ **Real-time preview** - Translation updates as you type (debounced)
+- ✅ **Language selector** - Dropdown with detected chat languages + common languages
+- ✅ **Clean two-row layout** - Clear visual separation
+- ✅ **Bluish background** - Shows it's a translation (not original)
+- ✅ **Translation metadata** - Stores originalText, originalLanguage, translatedTo, sentAsTranslation
+- ✅ **Message display** - Shows "Original (Language)" header with original text for translated messages
+
+### **2. Smart Auto-Translation (No More Same-Language Translation)**
+**Problem:** Auto-translation was translating messages even when already in user's preferred language
+
+**Root Cause:**
+- TWO auto-translation systems running simultaneously!
+- Cloud Function `autoTranslateMessage` triggered on EVERY message (always enabled)
+- Frontend also triggered translation when user enabled auto-translate
+- No language check before saving translations
+
+**Solution:**
+1. **Disabled Cloud Function auto-translate** - Frontend now handles all translation
+2. **Added language check in TranslationService** - Quick language detection before full translation
+3. **Added language check in Frontend** - Skips saving if detected language matches preferred language
+4. **Single translation path** - Only frontend triggers translation, only when enabled
 
 **How It Works Now:**
+```
+User receives English message
+↓
+User prefers English
+↓
+Frontend checks: Is auto-translate enabled?
+├─ NO → Skip (no translation)
+└─ YES → Continue
+    ↓
+    Call translateMessage Cloud Function
+    ↓
+    TranslationService: Quick language detection
+    ├─ Detected: EN, Target: EN → Return original text (skip AI)
+    └─ Detected: ES, Target: EN → Translate with AI
+    ↓
+    Frontend checks: detectedLanguage === preferredLanguage?
+    ├─ YES → Skip saving translation
+    └─ NO → Save translation to SQLite
+```
+
+**Key Improvements:**
+- ✅ **No duplicate translations** - Single translation path (frontend only)
+- ✅ **Smart language detection** - Checks before expensive AI call
+- ✅ **Cost savings** - No unnecessary AI calls
+- ✅ **Better UX** - No confusing same-language translations
+- ✅ **User control** - Only translates when user enables it
+
+**Files Created:**
+- None (enhanced existing files only)
+
+**Files Modified:**
+- `src/features/chat/components/MessageInput.tsx` - Translation preview UI with two-row layout
+  - Added language selector modal with chat language detection
+  - Added real-time translation preview with debouncing
+  - Added two distinct send buttons (original vs translated)
+  - Added bluish background for translation row
+  - Cleans up preview after sending
+  
+- `src/shared/types/Message.ts` - Translation metadata fields
+  - Added `originalText?: string`
+  - Added `originalLanguage?: string`
+  - Added `translatedTo?: string`
+  - Added `sentAsTranslation?: boolean`
+
+- `src/features/chat/components/MessageBubble.tsx` - Display translation metadata
+  - Shows "Original (Language)" header for translated messages
+  - Displays original text alongside translation
+  
+- `src/store/ChatStore.ts` - Handle translation metadata and language check
+  - Updated `sendMessage` to accept translation metadata
+  - Added language check: Skip saving if `detectedLanguage === preferredLanguage`
+  - Preserves translation metadata in message state
+
+- `src/store/ChatStore.messages.ts` - Translation metadata in message creation
+  - Updated `sendMessage` function signature
+  - Includes `originalText`, `originalLanguage`, `translatedTo`, `sentAsTranslation`
+
+- `src/services/firebase/MessageService.ts` - Translation metadata in Firestore
+  - Conditionally includes translation metadata only if `sentAsTranslation: true`
+  - Prevents undefined values in Firestore
+
+- `src/shared/types/Database.ts` - SQLite MessageRow translation fields
+  - Added `originalText: string | null`
+  - Added `originalLanguage: string | null`
+  - Added `translatedTo: string | null`
+  - Added `sentAsTranslation: number | null` (SQLite boolean)
+
+- `src/database/Schema.ts` - SQLite schema with translation columns
+  - Added translation metadata columns to `messages` table
+
+- `src/database/Migrations.ts` - Migration v3 for translation metadata
+  - Added migration to add translation columns to existing databases
+
+- `src/database/SQLiteService.ts` - Enhanced migration handling
+  - Added `applyMigration` with graceful "duplicate column" error handling
+  - Added `fixMissingColumns` method for emergency column fixes
+  - Updated `saveMessage` to include translation metadata
+
+- `functions/src/services/TranslationService.ts` - Smart language detection
+  - Added quick language check at start of `translateMessage`
+  - Returns original text if `detectedLanguage === targetLanguage`
+  - Skips expensive AI call when not needed
+
+- `functions/src/index.ts` - Disabled automatic Cloud Function translation
+  - `autoTranslateMessage` now returns immediately
+  - Frontend handles all translation based on user settings
+  - Eliminated duplicate translation systems
+
+**What Works Now:**
+
+**Translation Preview (Send as Translation):**
+- ✅ Type message in your language, see real-time translation preview
+- ✅ Choose target language from detected chat languages dropdown
+- ✅ Two-row layout with clear visual distinction (bluish background for translation)
+- ✅ Send original or translated message with single tap
+- ✅ Translation metadata saved (original text, languages, sent as translation flag)
+- ✅ Recipients see original text alongside translation
+- ✅ Preview clears automatically after sending
+
+**Smart Auto-Translation:**
+- ✅ No more same-language translations (EN message → EN user = no translation)
+- ✅ Quick language detection before expensive AI call
+- ✅ Single translation path (frontend only, Cloud Function disabled)
+- ✅ Only translates when user enables auto-translate for chat
+- ✅ Checks language match at TWO points (TranslationService + Frontend)
+- ✅ Cost-optimized (skip AI when not needed)
+
+**Cultural Context (Previous Feature):**
 1. User receives message in any language (NO highlights on original)
 2. User taps translate → Translation appears in BOLD
 3. Translation includes YELLOW highlights for cultural phrases

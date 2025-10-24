@@ -21,6 +21,8 @@ interface QuickActionsPopoverProps {
   messagePosition: { x: number; y: number; width: number; height: number };
   onTranslate: () => void;
   onReaction: (emoji: string) => void;
+  onCopy: () => void;
+  onDeleteForEveryone: () => void;
 }
 
 const QUICK_EMOJIS = ['❤️', '😂', '👍', '🔥'];
@@ -32,6 +34,8 @@ export const QuickActionsPopover: React.FC<QuickActionsPopoverProps> = ({
   messagePosition,
   onTranslate,
   onReaction,
+  onCopy,
+  onDeleteForEveryone,
 }) => {
   const theme = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -74,8 +78,9 @@ export const QuickActionsPopover: React.FC<QuickActionsPopoverProps> = ({
   const popoverWidth = 240;
   const translateButtonHeight = 44;
   const emojisHeight = 56;
+  const actionsHeight = 44; // Copy and Delete buttons
   const spacing = 8;
-  const totalHeight = translateButtonHeight + spacing + emojisHeight;
+  const totalHeight = translateButtonHeight + spacing + emojisHeight + spacing + actionsHeight;
 
   // Center horizontally relative to message
   const left = Math.max(
@@ -147,6 +152,31 @@ export const QuickActionsPopover: React.FC<QuickActionsPopoverProps> = ({
              ))}
            </View>
 
+           {/* Copy and Delete Actions */}
+           <View style={styles.actionsRow}>
+             <Pressable
+               style={[styles.actionButton, { backgroundColor: '#F8F9FA' }]}
+               onPress={() => {
+                 onCopy();
+                 onClose();
+               }}
+             >
+               <Ionicons name="copy-outline" size={18} color="#000000" />
+               <Text style={styles.actionText}>Copy</Text>
+             </Pressable>
+             
+             <Pressable
+               style={[styles.actionButton, { backgroundColor: '#F8F9FA' }]}
+               onPress={() => {
+                 onDeleteForEveryone();
+                 onClose();
+               }}
+             >
+               <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+               <Text style={[styles.actionText, { color: '#FF3B30' }]}>Delete</Text>
+             </Pressable>
+           </View>
+
            {/* Arrow pointing to message */}
            <View
              style={[
@@ -214,6 +244,26 @@ const styles = StyleSheet.create({
      transform: [{ rotate: '45deg' }],
      left: '50%',
      marginLeft: -6,
+   },
+   actionsRow: {
+     flexDirection: 'row',
+     width: '100%',
+     gap: 8,
+     marginTop: 8,
+   },
+   actionButton: {
+     flex: 1,
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'center',
+     height: 44,
+     borderRadius: 12,
+     gap: 6,
+   },
+   actionText: {
+     fontSize: 14,
+     fontWeight: '600',
+     color: '#000000',
    },
 });
 

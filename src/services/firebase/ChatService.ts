@@ -10,18 +10,18 @@
 
 import { Chat } from '@/shared/types';
 import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  Unsubscribe,
-  updateDoc,
-  where,
-  writeBatch
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    Unsubscribe,
+    updateDoc,
+    where,
+    writeBatch
 } from 'firebase/firestore';
 import { firestore } from './FirebaseConfig';
 
@@ -85,6 +85,7 @@ export class ChatService {
         groupDescription: null,
         groupAdminId: null,
         inviteCode: null,
+        detectedLanguages: [], // Initialize with empty array
       });
 
       // Create participant documents
@@ -164,6 +165,7 @@ export class ChatService {
         groupDescription: data.groupDescription,
         groupAdminId: data.groupAdminId,
         inviteCode: data.inviteCode,
+        detectedLanguages: data.detectedLanguages || [],
       };
     } catch (error) {
       console.error('Error getting chat:', error);
@@ -222,6 +224,7 @@ export class ChatService {
           groupDescription: data.groupDescription,
           groupAdminId: data.groupAdminId,
           inviteCode: data.inviteCode,
+          detectedLanguages: data.detectedLanguages || [],
         });
       }
 
@@ -321,6 +324,7 @@ export class ChatService {
               groupDescription: data.groupDescription,
               groupAdminId: data.groupAdminId,
               inviteCode: data.inviteCode,
+              detectedLanguages: data.detectedLanguages || [],
             };
             
             chats.push(chat);
@@ -423,6 +427,46 @@ export class ChatService {
     } catch (error) {
       console.error('Error marking chat as read:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Update detected languages in chat (max 5 languages)
+   * Only adds language if it's not already in the array
+   */
+  static async updateDetectedLanguages(
+    chatId: string,
+    newLanguage: string
+  ): Promise<void> {
+    try {
+      // Get current chat data
+      const chatRef = doc(firestore, 'chats', chatId);
+      const chatSnap = await getDoc(chatRef);
+      
+      if (!chatSnap.exists()) {
+        console.warn('⚠️ Chat not found:', chatId);
+        return;
+      }
+
+      const data = chatSnap.data();
+      const currentLanguages = data.detectedLanguages || [];
+
+      // Check if language already exists
+      if (currentLanguages.includes(newLanguage)) {
+        return; // Already exists, no update needed
+      }
+
+      // Add new language, keeping max 5
+      const updatedLanguages = [...currentLanguages, newLanguage].slice(0, 5);
+
+      await updateDoc(chatRef, {
+        detectedLanguages: updatedLanguages,
+      });
+
+      console.log('✅ Updated detected languages:', chatId, updatedLanguages);
+    } catch (error) {
+      console.error('❌ Error updating detected languages:', error);
+      // Don't throw - this is a non-critical update
     }
   }
 
