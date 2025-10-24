@@ -278,6 +278,8 @@ ${relationship === 'close friends' || relationship === 'family' ? '- Include inf
     "slang": "fire",
     "position": [15, 19],
     "standardMeaning": "Very cool",
+    "translatedWord": "огонь",
+    "fullExplanation": "This slang term means something is very cool, exciting, or impressive. It's commonly used to express admiration or approval.",
     "usage": "Praise",
     "confidence": 98
   }
@@ -320,7 +322,14 @@ IMPORTANT RULES:
 - It's BETTER to over-include than to miss any slang
 - Minimum confidence score: 60 (even low-confidence matches should be included)
 ${chatMood && (chatMood.includes('playful') || chatMood.includes('casual')) ? '- Extra casual/playful mood - include more' : ''}
-${relationship === 'colleagues' || relationship === 'professional' ? '- Focus on professional jargon too' : '- Include all casual language'}`;
+${relationship === 'colleagues' || relationship === 'professional' ? '- Focus on professional jargon too' : '- Include all casual language'}
+
+TRANSLATION REQUIREMENTS:
+- translatedWord: Provide a direct translation of the slang term in ${explanationLanguage}
+- fullExplanation: Provide a complete 1-2 sentence explanation in ${explanationLanguage} explaining what the slang means and how it's used
+- Example: If slang is "fire" and target language is Russian:
+  - translatedWord: "огонь" 
+  - fullExplanation: "Этот сленговый термин означает, что что-то очень крутое, захватывающее или впечатляющее. Обычно используется для выражения восхищения или одобрения."`;
 
       const { text: response } = await generateText({
         model: aiModel,

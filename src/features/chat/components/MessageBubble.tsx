@@ -37,6 +37,7 @@ interface MessageBubbleProps {
   onQuickReaction?: (message: Message, emoji: string) => void; // Handle quick emoji reactions
   onAITranslate?: (message: Message) => void; // AI translate command (single tap - one-time translation)
   onAISummarize?: (message: Message) => void; // AI summarize command (long press - chat summary)
+  onTranslate20?: () => void; // Translate last 20 messages (long press - batch translation)
   onCopyMessage?: (message: Message) => void; // Copy message text (single tap)
   onDeleteForEveryone?: (message: Message) => void; // Delete message for everyone (single tap)
 }
@@ -57,6 +58,7 @@ export const MessageBubble = memo(({
   onQuickReaction,
   onAITranslate,
   onAISummarize,
+  onTranslate20,
   onCopyMessage,
   onDeleteForEveryone,
 }: MessageBubbleProps) => {
@@ -144,18 +146,7 @@ export const MessageBubble = memo(({
   // Debug logging for cultural analysis
   React.useEffect(() => {
     if (translatedText && culturalAnalysis) {
-      console.log('🎨 Cultural analysis available:', {
-        messageId: message.id,
-        culturalPhrasesCount: culturalAnalysis.culturalPhrases?.length || 0,
-        slangExpressionsCount: culturalAnalysis.slangExpressions?.length || 0,
-        translatedTextLength: translatedText.length,
-      });
     } else if (translatedText && !culturalAnalysis) {
-      console.log('⚠️ Translation exists but NO cultural analysis:', {
-        messageId: message.id,
-        translationDataType: typeof translationData,
-        translationDataKeys: translationData && typeof translationData === 'object' ? Object.keys(translationData) : 'N/A',
-      });
     }
   }, [translatedText, culturalAnalysis, message.id, translationData]);
   
@@ -238,11 +229,6 @@ export const MessageBubble = memo(({
       return text;
     }
 
-    console.log('🎨 Rendering highlights with TEXT MATCHING:', {
-      textLength: text.length,
-      culturalPhrasesCount: culturalAnalysis.culturalPhrases.length,
-      slangExpressionsCount: culturalAnalysis.slangExpressions.length,
-    });
 
     // Combine all phrases with their types
     const allPhrases: {
@@ -284,11 +270,6 @@ export const MessageBubble = memo(({
           end: index + item.searchText.length,
           text: text.substring(index, index + item.searchText.length), // Preserve original casing
         });
-        console.log('✅ Found phrase:', {
-          searchText: item.searchText,
-          actualText: text.substring(index, index + item.searchText.length),
-          position: [index, index + item.searchText.length],
-        });
       } else {
         console.warn('⚠️ Phrase not found in text:', {
           searchText: item.searchText,
@@ -311,7 +292,6 @@ export const MessageBubble = memo(({
       }
     }
 
-    console.log('✅ Valid phrases to highlight:', validPhrases.length);
 
     if (validPhrases.length === 0) {
       return text;
@@ -815,6 +795,7 @@ export const MessageBubble = memo(({
         message={message}
         messagePosition={messagePosition}
         onSummarize={handleAISummarize}
+        onTranslate20={() => onTranslate20?.()}
       />
 
       {/* Cultural Popup (for translation highlights) */}

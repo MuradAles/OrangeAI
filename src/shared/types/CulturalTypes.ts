@@ -16,6 +16,8 @@ export interface SlangExpression {
   slang: string;
   position: [number, number];
   standardMeaning: string;
+  translatedWord?: string;
+  fullExplanation?: string;
   usage: string;
   confidence: number;
 }
