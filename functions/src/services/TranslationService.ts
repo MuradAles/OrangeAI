@@ -1,5 +1,11 @@
+import { generateText } from 'ai';
 import * as admin from "firebase-admin";
-import OpenAI from "openai";
+import * as logger from 'firebase-functions/logger';
+import { AI_CONFIG, aiModel } from '../config/ai-sdk.config';
+import { ChatContext } from '../shared/types/ChatContext';
+import { ChatContextService } from './ChatContextService';
+import { CulturalAnalysisResult } from './CulturalAnalysisService';
+// import { EmbeddingService } from './EmbeddingService'; // Will be removed
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -14,7 +20,16 @@ interface TranslationResult {
   detectedLanguage?: string;
   messageId?: string;
   chatId?: string;
+  formalityLevel?: 'casual' | 'formal' | 'professional' | 'friendly';
+  formalityIndicators?: string[];
+  culturalAnalysis?: CulturalAnalysisResult;
   error?: string;
+}
+
+interface FormalityDetection {
+  level: 'casual' | 'formal' | 'professional' | 'friendly';
+  confidence: number; // 0-100
+  indicators: string[]; // What made us detect this level
 }
 
 interface TranslationParams {
@@ -26,25 +41,11 @@ interface TranslationParams {
 }
 
 export class TranslationService {
-  private openai: OpenAI | null = null;
-
   /**
-   * Get or initialize OpenAI client (lazy initialization)
-   */
-  private getOpenAI(): OpenAI {
-    if (!this.openai) {
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-    }
-    return this.openai;
-  }
-  /**
-   * Translate a message with conversation context
+   * Translate a message with chat context (mood-aware)
    */
   async translateMessage(params: TranslationParams): Promise<TranslationResult> {
     try {
-      // Use the messageText passed from client instead of fetching from Firestore
       const messageText = params.messageText;
 
       if (!messageText || messageText.trim().length === 0) {
@@ -55,37 +56,76 @@ export class TranslationService {
         };
       }
 
-      // Note: Translations are now stored locally on client, not in Firestore
-      // So we always generate a new translation
+      logger.info("Starting mood-aware translation", {
+        messageId: params.messageId,
+        chatId: params.chatId,
+        targetLanguage: params.targetLanguage,
+        textLength: messageText.length
+      });
 
-      // Step 2: Load conversation context (last 10 messages)
-      const context = await this.loadContext(params.chatId, params.messageId);
+      // Step 1: Load chat context (replaces RAG embeddings)
+      const chatContext = await ChatContextService.loadContext(params.chatId);
 
-      // Step 3: Build prompt for OpenAI
-      const prompt = this.buildPrompt({
+      // Step 2: Load recent messages for immediate context
+      const recentMessages = await this.loadRecentMessages(params.chatId, params.messageId, 10);
+
+      // Step 3: Build mood-aware prompt
+      const prompt = this.buildMoodAwarePrompt({
         message: messageText,
-        context: context,
+        chatContext: chatContext,
+        recentMessages: recentMessages,
         targetLang: params.targetLanguage,
       });
 
-      // Step 4: Call OpenAI to translate
-      const translation = await this.callOpenAI(prompt);
+      // Step 4: Call AI SDK for translation
+      const translation = await this.translateWithAISDK(prompt);
 
-      // Step 5: Detect source language (for display purposes)
+      // Step 5: Detect source language
       const detectedLanguage = await this.detectLanguage(messageText);
 
-      // Step 6: Return result (translation is saved locally by client, not in Firestore)
+      // Step 6: Detect formality level (now informed by chat context)
+      const formalityDetection = await this.detectFormality(
+        messageText,
+        chatContext?.mood
+      );
+
+      // Step 7: Cultural analysis ON TRANSLATION ONLY
+      // Analyze the TRANSLATED text for cultural phrases and slang
+      // This allows users to tap on highlighted words in translations
+      const { CulturalAnalysisService } = await import('./CulturalAnalysisService.js');
+      const culturalAnalysis = await CulturalAnalysisService.analyzeCulturalContext(
+        translation, // Analyze TRANSLATED text (e.g., English translation)
+        params.targetLanguage, // Language code
+        params.messageId, // Message ID
+        chatContext?.mood, // Chat mood (optional)
+        chatContext?.relationship // Relationship (optional)
+      );
+
+      logger.info("Mood-aware translation with cultural analysis completed successfully", {
+        messageId: params.messageId,
+        detectedLanguage,
+        formalityLevel: formalityDetection.level,
+        formalityConfidence: formalityDetection.confidence,
+        chatMood: chatContext?.mood || 'none',
+        chatTopics: chatContext?.topics?.join(', ') || 'none',
+        culturalPhrasesFound: culturalAnalysis.culturalPhrases.length,
+        slangExpressionsFound: culturalAnalysis.slangExpressions.length,
+      });
+
       return {
         success: true,
         original: messageText,
         translated: translation,
         targetLanguage: params.targetLanguage,
         detectedLanguage: detectedLanguage,
+        formalityLevel: formalityDetection.level,
+        formalityIndicators: formalityDetection.indicators,
+        culturalAnalysis: culturalAnalysis, // Include cultural analysis for highlighting
         messageId: params.messageId,
         chatId: params.chatId,
       };
     } catch (error: any) {
-      console.error("Translation error:", error);
+      logger.error("Translation error:", error);
       return {
         success: false,
         original: "",
@@ -95,26 +135,35 @@ export class TranslationService {
   }
 
   /**
-   * Load last 10 messages for context
+   * Load recent messages for immediate context (replaces RAG)
    */
-  private async loadContext(chatId: string, currentMessageId: string): Promise<string> {
+  private async loadRecentMessages(
+    chatId: string,
+    currentMessageId: string,
+    limit: number = 10
+  ): Promise<string> {
     try {
+      logger.info("Loading recent messages for context", {
+        chatId,
+        currentMessageId,
+        limit
+      });
+
       const snapshot = await admin.firestore()
         .collection("chats")
         .doc(chatId)
         .collection("messages")
         .orderBy("timestamp", "desc")
-        .limit(15) // Get 15 to ensure we have 10 before current
+        .limit(limit + 1) // +1 to exclude current message
         .get();
 
       if (snapshot.empty) {
         return "";
       }
 
-      // Filter out current message and reverse to chronological order
       const messages = snapshot.docs
         .filter((doc) => doc.id !== currentMessageId)
-        .slice(0, 10) // Take only 10
+        .slice(0, limit)
         .reverse() // Oldest to newest
         .map((doc) => {
           const data = doc.data();
@@ -122,19 +171,28 @@ export class TranslationService {
           return `- ${senderName}: ${data.text}`;
         });
 
+      logger.info("Recent messages loaded", {
+        chatId,
+        messageCount: messages.length
+      });
+
       return messages.join("\n");
     } catch (error) {
-      console.error("Context loading error:", error);
-      return ""; // Return empty context if fails
+      logger.error("Failed to load recent messages", {
+        chatId,
+        error: error
+      });
+      return "";
     }
   }
 
   /**
-   * Build translation prompt with context
+   * Build mood-aware translation prompt (NEW)
    */
-  private buildPrompt(data: {
+  private buildMoodAwarePrompt(data: {
     message: string;
-    context: string;
+    chatContext: ChatContext | null;
+    recentMessages: string;
     targetLang: string;
   }): string {
     const languageNames: Record<string, string> = {
@@ -168,86 +226,138 @@ export class TranslationService {
 
     const targetLanguage = languageNames[data.targetLang] || data.targetLang;
 
-    let prompt = "You are a professional translator specializing in casual conversations.\n\n";
+    let prompt = "You are a professional translator specializing in natural, context-aware translations.\n\n";
 
-    if (data.context) {
-      prompt += `RECENT CONVERSATION CONTEXT:\n${data.context}\n\n`;
+    // Add chat context if available
+    if (data.chatContext) {
+      prompt += `CHAT CONTEXT:\n`;
+      prompt += `- Conversation mood: ${data.chatContext.mood}\n`;
+      prompt += `- Relationship: ${data.chatContext.relationship}\n`;
+      prompt += `- Formality: ${data.chatContext.formality}\n`;
+      prompt += `- Main topics: ${data.chatContext.topics.join(", ")}\n`;
+      prompt += `- Summary: ${data.chatContext.summary}\n\n`;
+    }
+
+    // Add recent messages
+    if (data.recentMessages) {
+      prompt += `RECENT CONVERSATION:\n${data.recentMessages}\n\n`;
     }
 
     prompt += `CURRENT MESSAGE TO TRANSLATE:\n"${data.message}"\n\n`;
     prompt += `TASK:\n`;
-    prompt += `Translate this message to ${targetLanguage} naturally.\n`;
-    prompt += `- Consider the conversation context above\n`;
-    prompt += `- Maintain casual, friendly tone\n`;
-    prompt += `- Handle slang and idioms appropriately\n`;
-    prompt += `- Keep emojis unchanged\n`;
-    prompt += `- Preserve formatting\n\n`;
+    prompt += `Translate this message to ${targetLanguage} naturally, preserving slang and cultural expressions.\n\n`;
+    
+    if (data.chatContext) {
+      prompt += `CONTEXT-AWARE TRANSLATION:\n`;
+      prompt += `- Match the conversation mood: ${data.chatContext.mood}\n`;
+      prompt += `- Match the formality level: ${data.chatContext.formality}\n`;
+      prompt += `- Consider the relationship: ${data.chatContext.relationship}\n`;
+      prompt += `- Keep the same vibe as the conversation summary above\n\n`;
+    }
+    
+    prompt += `IMPORTANT RULES:\n`;
+    prompt += `1. Preserve slang terms and cultural phrases in translation (e.g., "Bro" → "Bro", not "Brother")\n`;
+    prompt += `2. Keep idiomatic expressions natural (e.g., "red as a tomato" → keep the imagery)\n`;
+    prompt += `3. Maintain the same level of informality/slang as the original\n`;
+    prompt += `4. Keep emojis unchanged\n`;
+    prompt += `5. Preserve formatting\n`;
+    prompt += `6. If it's casual/slang in the original, keep it casual/slang in translation\n\n`;
     prompt += `Respond with ONLY the translation, no explanations or additional text.`;
 
     return prompt.trim();
   }
 
   /**
-   * Call OpenAI API for translation
+   * Call AI SDK for translation (replaces callOpenAI)
    */
-  private async callOpenAI(prompt: string): Promise<string> {
+  private async translateWithAISDK(prompt: string): Promise<string> {
     try {
-      const response = await this.getOpenAI().chat.completions.create({
-        model: "gpt-3.5-turbo", // Using 3.5-turbo for cost efficiency
-        messages: [
-          {
-            role: "system",
-            content: "You are a context-aware translator. Respond only with the translation, nothing else.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.3, // Low temperature for consistent translations
-        max_tokens: 500,
+      const { text } = await generateText({
+        model: aiModel,
+        prompt: prompt,
+        temperature: AI_CONFIG.temperature,
       });
 
-      const translation = response.choices[0].message.content?.trim();
-
-      if (!translation) {
-        throw new Error("Empty translation received from OpenAI");
+      if (!text || text.trim().length === 0) {
+        throw new Error("Empty translation received from AI SDK");
       }
 
-      return translation;
+      return text.trim();
     } catch (error: any) {
-      console.error("OpenAI API error:", error);
+      logger.error("AI SDK translation error:", error);
       throw new Error(`Translation API failed: ${error.message}`);
     }
   }
 
   /**
-   * Detect the source language of a message
+   * Detect the source language of a message using AI SDK
    */
-  private async detectLanguage(text: string): Promise<string> {
+  async detectLanguage(text: string): Promise<string> {
     try {
-      const response = await this.getOpenAI().chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "Detect the language of the following text. Respond with ONLY the two-letter ISO 639-1 language code (e.g., 'en', 'es', 'fr'). Nothing else.",
-          },
-          {
-            role: "user",
-            content: text,
-          },
-        ],
+      const { text: languageCode } = await generateText({
+        model: aiModel,
+        prompt: `Detect the language of the following text. Respond with ONLY the two-letter ISO 639-1 language code (e.g., 'en', 'es', 'fr'). Nothing else.\n\nText: ${text}`,
         temperature: 0,
-        max_tokens: 10,
       });
 
-      const languageCode = response.choices[0].message.content?.trim().toLowerCase();
-      return languageCode || "unknown";
+      return languageCode?.trim().toLowerCase() || "unknown";
     } catch (error) {
-      console.error("Language detection error:", error);
+      logger.error("Language detection error:", error);
       return "unknown";
     }
   }
+
+  /**
+   * Detect the formality level of a message using AI SDK (now mood-aware)
+   */
+  private async detectFormality(
+    text: string,
+    chatMood?: string
+  ): Promise<FormalityDetection> {
+    try {
+      let prompt = `Analyze the formality level of this message. `;
+      
+      if (chatMood) {
+        prompt += `The overall conversation mood is: "${chatMood}". `;
+      }
+      
+      prompt += `Respond with ONLY a JSON object in this exact format:
+{
+  "level": "casual|formal|professional|friendly",
+  "confidence": 85,
+  "indicators": ["informal greeting", "slang", "contractions"]
 }
 
+Message: "${text}"
+
+Examples:
+- "Hey dude!" → {"level": "casual", "confidence": 95, "indicators": ["informal greeting", "slang"]}
+- "Good morning, sir." → {"level": "formal", "confidence": 92, "indicators": ["formal greeting", "title"]}
+- "Let's schedule a meeting" → {"level": "professional", "confidence": 88, "indicators": ["business language"]}
+- "How are you doing, friend?" → {"level": "friendly", "confidence": 90, "indicators": ["warm tone", "friend"]}`;
+
+      const { text: response } = await generateText({
+        model: aiModel,
+        prompt: prompt,
+        temperature: 0.1, // Low temperature for consistent classification
+      });
+
+      // Parse JSON response
+      const parsed = JSON.parse(response.trim());
+      
+      return {
+        level: parsed.level,
+        confidence: parsed.confidence || 0,
+        indicators: parsed.indicators || []
+      };
+    } catch (error) {
+      logger.error("Formality detection error:", error);
+      // Return default friendly formality on error
+      return {
+        level: "friendly",
+        confidence: 50,
+        indicators: ["error fallback"]
+      };
+    }
+  }
+}

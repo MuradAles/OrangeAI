@@ -26,7 +26,7 @@ interface AICommandsMenuProps {
 }
 
 const AI_COMMANDS = [
-  { id: 'translate', label: 'Translate', icon: 'language' as const, color: '#0084FF' },
+  // { id: 'translate', label: 'Translate', icon: 'language' as const, color: '#0084FF' }, // Removed - use chat summary instead
   { id: 'summarize', label: 'Summarize', icon: 'document-text' as const, color: '#34C759' },
   { id: 'explain', label: 'Explain', icon: 'bulb' as const, color: '#FF9500' },
   { id: 'rewrite', label: 'Rewrite', icon: 'create' as const, color: '#AF52DE' },
@@ -81,7 +81,7 @@ export const AICommandsMenu: React.FC<AICommandsMenuProps> = ({
 
   // Calculate position (above the message, centered)
   const menuWidth = 200;
-  const menuHeight = 200; // 4 commands × 50px each
+  const menuHeight = 150; // 3 commands × 50px each
 
   // Center horizontally relative to message
   const left = Math.max(

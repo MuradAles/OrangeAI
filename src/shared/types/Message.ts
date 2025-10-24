@@ -66,12 +66,40 @@ export interface MessageReactions {
 }
 
 /**
- * Message translations map
- * Key: language code (ISO 639-1), Value: translated text
- * Example: { "es": "¡Hola!", "fr": "Bonjour!", "de": "Hallo!" }
+ * Message translations map with cultural analysis
+ * Key: language code (ISO 639-1), Value: translation with cultural data
+ * Example: { 
+ *   "es": { text: "¡Hola!", culturalAnalysis: {...} },
+ *   "fr": { text: "Bonjour!", culturalAnalysis: {...} }
+ * }
  */
 export interface MessageTranslations {
-  [languageCode: string]: string;
+  [languageCode: string]: MessageTranslation | string; // string for backward compatibility
+}
+
+/**
+ * Single translation with optional cultural analysis
+ */
+export interface MessageTranslation {
+  text: string;
+  culturalAnalysis?: {
+    culturalPhrases: Array<{
+      phrase: string;
+      position: [number, number];
+      meaning: string;
+      culturalContext: string;
+      examples: string[];
+      confidence: number;
+    }>;
+    slangExpressions: Array<{
+      slang: string;
+      position: [number, number];
+      meaning: string;
+      formalEquivalent: string;
+      usage: string;
+      confidence: number;
+    }>;
+  };
 }
 
 /**

@@ -206,7 +206,12 @@ export default function HomeScreen() {
   // Filter out chats with no messages (only show chats that have at least one message)
   // Check lastMessageTime instead of lastMessageText to include image-only messages
   const chatsWithMessages = chats.filter(chat => {
-    // Must have a valid timestamp (not 0, not null)
+    // For group chats, always show them (even if empty) so users can find newly created groups
+    if (chat.type === 'group') {
+      return true;
+    }
+    
+    // For one-on-one chats, must have a valid timestamp (not 0, not null)
     const hasValidTime = chat.lastMessageTime && chat.lastMessageTime !== 0;
     
     // Must have either text or be a group chat (groups can have image-only messages)

@@ -10,9 +10,10 @@
  * - Deleted message handling
  */
 
-import { Avatar } from '@/components/common';
+import { Avatar, CulturalHighlight, CulturalPopup } from '@/components/common';
 import { useTheme } from '@/shared/hooks/useTheme';
-import { Message } from '@/shared/types';
+import { Message, MessageTranslation } from '@/shared/types';
+import { CulturalPhrase, SlangExpression } from '@/shared/types/CulturalTypes';
 import { Ionicons } from '@expo/vector-icons';
 import { format, isToday, isYesterday } from 'date-fns';
 import React, { memo, useRef, useState } from 'react';
@@ -29,6 +30,8 @@ interface MessageBubbleProps {
   showTimestamp: boolean; // Show timestamp (last message in group or after 5 mins)
   isGroupChat?: boolean; // Is this a group chat? (show sender name on all received messages)
   preferredLanguage?: string; // User's preferred language for translations
+  chatMood?: string; // Chat mood for context-aware cultural analysis
+  relationship?: string; // Relationship type for context-aware cultural analysis
   onLongPress?: (message: Message) => void;
   onPress?: (message: Message) => void;
   onQuickReaction?: (message: Message, emoji: string) => void; // Handle quick emoji reactions
@@ -47,6 +50,8 @@ export const MessageBubble = memo(({
   showTimestamp,
   isGroupChat = false,
   preferredLanguage = 'en', // Default to English
+  chatMood,
+  relationship,
   onLongPress,
   onPress,
   onQuickReaction,
@@ -70,6 +75,11 @@ export const MessageBubble = memo(({
   const [showAICommands, setShowAICommands] = useState(false);
   const [messagePosition, setMessagePosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const bubbleRef = useRef<View>(null);
+
+  // Cultural popup state (for translation highlights)
+  const [selectedCulturalPhrase, setSelectedCulturalPhrase] = useState<CulturalPhrase | SlangExpression | null>(null);
+  const [selectedPhraseType, setSelectedPhraseType] = useState<'cultural' | 'slang' | null>(null);
+  const [showCulturalPopup, setShowCulturalPopup] = useState(false);
 
   // Format timestamp
   const formatTimestamp = (timestamp: Date | number): string => {
@@ -123,7 +133,31 @@ export const MessageBubble = memo(({
 
   // Check if translation exists for user's preferred language
   const hasTranslation = message.translations && message.translations[preferredLanguage];
-  const translatedText = hasTranslation ? message.translations![preferredLanguage] : null;
+  const translationData: MessageTranslation | string | null = hasTranslation ? message.translations![preferredLanguage] : null;
+  const translatedText = translationData 
+    ? (typeof translationData === 'string' ? translationData : translationData.text)
+    : null;
+  const culturalAnalysis = translationData && typeof translationData !== 'string' 
+    ? translationData.culturalAnalysis 
+    : undefined;
+  
+  // Debug logging for cultural analysis
+  React.useEffect(() => {
+    if (translatedText && culturalAnalysis) {
+      console.log('🎨 Cultural analysis available:', {
+        messageId: message.id,
+        culturalPhrasesCount: culturalAnalysis.culturalPhrases?.length || 0,
+        slangExpressionsCount: culturalAnalysis.slangExpressions?.length || 0,
+        translatedTextLength: translatedText.length,
+      });
+    } else if (translatedText && !culturalAnalysis) {
+      console.log('⚠️ Translation exists but NO cultural analysis:', {
+        messageId: message.id,
+        translationDataType: typeof translationData,
+        translationDataKeys: translationData && typeof translationData === 'object' ? Object.keys(translationData) : 'N/A',
+      });
+    }
+  }, [translatedText, culturalAnalysis, message.id, translationData]);
   
   // Auto-show translation when it first becomes available (for ALL messages)
   React.useEffect(() => {
@@ -187,6 +221,139 @@ export const MessageBubble = memo(({
   const handleReaction = (emoji: string) => {
     // Quick reaction - trigger parent handler
     onQuickReaction?.(message, emoji);
+  };
+
+  // Handle cultural phrase tap
+  const handleCulturalPhraseTap = (phrase: CulturalPhrase | SlangExpression, type: 'cultural' | 'slang') => {
+    setSelectedCulturalPhrase(phrase);
+    setSelectedPhraseType(type);
+    setShowCulturalPopup(true);
+  };
+
+  // Render translation text with cultural highlights - TEXT MATCHING APPROACH
+  const renderTranslationWithHighlights = (text: string) => {
+    if (!culturalAnalysis || (!culturalAnalysis.culturalPhrases.length && !culturalAnalysis.slangExpressions.length)) {
+      return text;
+    }
+
+    console.log('🎨 Rendering highlights with TEXT MATCHING:', {
+      textLength: text.length,
+      culturalPhrasesCount: culturalAnalysis.culturalPhrases.length,
+      slangExpressionsCount: culturalAnalysis.slangExpressions.length,
+    });
+
+    // Combine all phrases with their types
+    const allPhrases: {
+      phrase: any;
+      type: 'cultural' | 'slang';
+      searchText: string;
+    }[] = [
+      ...culturalAnalysis.culturalPhrases.map(p => ({ 
+        phrase: p, 
+        type: 'cultural' as const, 
+        searchText: p.phrase.toLowerCase(),
+      })),
+      ...culturalAnalysis.slangExpressions.map(s => ({ 
+        phrase: s, 
+        type: 'slang' as const, 
+        searchText: s.slang.toLowerCase(),
+      })),
+    ];
+
+    // Find actual positions by searching for the text
+    const foundPhrases: {
+      phrase: any;
+      type: 'cultural' | 'slang';
+      start: number;
+      end: number;
+      text: string;
+    }[] = [];
+
+    const lowerText = text.toLowerCase();
+    
+    allPhrases.forEach(item => {
+      // Try to find this phrase in the text (case-insensitive)
+      const index = lowerText.indexOf(item.searchText);
+      if (index !== -1) {
+        foundPhrases.push({
+          phrase: item.phrase,
+          type: item.type,
+          start: index,
+          end: index + item.searchText.length,
+          text: text.substring(index, index + item.searchText.length), // Preserve original casing
+        });
+        console.log('✅ Found phrase:', {
+          searchText: item.searchText,
+          actualText: text.substring(index, index + item.searchText.length),
+          position: [index, index + item.searchText.length],
+        });
+      } else {
+        console.warn('⚠️ Phrase not found in text:', {
+          searchText: item.searchText,
+          textSample: text.substring(0, 50),
+        });
+      }
+    });
+
+    // Sort by position
+    foundPhrases.sort((a, b) => a.start - b.start);
+
+    // Remove overlaps (keep first occurrence)
+    const validPhrases = [];
+    let lastEnd = 0;
+    
+    for (const phrase of foundPhrases) {
+      if (phrase.start >= lastEnd) {
+        validPhrases.push(phrase);
+        lastEnd = phrase.end;
+      }
+    }
+
+    console.log('✅ Valid phrases to highlight:', validPhrases.length);
+
+    if (validPhrases.length === 0) {
+      return text;
+    }
+
+    // Build text with highlights
+    const segments: React.ReactNode[] = [];
+    let lastIndex = 0;
+
+    validPhrases.forEach((item, idx) => {
+      // Add text before this phrase
+      if (item.start > lastIndex) {
+        segments.push(
+          <Text key={`text-${idx}`}>
+            {text.substring(lastIndex, item.start)}
+          </Text>
+        );
+      }
+
+      // Add highlighted phrase
+      segments.push(
+        <CulturalHighlight
+          key={`highlight-${idx}`}
+          phrase={item.phrase}
+          type={item.type}
+          onTap={(p) => handleCulturalPhraseTap(p, item.type)}
+        >
+          {item.text}
+        </CulturalHighlight>
+      );
+
+      lastIndex = item.end;
+    });
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      segments.push(
+        <Text key="text-end">
+          {text.substring(lastIndex)}
+        </Text>
+      );
+    }
+
+    return segments;
   };
 
   return (
@@ -353,7 +520,7 @@ export const MessageBubble = memo(({
                             fontWeight: '700', // Bold text
                           }
                         ]}>
-                          {translatedText}
+                          {renderTranslationWithHighlights(translatedText)}
                         </Text>
                       </View>
                     )}
@@ -430,12 +597,12 @@ export const MessageBubble = memo(({
                         fontWeight: '700', // Bold text
                       }
                     ]}>
-                      {translatedText}
+                      {renderTranslationWithHighlights(translatedText)}
                     </Text>
                   </View>
                 )}
                 
-                {/* Original Message */}
+                {/* Original Message - NO HIGHLIGHTS (highlights only in translations) */}
                 <Text style={[
                   theme.typography.body, 
                   { color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived }
@@ -588,6 +755,17 @@ export const MessageBubble = memo(({
         onExplain={handleAIExplain}
         onRewrite={handleAIRewrite}
       />
+
+      {/* Cultural Popup (for translation highlights) */}
+      {selectedCulturalPhrase && selectedPhraseType && (
+        <CulturalPopup
+          phrase={selectedCulturalPhrase}
+          type={selectedPhraseType}
+          visible={showCulturalPopup}
+          onClose={() => setShowCulturalPopup(false)}
+          position={{ x: 0, y: 0 }} // Centered popup
+        />
+      )}
     </View>
   );
 }, (prevProps, nextProps) => {
