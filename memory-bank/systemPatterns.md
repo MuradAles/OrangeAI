@@ -463,6 +463,77 @@ Slide out LEFT (off-screen)
 - Loading states for async operations
 - Empty states for no data
 
+## Per-Chat Context Architecture (NEW - Replaces Embeddings!)
+
+### Pattern: Intelligent Per-Chat Context Summaries
+
+**Architecture:**
+```
+Per-Chat Context (6KB) - Firestore
+    ↓
+Updated every 20/100 messages + mood shifts
+    ↓
+Tracks: topics, mood, relationship, formality
+    ↓
+Used by ALL AI features:
+- Mood-aware translation
+- Context-aware cultural detection
+- Smart replies
+- Formality adjustment
+```
+
+**Why This Approach:**
+- ✅ 1000x more storage efficient (6KB vs 6MB)
+- ✅ Full conversation context (not just last 15 messages)
+- ✅ Mood and relationship awareness
+- ✅ Smart, cost-effective updates
+- ✅ Enables natural, contextual AI responses
+
+**Update Triggers:**
+1. **Every 20 messages** → Incremental update (last 20 msgs, ~2s, ~$0.01)
+2. **Every 100 messages** → Full regeneration (all msgs, ~5s, ~$0.10)
+3. **Mood shifts** → Immediate update (last 5 msgs, ~1s, ~$0.001)
+
+**Context Data Model:**
+```typescript
+interface ChatContext {
+  topics: string[];              // Top conversation topics
+  mood: string;                  // Overall conversation mood
+  relationship: string;          // User relationship type
+  formality: string;             // Formality level
+  summary: string;               // Human-readable summary
+  messageCount: number;          // Total messages analyzed
+  lastUpdated: number;           // Timestamp
+  lastMoodShift: number;         // Last mood change
+  updateHistory: Array<...>;     // Audit trail
+}
+```
+
+**Mood-Aware Translation:**
+```typescript
+// OLD (Robotic)
+"No puedo ir" → "I can't go"
+
+// NEW (Mood-Aware)
+Playful mood + close friends → "Can't make it! 😅"
+Formal mood + colleagues → "I won't be able to attend"
+```
+
+**Implementation:**
+- `ChatContextService.ts` - Core context management (600+ lines)
+- `ChatContext.ts` - Type definitions
+- `updateChatContext` trigger - Automatic updates
+- `generateChatSummary` callable - User summaries
+
+**Storage Location:**
+```
+Firestore: chats/{chatId}/metadata/context
+Size: ~6KB per chat
+Cost: ~$3/month per 100 active chats
+```
+
+---
+
 ## AI Translation Architecture (Phase 6)
 
 ### Pattern: Serverless AI Processing with Cloud Functions

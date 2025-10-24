@@ -5,7 +5,7 @@
 
 import { Avatar } from '@/components/common';
 import { SQLiteService } from '@/database/SQLiteService';
-import { PresenceService, TypingUser } from '@/services/firebase';
+import { CulturalService, PresenceService, TypingUser } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
 import { useAuthStore, useChatStore, usePresenceStore } from '@/store';
@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import * as Clipboard from 'expo-clipboard';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Keyboard, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Keyboard, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { DateSeparator } from './DateSeparator';
 import { GroupSettingsModal } from './GroupSettingsModal';
 import { MessageBubble } from './MessageBubble';
@@ -68,6 +68,9 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showMessageOptions, setShowMessageOptions] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [showChatSummary, setShowChatSummary] = useState(false);
+  const [chatSummary, setChatSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const flashListRef = useRef<any>(null);
   const hasScrolledInitially = useRef(false);
   const isCleaningUp = useRef(false); // Prevent duplicate cleanup alerts
@@ -532,14 +535,40 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                   // Saved message not found or out of bounds, scroll to bottom
                   console.log('📍 Saved message not found, scrolling to bottom');
                   if (listItems.length > 0) {
-                    flashListRef.current?.scrollToEnd({ animated: false });
+                    // Add safety check for layout readiness
+                    try {
+                      flashListRef.current?.scrollToEnd({ animated: false });
+                    } catch (scrollError) {
+                      console.log('⚠️ Layout not ready for scrollToEnd, retrying...');
+                      // Retry after a short delay
+                      setTimeout(() => {
+                        try {
+                          flashListRef.current?.scrollToEnd({ animated: false });
+                        } catch (retryError) {
+                          console.error('❌ Failed to scroll to end after retry:', retryError);
+                        }
+                      }, 100);
+                    }
                   }
                 }
               } else {
                 // No saved position, scroll to bottom (new chat or first time)
                 console.log('📍 No saved position, scrolling to bottom');
                 if (listItems.length > 0) {
-                  flashListRef.current?.scrollToEnd({ animated: false });
+                  // Add safety check for layout readiness
+                  try {
+                    flashListRef.current?.scrollToEnd({ animated: false });
+                  } catch (scrollError) {
+                    console.log('⚠️ Layout not ready for scrollToEnd, retrying...');
+                    // Retry after a short delay
+                    setTimeout(() => {
+                      try {
+                        flashListRef.current?.scrollToEnd({ animated: false });
+                      } catch (retryError) {
+                        console.error('❌ Failed to scroll to end after retry:', retryError);
+                      }
+                    }, 100);
+                  }
                 }
               }
               
@@ -562,8 +591,62 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   // Handle jump to bottom
   const handleJumpToBottom = () => {
     if (flashListRef.current) {
-      flashListRef.current.scrollToEnd({ animated: true });
-      setShowJumpToBottom(false);
+      try {
+        flashListRef.current.scrollToEnd({ animated: true });
+        setShowJumpToBottom(false);
+      } catch (scrollError) {
+        console.log('⚠️ Layout not ready for jump to bottom, retrying...');
+        // Retry after a short delay
+        setTimeout(() => {
+          try {
+            flashListRef.current?.scrollToEnd({ animated: true });
+            setShowJumpToBottom(false);
+          } catch (retryError) {
+            console.error('❌ Failed to jump to bottom after retry:', retryError);
+          }
+        }, 100);
+      }
+    }
+  };
+
+  // Handle generate chat summary
+  const handleGenerateSummary = async () => {
+    if (!chatId) return;
+
+    // Check if there are any messages
+    if (messages.length === 0) {
+      Alert.alert(
+        'No Messages',
+        'Start chatting to generate a summary!'
+      );
+      return;
+    }
+
+    console.log('📊 Generating chat summary...', { chatId, messageCount: messages.length });
+    setIsGeneratingSummary(true);
+    try {
+      const summary = await CulturalService.generateChatSummary(chatId);
+      console.log('✅ Summary generated:', {
+        length: summary?.length,
+        preview: summary ? summary.substring(0, 100) + '...' : 'EMPTY',
+        type: typeof summary
+      });
+      
+      if (!summary || summary.trim().length === 0) {
+        console.log('❌ Summary is empty or null');
+        Alert.alert('Error', 'Summary generation returned empty result. Please try again.');
+        return;
+      }
+      
+      console.log('📊 Setting summary to state and opening modal');
+      setChatSummary(summary);
+      setShowChatSummary(true);
+      console.log('📊 Modal should be visible now');
+    } catch (error) {
+      console.error('❌ Failed to generate chat summary:', error);
+      Alert.alert('Error', 'Failed to generate chat summary. Please try again.');
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
@@ -578,8 +661,21 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Immediately scroll to bottom after sending (newest message)
       requestAnimationFrame(() => {
         if (flashListRef.current) {
-          flashListRef.current.scrollToEnd({ animated: true });
-          setShowJumpToBottom(false);
+          try {
+            flashListRef.current.scrollToEnd({ animated: true });
+            setShowJumpToBottom(false);
+          } catch (scrollError) {
+            console.log('⚠️ Layout not ready for scroll after send, retrying...');
+            // Retry after a short delay
+            setTimeout(() => {
+              try {
+                flashListRef.current?.scrollToEnd({ animated: true });
+                setShowJumpToBottom(false);
+              } catch (retryError) {
+                console.error('❌ Failed to scroll after send retry:', retryError);
+              }
+            }, 100);
+          }
         }
       });
     } catch (error) {
@@ -601,8 +697,21 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Immediately scroll to bottom after sending (newest message)
       requestAnimationFrame(() => {
         if (flashListRef.current) {
-          flashListRef.current.scrollToEnd({ animated: true });
-          setShowJumpToBottom(false);
+          try {
+            flashListRef.current.scrollToEnd({ animated: true });
+            setShowJumpToBottom(false);
+          } catch (scrollError) {
+            console.log('⚠️ Layout not ready for scroll after image send, retrying...');
+            // Retry after a short delay
+            setTimeout(() => {
+              try {
+                flashListRef.current?.scrollToEnd({ animated: true });
+                setShowJumpToBottom(false);
+              } catch (retryError) {
+                console.error('❌ Failed to scroll after image send retry:', retryError);
+              }
+            }, 100);
+          }
         }
       });
     } catch (error) {
@@ -830,16 +939,38 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         messageText: textToTranslate, // Pass the actual text to translate
       });
 
-      console.log('✅ Translation result:', result.data);
+      console.log('✅ Translation result:', JSON.stringify(result.data, null, 2));
+      console.log('🔍 Cultural analysis in result:', {
+        hasCulturalAnalysis: !!result.data.culturalAnalysis,
+        culturalPhrasesCount: result.data.culturalAnalysis?.culturalPhrases?.length || 0,
+        slangExpressionsCount: result.data.culturalAnalysis?.slangExpressions?.length || 0,
+        fullCulturalAnalysis: result.data.culturalAnalysis,
+      });
 
       if (result.data.success) {
-        // Save translation locally to SQLite
+        // Prepare translation object with cultural analysis
+        const translationData = {
+          text: result.data.translated,
+          culturalAnalysis: result.data.culturalAnalysis ? {
+            culturalPhrases: result.data.culturalAnalysis.culturalPhrases || [],
+            slangExpressions: result.data.culturalAnalysis.slangExpressions || [],
+          } : undefined,
+        };
+        
+        console.log('📦 Translation data to save:', {
+          text: translationData.text.substring(0, 50),
+          hasCulturalAnalysis: !!translationData.culturalAnalysis,
+          culturalPhrasesCount: translationData.culturalAnalysis?.culturalPhrases?.length || 0,
+          slangExpressionsCount: translationData.culturalAnalysis?.slangExpressions?.length || 0,
+        });
+
+        // Save translation locally to SQLite (with full cultural analysis object)
         const { SQLiteService } = await import('@/database/SQLiteService');
         await SQLiteService.updateMessageTranslation(
           chatId!,
           message.id,
           targetLanguage,
-          result.data.translated,
+          translationData, // Save FULL object with cultural analysis
           result.data.detectedLanguage
         );
 
@@ -851,7 +982,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               ...msg,
               translations: {
                 ...msg.translations,
-                [targetLanguage]: result.data.translated,
+                [targetLanguage]: translationData, // Store full object with cultural analysis
               },
               detectedLanguage: result.data.detectedLanguage || msg.detectedLanguage,
             };
@@ -862,7 +993,10 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         // Update state
         useChatStore.setState({ messages: updatedMessages });
         
-        console.log('✅ Translation saved locally and UI updated');
+        console.log('✅ Translation saved locally with cultural analysis and UI updated', {
+          culturalPhrasesFound: translationData.culturalAnalysis?.culturalPhrases.length || 0,
+          slangExpressionsFound: translationData.culturalAnalysis?.slangExpressions.length || 0,
+        });
       } else {
         throw new Error(result.data.error || 'Translation failed');
       }
@@ -1065,6 +1199,23 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
 
               {/* Action Buttons */}
               <View style={styles.headerActions}>
+                {/* Summarize Chat button */}
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={handleGenerateSummary}
+                  disabled={isGeneratingSummary || messages.length === 0}
+                >
+                  {isGeneratingSummary ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <Ionicons 
+                      name="sparkles-outline" 
+                      size={22} 
+                      color={messages.length === 0 ? theme.colors.textSecondary : theme.colors.primary} 
+                    />
+                  )}
+                </Pressable>
+                
                 {/* Three-dot menu for both group and one-on-one chats */}
                 <Pressable 
                   style={styles.actionButton}
@@ -1222,6 +1373,57 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           </Pressable>
         </Modal>
       )}
+
+      {/* Chat Summary Modal - REBUILT FROM SCRATCH */}
+      {showChatSummary && (
+        <Modal
+          visible={showChatSummary}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowChatSummary(false)}
+        >
+          <View style={styles.summaryOverlay}>
+            <View style={[styles.summaryCard, { backgroundColor: theme.colors.background }]}>
+              {/* Header */}
+              <View style={[styles.summaryCardHeader, { backgroundColor: theme.colors.primary }]}>
+                <Text style={styles.summaryCardTitle}>✨ Chat Summary</Text>
+                <Pressable 
+                  onPress={() => setShowChatSummary(false)}
+                  hitSlop={8}
+                >
+                  <Text style={styles.summaryCardClose}>✕</Text>
+                </Pressable>
+              </View>
+
+              {/* Content */}
+              <View style={styles.summaryCardBody}>
+                {isGeneratingSummary ? (
+                  <View style={styles.summaryCardLoading}>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Text style={[styles.summaryCardLoadingText, { color: theme.colors.textSecondary }]}>
+                      Generating summary...
+                    </Text>
+                  </View>
+                ) : chatSummary ? (
+                  <ScrollView 
+                    style={styles.summaryCardScroll}
+                    contentContainerStyle={styles.summaryCardScrollContent}
+                    showsVerticalScrollIndicator={true}
+                  >
+                    <Text style={[styles.summaryCardText, { color: theme.colors.text }]}>
+                      {chatSummary}
+                    </Text>
+                  </ScrollView>
+                ) : (
+                  <Text style={[styles.summaryCardText, { color: theme.colors.textSecondary, fontStyle: 'italic' }]}>
+                    No summary available.
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 };
@@ -1328,6 +1530,69 @@ const styles = StyleSheet.create({
   menuOptionText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  // Chat Summary Modal - SIMPLE AND CLEAN
+  summaryOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  summaryCard: {
+    width: '98%',
+    height: 600, // 80% of screen height
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    overflow: 'hidden', // Ensure content doesn't overflow
+  },
+  summaryCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  summaryCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  summaryCardClose: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  summaryCardBody: {
+    flex: 1, // Takes all remaining space after header
+  },
+  summaryCardScroll: {
+    flex: 1,
+  },
+  summaryCardScrollContent: {
+    padding: 20,
+  },
+  summaryCardText: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  summaryCardLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  summaryCardLoadingText: {
+    marginTop: 16,
+    fontSize: 15,
+  },
+  closeButton: {
+    padding: 4,
   },
 });
 

@@ -27,15 +27,14 @@ export const migrations: Migration[] = [
   },
   {
     version: 2,
-    name: 'Add translations columns to messages',
+    name: 'Add translations columns to messages (already exists - skip)',
     up: [
-      'ALTER TABLE messages ADD COLUMN translations TEXT;',
-      'ALTER TABLE messages ADD COLUMN detectedLanguage TEXT;',
+      // Columns already exist in the schema, no migration needed
+      // This is a placeholder to increment the version number
+      'SELECT 1;', // No-op query
     ],
     down: [
-      // SQLite doesn't support DROP COLUMN easily, so we'd need to recreate the table
-      // For simplicity, we'll leave these columns if rolling back
-      'UPDATE messages SET translations = NULL, detectedLanguage = NULL;',
+      'SELECT 1;', // No-op
     ],
   },
 ];

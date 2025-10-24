@@ -8,6 +8,8 @@ export * from './Avatar';
 export * from './Badge';
 export * from './Button';
 export * from './Card';
+export * from './CulturalHighlight';
+export * from './CulturalPopup';
 export * from './IconButton';
 export * from './InAppNotification';
 export * from './Input';

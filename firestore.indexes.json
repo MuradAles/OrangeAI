@@ -1,19 +1,37 @@
 {
   "indexes": [
     {
-      "collectionGroup": "friendRequests",
+      "collectionGroup": "chats",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "toUserId",
-          "order": "ASCENDING"
+          "fieldPath": "participants",
+          "arrayConfig": "CONTAINS"
         },
+        {
+          "fieldPath": "lastMessageTime",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "friendRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
         {
           "fieldPath": "status",
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "toUserId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
           "order": "DESCENDING"
         }
       ]
@@ -33,19 +51,9 @@
         {
           "fieldPath": "createdAt",
           "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "chats",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "participants",
-          "arrayConfig": "CONTAINS"
         },
         {
-          "fieldPath": "lastMessageTime",
+          "fieldPath": "__name__",
           "order": "DESCENDING"
         }
       ]
@@ -53,4 +61,3 @@
   ],
   "fieldOverrides": []
 }
-

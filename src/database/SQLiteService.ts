@@ -324,12 +324,13 @@ class SQLiteServiceClass {
 
   /**
    * Update translation for a message (local only)
+   * Can accept either string (legacy) or object with cultural analysis (new)
    */
   async updateMessageTranslation(
     chatId: string,
     messageId: string,
     targetLanguage: string,
-    translation: string,
+    translation: string | any, // Accept both string and object
     detectedLanguage?: string
   ): Promise<void> {
     // Get existing translations
@@ -346,7 +347,7 @@ class SQLiteServiceClass {
     // Parse existing translations
     const existingTranslations = result.translations ? JSON.parse(result.translations) : {};
     
-    // Add new translation
+    // Add new translation (can be string or object with cultural analysis)
     existingTranslations[targetLanguage] = translation;
 
     // Update in database
@@ -360,7 +361,10 @@ class SQLiteServiceClass {
       ]
     );
 
-    console.log(`✅ Translation saved locally for message ${messageId}`);
+    console.log(`✅ Translation saved locally for message ${messageId}`, {
+      type: typeof translation,
+      hasCulturalAnalysis: typeof translation === 'object' && translation.culturalAnalysis,
+    });
   }
 
   /**

@@ -6,6 +6,7 @@
 
 export * from './AuthService';
 export * from './ChatService';
+export * from './CulturalService';
 export * from './FirebaseConfig';
 export * from './FriendRequestService';
 export * from './GroupService';

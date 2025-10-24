@@ -404,39 +404,4 @@ export class UserService {
   }
 }
 
-// Create test-compatible validation wrappers
-const originalValidateUsername = UserService.validateUsername.bind(UserService);
-const originalValidateDisplayName = UserService.validateDisplayName.bind(UserService);
-
-// Override to return boolean for tests
-(UserService as any).validateUsername = function(username: string): boolean {
-  if (!username) return false;
-  const trimmed = username.trim();
-  
-  // Check length
-  if (trimmed.length < 3 || trimmed.length > 20) return false;
-  
-  // Must be lowercase only
-  if (trimmed !== trimmed.toLowerCase()) return false;
-  
-  // Check format: lowercase alphanumeric and underscore only
-  const usernameRegex = /^[a-z0-9_]+$/;
-  if (!usernameRegex.test(trimmed)) return false;
-  
-  // Cannot start with a number
-  if (/^\d/.test(trimmed)) return false;
-  
-  return true;
-};
-
-(UserService as any).validateDisplayName = function(displayName: string): boolean {
-  if (!displayName) return false;
-  const trimmed = displayName.trim();
-  
-  // Display name: 2-50 chars
-  if (trimmed.length < 2 || trimmed.length > 50) return false;
-  
-  return true;
-};
-
 
