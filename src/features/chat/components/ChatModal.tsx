@@ -71,12 +71,20 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const [showChatSummary, setShowChatSummary] = useState(false);
   const [chatSummary, setChatSummary] = useState<string | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(false);
   const flashListRef = useRef<any>(null);
   const hasScrolledInitially = useRef(false);
   const isCleaningUp = useRef(false); // Prevent duplicate cleanup alerts
   const currentScrollPosition = useRef<{ offset: number; firstVisibleIndex: number }>({ offset: 0, firstVisibleIndex: 0 });
   const scrollPositionSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const keyboardHeight = useRef(new Animated.Value(0)).current;
+  
+  // Viewport-based translation tracking
+  const translatingMessages = useRef(new Set<string>()); // Messages currently being translated
+  const translatedMessagesCache = useRef(new Set<string>()); // Messages already translated
+  const translationQueue = useRef<string[]>([]); // Queue of messages to translate
+  const isProcessingQueue = useRef(false); // Flag to prevent multiple queue processors
+  const collectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // Timer for batching messages
 
   const { subscribeToUser } = usePresenceStore();
   const presenceMap = usePresenceStore(state => state.presenceMap);
@@ -172,6 +180,23 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         // 2. Subscribe to Firebase for real-time updates (background sync)
         subscribeToMessages(chatId, user.id);
         
+        // 2.5. Sync user's preferred language to chat's detectedLanguages (non-blocking)
+        // This ensures the chat knows what languages users prefer for translation
+        const preferredLanguage = user.preferredLanguage;
+        if (preferredLanguage) {
+          // Capture as const for TypeScript type narrowing in async function
+          const languageCode: string = preferredLanguage;
+          const syncLanguage = async () => {
+            try {
+              const { ChatService } = await import('@/services/firebase');
+              await ChatService.updateDetectedLanguages(chatId, languageCode);
+            } catch (error) {
+              console.error('Failed to sync preferred language to chat:', error);
+            }
+          };
+          syncLanguage(); // Fire and forget
+        }
+        
         // 3. Mark messages as read (PRD: If chat open → Mark as read)
         // Wait a bit to ensure messages are loaded first
         setTimeout(() => {
@@ -180,6 +205,33 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       };
       
       loadMessages();
+      
+      // Load auto-translate setting
+      const loadAutoTranslateSetting = async () => {
+        try {
+          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+          const saved = await AsyncStorage.getItem(`@auto_translate_${chatId}`);
+          if (saved !== null) {
+            setAutoTranslateEnabled(JSON.parse(saved));
+          }
+        } catch (error) {
+          console.error('Failed to load auto-translate setting:', error);
+        }
+      };
+      
+      loadAutoTranslateSetting();
+      
+      // Reset translation tracking when opening chat
+      translatingMessages.current.clear();
+      translatedMessagesCache.current.clear();
+      translationQueue.current = [];
+      isProcessingQueue.current = false;
+      
+      // Clear collection timer
+      if (collectionTimer.current) {
+        clearTimeout(collectionTimer.current);
+        collectionTimer.current = null;
+      }
     } else if (!visible) {
       // Clear active chat ID when modal closes
       setActiveChatId(null);
@@ -622,10 +674,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       return;
     }
 
-    console.log('📊 Generating chat summary...', { chatId, messageCount: messages.length });
+    console.log('📊 Generating chat summary...', { chatId, messageCount: messages.length, preferredLanguage: user?.preferredLanguage });
     setIsGeneratingSummary(true);
     try {
-      const summary = await CulturalService.generateChatSummary(chatId);
+      // Generate summary in user's preferred language
+      const summary = await CulturalService.generateChatSummary(chatId, user?.preferredLanguage || 'en');
       console.log('✅ Summary generated:', {
         length: summary?.length,
         preview: summary ? summary.substring(0, 100) + '...' : 'EMPTY',
@@ -795,6 +848,246 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     );
   };
 
+  // Handle toggle auto-translate
+  const handleToggleAutoTranslate = async () => {
+    if (!chatId) return;
+    
+    const newValue = !autoTranslateEnabled;
+    setAutoTranslateEnabled(newValue);
+    
+    // Save to AsyncStorage
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem(`@auto_translate_${chatId}`, JSON.stringify(newValue));
+      
+      Alert.alert(
+        'Auto-Translate ' + (newValue ? 'Enabled' : 'Disabled'),
+        newValue 
+          ? 'Incoming messages will be automatically translated to your preferred language.'
+          : 'Auto-translate has been disabled for this chat.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Failed to save auto-translate setting:', error);
+    }
+  };
+
+  // Viewport-based lazy translation - collect messages with 500ms window
+  const translateVisibleMessages = useCallback(async (messageIds: string[]) => {
+    if (!autoTranslateEnabled || !user?.preferredLanguage || !chatId) return;
+    
+    // Filter messages that need translation
+    const messagesToTranslate = messageIds.filter(msgId => {
+      // Skip if already translated or currently translating
+      if (translatedMessagesCache.current.has(msgId) || translatingMessages.current.has(msgId)) {
+        return false;
+      }
+      
+      // Skip if already in the queue
+      if (translationQueue.current.includes(msgId)) {
+        return false;
+      }
+      
+      // Check if it's a message from another user
+      const message = messages.find(m => m.id === msgId);
+      if (!message || message.senderId === user.id || message.type !== 'text' || !message.text) {
+        return false;
+      }
+      
+      // Skip if message already has a translation for this language
+      if (message.translations && user.preferredLanguage && message.translations[user.preferredLanguage]) {
+        console.log(`⏭️ Skipping ${msgId.slice(0, 8)} - already has translation`);
+        translatedMessagesCache.current.add(msgId); // Mark as translated
+        return false;
+      }
+      
+      return true;
+    });
+    
+    if (messagesToTranslate.length === 0) {
+      console.log(`📍 Viewport: Checked ${messageIds.length} messages, 0 need translation`);
+      return;
+    }
+    
+    console.log(`📍 Viewport: Found ${messagesToTranslate.length} messages to translate (out of ${messageIds.length} detected)`);
+    console.log(`   Messages: ${messagesToTranslate.map(id => id.slice(0, 8)).join(', ')}`);
+    
+    // Mark as translating immediately to prevent duplicates
+    messagesToTranslate.forEach(msgId => translatingMessages.current.add(msgId));
+    
+    // Add to queue
+    translationQueue.current.push(...messagesToTranslate);
+    
+    // Clear existing timer
+    if (collectionTimer.current) {
+      clearTimeout(collectionTimer.current);
+    }
+    
+    // Start 10ms collection window - process almost immediately
+    collectionTimer.current = setTimeout(() => {
+      if (translationQueue.current.length > 0 && !isProcessingQueue.current) {
+        console.log(`⏱️ Collection window ended, processing ${translationQueue.current.length} messages`);
+        processTranslationQueue();
+      }
+    }, 10);
+  }, [autoTranslateEnabled, user, chatId, messages]);
+
+  // Process translation queue - translate 3 messages at a time
+  const processTranslationQueue = useCallback(async () => {
+    if (isProcessingQueue.current || translationQueue.current.length === 0) return;
+    
+    isProcessingQueue.current = true;
+    
+    try {
+      // Check network connectivity
+      const NetInfo = (await import('@react-native-community/netinfo')).default;
+      const netState = await NetInfo.fetch();
+      
+      if (!netState.isConnected) {
+        console.log('⚠️ No internet - skipping translation');
+        isProcessingQueue.current = false;
+        return;
+      }
+      
+      // Import Firebase functions
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('@/services/firebase/FirebaseConfig');
+      const translateFn = httpsCallable(functions, 'translateMessage');
+      
+      // Process ALL messages in the queue - send individual calls in parallel
+      const allMessagesToTranslate = translationQueue.current.splice(0); // Take ALL messages
+      
+      // Get message data (messages are already marked as translating when added to queue)
+      const messagesToTranslate = allMessagesToTranslate
+        .map(msgId => messages.find(m => m.id === msgId))
+        .filter(msg => msg != null);
+      
+      if (messagesToTranslate.length === 0) {
+        isProcessingQueue.current = false;
+        return;
+      }
+      
+      console.log(`🚀 Sending ${messagesToTranslate.length} translation requests in parallel...`);
+      
+      // Send ALL individual translation calls simultaneously
+      // Each will complete independently and update the UI progressively
+      await Promise.allSettled(
+        messagesToTranslate.map(async (message) => {
+          try {
+            // Quick language check - if message is already in target language, skip
+            const messageText = message!.text!;
+            const firstWords = messageText.split(/\s+/).slice(0, 5).join(' '); // First 5 words
+            
+            // Import quick detection
+            const { httpsCallable: quickCallable } = await import('firebase/functions');
+            const { functions: quickFunctions } = await import('@/services/firebase/FirebaseConfig');
+            const quickDetectFn = quickCallable(quickFunctions, 'quickDetectLanguage');
+            
+            try {
+              const quickResult: any = await quickDetectFn({ text: firstWords });
+              const detectedLang = quickResult?.data?.language;
+              
+              if (detectedLang === user!.preferredLanguage) {
+                console.log(`⏭️ Skipping ${message!.id.slice(0, 8)} - already in ${user!.preferredLanguage} (detected: ${detectedLang})`);
+                translatedMessagesCache.current.add(message!.id);
+                translatingMessages.current.delete(message!.id);
+                return; // Skip this message
+              }
+            } catch (detectError) {
+              console.warn('Quick detection failed, proceeding with translation:', detectError);
+              // Continue with translation if detection fails
+            }
+            
+            const result: any = await translateFn({
+              messageId: message!.id,
+              chatId: chatId!,
+              targetLanguage: user!.preferredLanguage!,
+              messageText: message!.text,
+            });
+            
+            // Mark as translated
+            translatedMessagesCache.current.add(message!.id);
+            console.log(`✅ Translated: ${message!.id.slice(0, 8)}`);
+            
+            // Update local state immediately to show translation in UI
+            if (result?.data?.translated) {
+              // Build the translation object matching MessageTranslation type
+              const translationObject = {
+                text: result.data.translated,
+                culturalAnalysis: result.data.culturalAnalysis || undefined,
+                translatedAt: Date.now()
+              };
+              
+              // Save translation to SQLite for persistence
+              try {
+                const { SQLiteService } = await import('@/database/SQLiteService');
+                await SQLiteService.updateMessageTranslation(
+                  chatId!,
+                  message!.id,
+                  user!.preferredLanguage!,
+                  translationObject,
+                  result.data.detectedLanguage || 'unknown'
+                );
+                console.log(`💾 Saved translation to SQLite for ${message!.id.slice(0, 8)}`);
+              } catch (sqlError: any) {
+                console.error(`❌ Failed to save translation to SQLite:`, sqlError.message);
+              }
+              
+              // Get current messages array from store (flat array for current chat)
+              const state = useChatStore.getState();
+              const currentMessages = state.messages;
+              
+              if (Array.isArray(currentMessages)) {
+                // Find and update the specific message
+                const messageIndex = currentMessages.findIndex(m => m.id === message!.id);
+                
+                if (messageIndex !== -1) {
+                  const updatedMessage = {
+                    ...currentMessages[messageIndex],
+                    translations: {
+                      ...(currentMessages[messageIndex].translations || {}),
+                      [user!.preferredLanguage!]: translationObject
+                    }
+                  };
+                  
+                  // Create new messages array with updated message (immutable update)
+                  const newMessages = [
+                    ...currentMessages.slice(0, messageIndex),
+                    updatedMessage,
+                    ...currentMessages.slice(messageIndex + 1)
+                  ];
+                  
+                  // Update state - messages is a flat array, not keyed by chatId
+                  useChatStore.setState({
+                    messages: newMessages
+                  });
+                  
+                  console.log(`🎨 UI updated with translation for ${message!.id.slice(0, 8)}`);
+                  console.log(`📝 Translation text:`, result.data.translated.substring(0, 50) + '...');
+                } else {
+                  console.warn(`⚠️ Message ${message!.id.slice(0, 8)} not found in current messages array`);
+                }
+              }
+            } else {
+              console.warn(`⚠️ No translation in result for ${message!.id.slice(0, 8)}`);
+            }
+          } catch (error: any) {
+            console.error(`❌ Failed to translate ${message!.id.slice(0, 8)}:`, error.message);
+          } finally {
+            // Remove from translating set
+            translatingMessages.current.delete(message!.id);
+          }
+        })
+      );
+      
+      console.log(`✅ All ${messagesToTranslate.length} translation requests completed`);
+    } catch (error) {
+      console.error('Translation queue error:', error);
+    } finally {
+      isProcessingQueue.current = false;
+    }
+  }, [chatId, user, messages]);
+
   // Handle add emoji reaction
   const handleAddReaction = (message: Message) => {
     if (!user?.id || !chatId) return;
@@ -862,7 +1155,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   };
 
   const handleAISummarize = async (message: Message) => {
-    Alert.alert('AI Summarize', 'Summarize feature coming soon!');
+    // Generate chat summary when long-pressing message
+    await handleGenerateSummary();
   };
 
   const handleAIExplain = async (message: Message) => {
@@ -948,9 +1242,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       });
 
       if (result.data.success) {
-        // Prepare translation object with cultural analysis
+        // Prepare translation object with cultural analysis and formality
         const translationData = {
           text: result.data.translated,
+          formalityLevel: result.data.formalityLevel,
+          formalityIndicators: result.data.formalityIndicators,
           culturalAnalysis: result.data.culturalAnalysis ? {
             culturalPhrases: result.data.culturalAnalysis.culturalPhrases || [],
             slangExpressions: result.data.culturalAnalysis.slangExpressions || [],
@@ -959,6 +1255,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         
         console.log('📦 Translation data to save:', {
           text: translationData.text.substring(0, 50),
+          formalityLevel: translationData.formalityLevel,
           hasCulturalAnalysis: !!translationData.culturalAnalysis,
           culturalPhrasesCount: translationData.culturalAnalysis?.culturalPhrases?.length || 0,
           slangExpressionsCount: translationData.culturalAnalysis?.slangExpressions?.length || 0,
@@ -1106,11 +1403,11 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
         onQuickReaction={handleQuickReaction}
         onAITranslate={handleAITranslate}
         onAISummarize={handleAISummarize}
-        onAIExplain={handleAIExplain}
-        onAIRewrite={handleAIRewrite}
+        onCopyMessage={handleCopyMessage}
+        onDeleteForEveryone={handleDeleteForEveryone}
       />
     );
-  }, [user, isGroupChat, getUserProfile, handleMessagePress, handleLongPress, handleQuickReaction, handleAITranslate, handleAISummarize, handleAIExplain, handleAIRewrite]);
+  }, [user, isGroupChat, getUserProfile, handleMessagePress, handleLongPress, handleQuickReaction, handleAITranslate, handleAISummarize, handleCopyMessage, handleDeleteForEveryone]);
 
   // Get item type for FlashList optimization
   const getItemType = (item: ListItem) => {
@@ -1199,6 +1496,18 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
 
               {/* Action Buttons */}
               <View style={styles.headerActions}>
+                {/* Auto-Translate Toggle */}
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={handleToggleAutoTranslate}
+                >
+                  <Ionicons 
+                    name={autoTranslateEnabled ? "language" : "language-outline"} 
+                    size={22} 
+                    color={autoTranslateEnabled ? theme.colors.primary : theme.colors.text} 
+                  />
+                </Pressable>
+
                 {/* Summarize Chat button */}
                 <Pressable 
                   style={styles.actionButton}
@@ -1264,11 +1573,24 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                       currentScrollPosition.current.firstVisibleIndex = firstVisibleIndex;
                     }
                   }
+                  
+                  // Viewport-based auto-translation: translate visible messages (immediate)
+                  if (autoTranslateEnabled) {
+                    const visibleMessageIds = viewableItems
+                      .filter(item => item.item.type === 'message')
+                      .map(item => item.item.data.id);
+                    
+                    if (visibleMessageIds.length > 0) {
+                      // Translate immediately - no debounce delay
+                      translateVisibleMessages(visibleMessageIds);
+                    }
+                  }
                 }}
                 viewabilityConfig={{
-                  itemVisiblePercentThreshold: 50,
+                  itemVisiblePercentThreshold: 1,
+                  minimumViewTime: 0,
                 }}
-                scrollEventThrottle={400}
+                scrollEventThrottle={16}
               />
 
             {/* Jump to Bottom Button */}
@@ -1294,6 +1616,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               chatId={chatId || undefined}
               userId={user?.id}
               userName={user?.displayName}
+              preferredLanguage={user?.preferredLanguage || 'en'}
+              showTranslationPreview={autoTranslateEnabled}
             />
       </Animated.View>
 
@@ -1332,6 +1656,89 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           >
             <View style={[styles.menuContainer, { backgroundColor: theme.colors.background }]}>
               <Text style={[styles.menuTitle, { color: theme.colors.text }]}>Chat Options</Text>
+              
+              {/* Language Detection Info */}
+              {(() => {
+                // Get most recent message with detected language
+                const recentMessageWithLang = messages
+                  .slice()
+                  .reverse()
+                  .find(m => m.detectedLanguage);
+                
+                const langCode = recentMessageWithLang?.detectedLanguage;
+                const langName = langCode ? 
+                  ({
+                    'en': 'English',
+                    'es': 'Spanish',
+                    'fr': 'French',
+                    'de': 'German',
+                    'it': 'Italian',
+                    'pt': 'Portuguese',
+                    'ru': 'Russian',
+                    'ja': 'Japanese',
+                    'ko': 'Korean',
+                    'zh': 'Chinese',
+                    'ar': 'Arabic',
+                    'hi': 'Hindi',
+                    'tr': 'Turkish',
+                  }[langCode] || langCode.toUpperCase())
+                  : null;
+                
+                if (langName) {
+                  return (
+                    <View style={[styles.menuOption, { borderBottomColor: theme.colors.border }]}>
+                      <Ionicons name="language" size={22} color={theme.colors.primary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.menuOptionText, { color: theme.colors.text }]}>
+                          Detected Language
+                        </Text>
+                        <Text style={[styles.menuOptionSubtext, { color: theme.colors.textSecondary }]}>
+                          {langName} ({langCode?.toUpperCase()})
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
+              
+              {/* Auto-Translate Toggle */}
+              <Pressable
+                style={[styles.menuOption, { borderBottomColor: theme.colors.border }]}
+                onPress={async () => {
+                  const newValue = !autoTranslateEnabled;
+                  setAutoTranslateEnabled(newValue);
+                  
+                  // Save to AsyncStorage (temporary - will move to SQLite later)
+                  try {
+                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                    await AsyncStorage.setItem(`@auto_translate_${chatId}`, JSON.stringify(newValue));
+                    
+                    Alert.alert(
+                      'Auto-Translate ' + (newValue ? 'Enabled' : 'Disabled'),
+                      newValue 
+                        ? 'Incoming messages will be automatically translated to your preferred language.'
+                        : 'Auto-translation has been turned off for this chat.'
+                    );
+                  } catch (error) {
+                    console.error('Failed to save auto-translate setting:', error);
+                  }
+                }}
+              >
+                <Ionicons 
+                  name={autoTranslateEnabled ? "checkmark-circle" : "ellipse-outline"} 
+                  size={22} 
+                  color={autoTranslateEnabled ? theme.colors.success : theme.colors.textSecondary} 
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuOptionText, { color: theme.colors.text }]}>
+                    Auto-Translate
+                  </Text>
+                  <Text style={[styles.menuOptionSubtext, { color: theme.colors.textSecondary }]}>
+                    {autoTranslateEnabled ? 'Enabled' : 'Disabled'}
+                  </Text>
+                </View>
+              </Pressable>
               
               <Pressable
                 style={[styles.menuOption, { borderBottomColor: theme.colors.border }]}
@@ -1530,6 +1937,11 @@ const styles = StyleSheet.create({
   menuOptionText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  menuOptionSubtext: {
+    fontSize: 14,
+    fontWeight: '400',
+    marginTop: 2,
   },
   // Chat Summary Modal - SIMPLE AND CLEAN
   summaryOverlay: {

@@ -63,6 +63,9 @@ export class GroupService {
 
       // All participants = creator + members
       const allParticipants = [creatorId, ...memberIds.filter(id => id !== creatorId)];
+      
+      // Initialize with empty detectedLanguages array (will be populated as users send messages)
+      const detectedLanguages: string[] = [];
 
       const batch = writeBatch(firestore);
 
@@ -81,6 +84,7 @@ export class GroupService {
         groupIcon: groupIcon || null,
         groupAdminId: creatorId,
         inviteCode,
+        detectedLanguages, // Initialize with empty array
       };
       batch.set(chatRef, chatData);
 
@@ -130,6 +134,7 @@ export class GroupService {
         groupIcon: groupIcon || null,
         groupAdminId: creatorId,
         inviteCode,
+        detectedLanguages, // Include in return
       };
     } catch (error) {
       console.error('❌ Failed to create group:', error);
@@ -165,6 +170,7 @@ export class GroupService {
         groupIcon: data.groupIcon || null,
         groupAdminId: data.groupAdminId || null,
         inviteCode: data.inviteCode || null,
+        detectedLanguages: data.detectedLanguages || [],
       };
     } catch (error) {
       console.error('❌ Failed to get group:', error);

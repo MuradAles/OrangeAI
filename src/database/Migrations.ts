@@ -37,6 +37,22 @@ export const migrations: Migration[] = [
       'SELECT 1;', // No-op
     ],
   },
+  {
+    version: 3,
+    name: 'Add translation metadata columns to messages',
+    up: [
+      'ALTER TABLE messages ADD COLUMN originalText TEXT;',
+      'ALTER TABLE messages ADD COLUMN originalLanguage TEXT;',
+      'ALTER TABLE messages ADD COLUMN translatedTo TEXT;',
+      'ALTER TABLE messages ADD COLUMN sentAsTranslation INTEGER DEFAULT 0;',
+    ],
+    down: [
+      'ALTER TABLE messages DROP COLUMN originalText;',
+      'ALTER TABLE messages DROP COLUMN originalLanguage;',
+      'ALTER TABLE messages DROP COLUMN translatedTo;',
+      'ALTER TABLE messages DROP COLUMN sentAsTranslation;',
+    ],
+  },
 ];
 
 /**

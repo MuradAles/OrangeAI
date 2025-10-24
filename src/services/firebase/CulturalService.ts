@@ -44,15 +44,20 @@ export const analyzeCulturalContext = async (
 
 /**
  * Generate a chat summary using the ChatContextService
+ * @param chatId - The chat ID to summarize
+ * @param preferredLanguage - User's preferred language code (e.g., 'en', 'es', 'ru')
  */
-export const generateChatSummary = async (chatId: string): Promise<string> => {
+export const generateChatSummary = async (
+  chatId: string,
+  preferredLanguage?: string
+): Promise<string> => {
   try {
     const summaryFn = httpsCallable<
-      { chatId: string },
+      { chatId: string; preferredLanguage?: string },
       { summary: string }
     >(functions, 'generateChatSummary');
 
-    const result = await summaryFn({ chatId });
+    const result = await summaryFn({ chatId, preferredLanguage });
     return result.data.summary;
   } catch (error) {
     console.error('Failed to generate chat summary:', error);

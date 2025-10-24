@@ -19,17 +19,12 @@ interface AICommandsMenuProps {
   onClose: () => void;
   message: Message;
   messagePosition: { x: number; y: number; width: number; height: number };
-  onTranslate: () => void;
   onSummarize: () => void;
-  onExplain: () => void;
-  onRewrite: () => void;
 }
 
+// Long press menu shows: Summary only (Auto-Translate moved to navbar)
 const AI_COMMANDS = [
-  // { id: 'translate', label: 'Translate', icon: 'language' as const, color: '#0084FF' }, // Removed - use chat summary instead
-  { id: 'summarize', label: 'Summarize', icon: 'document-text' as const, color: '#34C759' },
-  { id: 'explain', label: 'Explain', icon: 'bulb' as const, color: '#FF9500' },
-  { id: 'rewrite', label: 'Rewrite', icon: 'create' as const, color: '#AF52DE' },
+  { id: 'summarize', label: 'Summary', icon: 'sparkles' as const, color: '#34C759' },
 ];
 
 export const AICommandsMenu: React.FC<AICommandsMenuProps> = ({
@@ -37,10 +32,7 @@ export const AICommandsMenu: React.FC<AICommandsMenuProps> = ({
   onClose,
   message,
   messagePosition,
-  onTranslate,
   onSummarize,
-  onExplain,
-  onRewrite,
 }) => {
   const theme = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -80,8 +72,8 @@ export const AICommandsMenu: React.FC<AICommandsMenuProps> = ({
   if (!visible) return null;
 
   // Calculate position (above the message, centered)
-  const menuWidth = 200;
-  const menuHeight = 150; // 3 commands × 50px each
+  const menuWidth = 150;
+  const menuHeight = 80; // 1 command
 
   // Center horizontally relative to message
   const left = Math.max(
@@ -100,21 +92,10 @@ export const AICommandsMenu: React.FC<AICommandsMenuProps> = ({
   const finalTop = showBelow ? messagePosition.y + messagePosition.height + 12 : top;
 
   const handleCommand = (commandId: string) => {
-    switch (commandId) {
-      case 'translate':
-        onTranslate();
-        break;
-      case 'summarize':
-        onSummarize();
-        break;
-      case 'explain':
-        onExplain();
-        break;
-      case 'rewrite':
-        onRewrite();
-        break;
+    if (commandId === 'summarize') {
+      onSummarize();
+      onClose();
     }
-    onClose();
   };
 
   return (
@@ -203,6 +184,24 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#000000',
     textAlign: 'center',
+  },
+  statusLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  checkmarkBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#34C759',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   arrow: {
     position: 'absolute',

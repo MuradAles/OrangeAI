@@ -48,13 +48,19 @@ export class MessageService {
       imageUrl: string;
       thumbnailUrl: string;
       caption: string | null;
+    },
+    translationMetadata?: {
+      originalText?: string;
+      originalLanguage?: string;
+      translatedTo?: string;
+      sentAsTranslation?: boolean;
     }
   ): Promise<string> {
     try {
       const newMessageId = messageId || doc(collection(firestore, 'chats', chatId, 'messages')).id;
       const messageRef = doc(firestore, 'chats', chatId, 'messages', newMessageId);
 
-      const messageData = imageData ? {
+      const baseMessageData = imageData ? {
         senderId,
         text: '',
         timestamp: serverTimestamp(),
@@ -81,6 +87,15 @@ export class MessageService {
         deletedForEveryone: false,
         deletedAt: null,
       };
+
+      // Only add translation metadata if it exists (Firebase doesn't accept undefined)
+      const messageData = translationMetadata?.sentAsTranslation ? {
+        ...baseMessageData,
+        originalText: translationMetadata.originalText || null,
+        originalLanguage: translationMetadata.originalLanguage || null,
+        translatedTo: translationMetadata.translatedTo || null,
+        sentAsTranslation: translationMetadata.sentAsTranslation || false,
+      } : baseMessageData;
 
       await setDoc(messageRef, messageData);
 

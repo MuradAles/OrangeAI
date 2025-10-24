@@ -78,6 +78,11 @@ export interface MessageRow {
   translations: string | null;      // JSON object of translations
   detectedLanguage: string | null;  // ISO 639-1 language code
   syncStatus: string;               // MessageSyncStatus as string
+  // Translation metadata (for sent-as-translation feature)
+  originalText: string | null;      // Original text when sent as translation
+  originalLanguage: string | null;   // Language of original text (ISO 639-1)
+  translatedTo: string | null;       // Target language for translation (ISO 639-1)
+  sentAsTranslation: number | null;  // SQLite boolean (0 or 1) - True if sent as translation
 }
 
 /**

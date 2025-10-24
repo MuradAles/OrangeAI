@@ -76,6 +76,10 @@ export const CREATE_MESSAGES_TABLE = `
     translations TEXT,
     detectedLanguage TEXT,
     syncStatus TEXT DEFAULT 'synced',
+    originalText TEXT,
+    originalLanguage TEXT,
+    translatedTo TEXT,
+    sentAsTranslation INTEGER DEFAULT 0,
     FOREIGN KEY (chatId) REFERENCES chats(id) ON DELETE CASCADE
   );
 `;

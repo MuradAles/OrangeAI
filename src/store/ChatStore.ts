@@ -51,7 +51,12 @@ interface ChatState {
   // Actions - Messages
   loadMessagesFromSQLite: (chatId: string) => Promise<void>;
   subscribeToMessages: (chatId: string, currentUserId?: string) => void;
-  sendMessage: (chatId: string, senderId: string, text: string) => Promise<void>;
+  sendMessage: (chatId: string, senderId: string, text: string, translationMetadata?: {
+    originalText?: string;
+    originalLanguage?: string;
+    translatedTo?: string;
+    sentAsTranslation?: boolean;
+  }) => Promise<void>;
   sendImageMessage: (chatId: string, senderId: string, imageUri: string, caption?: string) => Promise<void>;
   updateMessageStatus: (chatId: string, messageId: string, status: MessageStatus) => Promise<void>;
   retryFailedMessage: (chatId: string, messageId: string) => Promise<void>;
@@ -544,6 +549,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
               deletedForMe: 0,
               deletedForEveryone: msg.deletedForEveryone ? 1 : 0,
               syncStatus: 'synced' as MessageSyncStatus,
+              // Translation metadata
+              originalText: msg.originalText || null,
+              originalLanguage: msg.originalLanguage || null,
+              translatedTo: msg.translatedTo || null,
+              sentAsTranslation: msg.sentAsTranslation ? 1 : 0,
+              // Required fields
+              translations: msg.translations ? JSON.stringify(msg.translations) : null,
+              detectedLanguage: msg.detectedLanguage || null,
             };
             await SQLiteService.saveMessage(messageRow).catch(console.error);
           }
@@ -581,6 +594,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 deletedForMe: 0,
                 deletedForEveryone: msg.deletedForEveryone ? 1 : 0,
                 syncStatus: 'synced' as MessageSyncStatus,
+                // Translation metadata
+                originalText: msg.originalText || null,
+                originalLanguage: msg.originalLanguage || null,
+                translatedTo: msg.translatedTo || null,
+                sentAsTranslation: msg.sentAsTranslation ? 1 : 0,
+                // Required fields
+                translations: msg.translations ? JSON.stringify(msg.translations) : null,
+                detectedLanguage: msg.detectedLanguage || null,
               };
               await SQLiteService.saveMessage(messageRow).catch(console.error);
             }
@@ -675,6 +696,113 @@ export const useChatStore = create<ChatState>((set, get) => ({
               }
             } else {
               console.log('⏭️ Skipping status update for old message during initial load');
+            }
+            
+            // 🌐 Auto-translate incoming messages if enabled
+            if (currentUserId && msg.senderId !== currentUserId && !isInitialLoad) {
+              try {
+                // Check if auto-translate is enabled for this chat
+                const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                const autoTranslateSetting = await AsyncStorage.getItem(`@auto_translate_${chatId}`);
+                const autoTranslateEnabled = autoTranslateSetting ? JSON.parse(autoTranslateSetting) : false;
+                
+                if (autoTranslateEnabled) {
+                  // Get user's preferred language
+                  const { useAuthStore } = await import('@/store/AuthStore');
+                  const authStore = useAuthStore.getState();
+                  const preferredLanguage = authStore.user?.preferredLanguage || 'en';
+                  
+                  // Get message text
+                  const messageText = msg.type === 'text' ? msg.text : msg.caption;
+                  
+                  if (messageText && messageText.trim().length > 0) {
+                    console.log('🌐 Auto-translating incoming message:', {
+                      messageId: msg.id,
+                      chatId,
+                      preferredLanguage,
+                    });
+                    
+                    // Trigger translation immediately (async, don't block message display)
+                    (async () => {
+                      try {
+                        const { httpsCallable } = await import('firebase/functions');
+                        const { functions } = await import('@/services/firebase/FirebaseConfig');
+                        
+                        const translateFn = httpsCallable(functions, 'translateMessage');
+                        const result: any = await translateFn({
+                          messageId: msg.id,
+                          chatId: chatId,
+                          targetLanguage: preferredLanguage,
+                          messageText: messageText,
+                        });
+                        
+                        if (result.data.success && result.data.translated) {
+                          // Check if message is already in user's preferred language
+                          if (result.data.detectedLanguage === preferredLanguage) {
+                            console.log('⏭️ Skipping translation - message already in preferred language:', {
+                              messageId: msg.id,
+                              detectedLanguage: result.data.detectedLanguage,
+                              preferredLanguage,
+                            });
+                            return; // Don't save translation
+                          }
+
+                          // Prepare translation data
+                          const translationData = {
+                            text: result.data.translated,
+                            formalityLevel: result.data.formalityLevel,
+                            formalityIndicators: result.data.formalityIndicators,
+                            culturalAnalysis: result.data.culturalAnalysis ? {
+                              culturalPhrases: result.data.culturalAnalysis.culturalPhrases || [],
+                              slangExpressions: result.data.culturalAnalysis.slangExpressions || [],
+                            } : undefined,
+                          };
+                          
+                          // Save to SQLite
+                          const { SQLiteService } = await import('@/database/SQLiteService');
+                          await SQLiteService.updateMessageTranslation(
+                            chatId,
+                            msg.id,
+                            preferredLanguage,
+                            translationData,
+                            result.data.detectedLanguage
+                          );
+                          
+                          // Update message in state
+                          const currentState = get();
+                          const updatedMessages = currentState.messages.map(m => {
+                            if (m.id === msg.id) {
+                              return {
+                                ...m,
+                                translations: {
+                                  ...m.translations,
+                                  [preferredLanguage]: translationData,
+                                },
+                                detectedLanguage: result.data.detectedLanguage || m.detectedLanguage,
+                              };
+                            }
+                            return m;
+                          });
+                          
+                          set({ messages: updatedMessages });
+                          
+                          console.log('✅ Auto-translation saved:', {
+                            messageId: msg.id,
+                            detectedLanguage: result.data.detectedLanguage,
+                            hasTranslation: true,
+                          });
+                        }
+                      } catch (error) {
+                        console.error('❌ Auto-translation error:', error);
+                        // Silently fail - don't disrupt message display
+                      }
+                    })(); // Execute immediately
+                  }
+                }
+              } catch (error) {
+                console.error('Error checking auto-translate setting:', error);
+                // Silently fail
+              }
             }
 
             // 🔔 Trigger in-app notification if message is from someone else AND not actively viewing this chat
