@@ -6,18 +6,18 @@
 
 import { FriendRequest } from '@/shared/types';
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  Unsubscribe,
-  where,
-  writeBatch
+    addDoc,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    onSnapshot,
+    orderBy,
+    query,
+    Unsubscribe,
+    where,
+    writeBatch
 } from 'firebase/firestore';
 import { firestore } from './FirebaseConfig';
 import { UserService } from './UserService';
@@ -88,7 +88,6 @@ export class FriendRequestService {
 
       const docRef = await addDoc(requestRef, requestData);
 
-      console.log('✅ Friend request sent:', docRef.id);
       return { success: true, requestId: docRef.id };
     } catch (error: any) {
       console.error('❌ Failed to send friend request:', error);
@@ -160,7 +159,6 @@ export class FriendRequestService {
       // Commit all changes
       await batch.commit();
 
-      console.log('✅ Friend request accepted, contacts added');
       return { success: true };
     } catch (error: any) {
       console.error('❌ Failed to accept friend request:', error);
@@ -194,7 +192,6 @@ export class FriendRequestService {
       // Delete the friend request (no longer needed once ignored)
       await deleteDoc(requestRef);
 
-      console.log('✅ Friend request ignored and deleted:', requestId);
       return { success: true };
     } catch (error: any) {
       console.error('❌ Failed to ignore friend request:', error);
@@ -462,7 +459,6 @@ export class FriendRequestService {
       // Delete the request
       await deleteDoc(requestRef);
 
-      console.log('✅ Friend request cancelled:', requestId);
       return { success: true };
     } catch (error: any) {
       console.error('❌ Failed to cancel friend request:', error);

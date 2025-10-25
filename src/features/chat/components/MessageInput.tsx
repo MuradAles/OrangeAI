@@ -106,7 +106,6 @@ export const MessageInput = ({
           setSelectedLanguage(preferredLanguage);
         }
       } catch (error) {
-        console.error('Error loading chat languages:', error);
         // Fallback to common languages
         const commonLanguages = ['en', 'es', 'fr', 'de', 'ru', 'zh', 'ja', 'ko'];
         setChatLanguages(commonLanguages);
@@ -127,7 +126,6 @@ export const MessageInput = ({
       await PresenceService.startTyping(chatId, userId, userName);
       isTypingRef.current = true;
     } catch (error) {
-      console.error('Failed to start typing indicator:', error);
     }
   };
 
@@ -139,7 +137,6 @@ export const MessageInput = ({
       await PresenceService.stopTyping(chatId, userId);
       isTypingRef.current = false;
     } catch (error) {
-      console.error('Failed to stop typing indicator:', error);
     }
   };
 
@@ -172,7 +169,6 @@ export const MessageInput = ({
         }
       }
     } catch (error) {
-      console.error('Translation preview error:', error);
       // Silently fail for preview - don't show alerts
     } finally {
       setIsTranslating(false);
@@ -250,7 +246,6 @@ export const MessageInput = ({
         setSelectedImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };

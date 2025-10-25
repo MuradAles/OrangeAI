@@ -39,7 +39,6 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
   subscribeToUser: (userId: string) => {
     // Validate userId is not null/undefined
     if (!userId) {
-      console.warn('PresenceStore: Cannot subscribe to user with undefined/null ID');
       return;
     }
     

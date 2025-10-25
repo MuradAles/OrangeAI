@@ -58,22 +58,20 @@ class MessageQueueClass {
    */
   async processQueue(): Promise<QueueProcessResult> {
     if (this.isProcessing) {
-      console.log('Queue already processing');
       return { success: 0, failed: 0, total: 0 };
     }
 
     this.isProcessing = true;
-    console.log('🔄 Starting message queue processing...');
 
     try {
       const pendingMessages = await this.getPendingMessages();
       
       if (pendingMessages.length === 0) {
-        console.log('✅ No messages in queue');
+        console.log('📭 No pending messages to process');
         return { success: 0, failed: 0, total: 0 };
       }
 
-      console.log(`📤 Processing ${pendingMessages.length} queued messages`);
+      console.log(`📬 Processing ${pendingMessages.length} pending messages...`);
 
       let successCount = 0;
       let failedCount = 0;
@@ -89,7 +87,7 @@ class MessageQueueClass {
         }
       }
 
-      console.log(`✅ Queue processing complete: ${successCount} sent, ${failedCount} failed`);
+      console.log(`✅ Queue processed: ${successCount} sent, ${failedCount} failed`);
 
       return {
         success: successCount,
@@ -97,7 +95,7 @@ class MessageQueueClass {
         total: pendingMessages.length,
       };
     } catch (error) {
-      console.error('Error processing message queue:', error);
+      console.error('❌ Error processing message queue:', error);
       return { success: 0, failed: 0, total: 0 };
     } finally {
       this.isProcessing = false;
@@ -115,11 +113,23 @@ class MessageQueueClass {
       attempts++;
       
       try {
-        console.log(`⬆️ Uploading message ${message.id} (attempt ${attempts}/${this.maxRetries})`);
+        console.log(`📤 Uploading queued message: ${message.id}`);
 
-        // Upload to Firestore
+        // Upload to Firestore with the SAME message ID (prevents duplicates)
         if (message.type === 'text') {
-          await MessageService.sendMessage(message.chatId, message.senderId, message.text || '');
+          await MessageService.sendMessage(
+            message.chatId, 
+            message.senderId, 
+            message.text || '', 
+            message.id, // Use original message ID
+            undefined,
+            {
+              originalText: message.originalText,
+              originalLanguage: message.originalLanguage,
+              translatedTo: message.translatedTo,
+              sentAsTranslation: message.sentAsTranslation,
+            }
+          );
         } else if (message.type === 'image') {
           // Image messages already uploaded (images are uploaded before queuing)
           // Just update message document in Firestore
@@ -133,9 +143,37 @@ class MessageQueueClass {
         }
 
         // Update SQLite: mark as synced
-        await SQLiteService.updateMessageStatus(message.id, 'sent');
+        await SQLiteService.updateMessageStatus(message.id, 'sent', 'synced');
         
-        console.log(`✅ Message ${message.id} uploaded successfully`);
+        // Update chat's last message (so it shows in chat list)
+        try {
+          const { ChatService } = await import('@/services/firebase');
+          await ChatService.updateChatLastMessage(
+            message.chatId,
+            message.text || (message.caption ? `📷 ${message.caption}` : '📷 Image'),
+            message.senderId,
+            'sent',
+            message.timestamp
+          );
+        } catch (error) {
+          console.warn('⚠️ Failed to update chat last message:', error);
+        }
+        
+        // Update UI: Notify ChatStore to refresh message status
+        try {
+          const { useChatStore } = await import('@/store');
+          const currentMessages = useChatStore.getState().messages;
+          const updatedMessages = currentMessages.map(msg => 
+            msg.id === message.id 
+              ? { ...msg, status: 'sent' as MessageStatus, syncStatus: 'synced' }
+              : msg
+          );
+          useChatStore.setState({ messages: updatedMessages });
+        } catch (error) {
+          // UI update failed - not critical, SQLite is source of truth
+        }
+        
+        console.log(`✅ Message uploaded successfully: ${message.id}`);
         return true;
 
       } catch (error) {
@@ -149,7 +187,6 @@ class MessageQueueClass {
     }
 
     // All retries failed - mark as failed
-    console.error(`❌ Message ${message.id} failed after ${this.maxRetries} attempts`);
     
     try {
       // Update SQLite: mark as failed
@@ -167,12 +204,10 @@ class MessageQueueClass {
    */
   async retryMessage(messageId: string): Promise<boolean> {
     try {
-      console.log(`🔄 Retrying message ${messageId}`);
 
       const message = await SQLiteService.getMessageById(messageId);
       
       if (!message) {
-        console.error('Message not found');
         return false;
       }
 
@@ -193,9 +228,7 @@ class MessageQueueClass {
       const success = await this.uploadMessage(queuedMessage);
 
       if (success) {
-        console.log(`✅ Message ${messageId} retry successful`);
       } else {
-        console.log(`❌ Message ${messageId} retry failed`);
       }
 
       return success;
@@ -247,7 +280,6 @@ class MessageQueueClass {
       // Delete failed messages (note: we don't have userId here, so we'll skip deletion for now)
       // TODO: Implement proper bulk delete in SQLiteService
       
-      console.log(`⚠️ Found ${failedIds.length} failed messages (deletion not implemented)`);
     } catch (error) {
       console.error('Error clearing failed messages:', error);
     }

@@ -4,7 +4,6 @@
  */
 
 import { Avatar } from '@/components/common';
-import { SQLiteService } from '@/database/SQLiteService';
 import { CulturalService, PresenceService, TypingUser } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
@@ -75,8 +74,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   const flashListRef = useRef<any>(null);
   const hasScrolledInitially = useRef(false);
   const isCleaningUp = useRef(false); // Prevent duplicate cleanup alerts
-  const currentScrollPosition = useRef<{ offset: number; firstVisibleIndex: number }>({ offset: 0, firstVisibleIndex: 0 });
-  const scrollPositionSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const keyboardHeight = useRef(new Animated.Value(0)).current;
 
   const { subscribeToUser } = usePresenceStore();
@@ -154,13 +151,13 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Set active chat ID for notification routing (in Zustand store)
       setActiveChatId(chatId);
       
-      // Save active chat ID to Firestore (for push notification filtering)
+      // Save active chat ID to Firestore (for push notification filtering) - silent fail if offline
       const updateActiveChatInFirestore = async () => {
         try {
           const { UserService } = await import('@/services/firebase');
           await UserService.updateActiveChatId(user.id, chatId);
         } catch (error) {
-          console.error('Failed to update active chat ID in Firestore:', error);
+          // Silent fail when offline - not critical
         }
       };
       updateActiveChatInFirestore();
@@ -184,7 +181,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               const { ChatService } = await import('@/services/firebase');
               await ChatService.updateDetectedLanguages(chatId, languageCode);
             } catch (error) {
-              console.error('Failed to sync preferred language to chat:', error);
+              // Silent fail when offline - not critical
             }
           };
           syncLanguage(); // Fire and forget
@@ -199,7 +196,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       
       loadMessages();
       
-      // Load auto-translate setting
+      // Load auto-translate setting (silent fail if offline)
       const loadAutoTranslateSetting = async () => {
         try {
           const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
@@ -208,7 +205,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
             setAutoTranslateEnabled(JSON.parse(saved));
           }
         } catch (error) {
-          console.error('Failed to load auto-translate setting:', error);
+          // Silent fail - not critical, defaults to false
         }
       };
       
@@ -217,14 +214,14 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Clear active chat ID when modal closes
       setActiveChatId(null);
       
-      // Clear active chat ID in Firestore
+      // Clear active chat ID in Firestore (silent fail if offline)
       if (user?.id) {
         const clearActiveChatInFirestore = async () => {
           try {
             const { UserService } = await import('@/services/firebase');
             await UserService.updateActiveChatId(user.id, null);
           } catch (error) {
-            console.error('Failed to clear active chat ID in Firestore:', error);
+            // Silent fail when offline - not critical
           }
         };
         clearActiveChatInFirestore();
@@ -232,7 +229,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     }
     
     return () => {
-      // Clear active chat ID on unmount
+      // Clear active chat ID on unmount (silent fail if offline)
       if (visible && user?.id) {
         setActiveChatId(null);
         
@@ -242,7 +239,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
             const { UserService } = await import('@/services/firebase');
             await UserService.updateActiveChatId(user.id, null);
           } catch (error) {
-            console.error('Failed to clear active chat ID in Firestore:', error);
+            // Silent fail when offline - not critical
           }
         };
         clearActiveChatInFirestore();
@@ -285,13 +282,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                 // Close modal
                 onClose();
                 
-                // Show alert after modal closes (only once)
-                setTimeout(() => {
-                  Alert.alert(
-                    'Removed from Group',
-                    'You have been removed from this group by the admin.'
-                  );
-                }, 300);
+                // User removed from group - no confirmation needed
               } catch (error) {
                 console.error('Error cleaning up after removal:', error);
                 // Still close modal even if cleanup fails
@@ -318,13 +309,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
               // Close modal
               onClose();
               
-              // Show alert after modal closes (only once)
-              setTimeout(() => {
-                Alert.alert(
-                  'Removed from Group',
-                  'You have been removed from this group.'
-                );
-              }, 300);
+              // User removed from group - no confirmation needed
             } catch (error) {
               console.error('Error cleaning up after removal:', error);
               // Still close modal even if cleanup fails
@@ -353,53 +338,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     };
   }, [visible, chatId, user?.id, isGroupChat, onClose]);
 
-  // Save scroll position on close
-  useEffect(() => {
-    if (!visible && chatId) {
-      // Chat modal is closing - save scroll position
-      const savePosition = async () => {
-        try {
-          const msgs = useChatStore.getState().messages; // Get fresh messages from store
-          const visibleIndex = currentScrollPosition.current.firstVisibleIndex;
-          
-          
-          if (msgs.length === 0) {
-            return;
-          }
-          
-          // Validate index is within bounds
-          const indexToSave = Math.max(0, Math.min(visibleIndex, msgs.length - 1));
-          const messageToSave = msgs[indexToSave];
-          
-          if (messageToSave && messageToSave.id) {
-            await SQLiteService.saveScrollPosition({
-              chatId,
-              lastReadMessageId: messageToSave.id,
-              scrollYPosition: currentScrollPosition.current.offset,
-              unreadCount: 0, // Will be updated by unread count logic
-            });
-          } else {
-          }
-        } catch (error) {
-          console.error('❌ Error saving scroll position:', error);
-        }
-      };
-      
-      savePosition();
-      
-      // Clear scroll position save timer
-      if (scrollPositionSaveTimer.current) {
-        clearTimeout(scrollPositionSaveTimer.current);
-        scrollPositionSaveTimer.current = null;
-      }
-    }
-    
-    return () => {
-      if (scrollPositionSaveTimer.current) {
-        clearTimeout(scrollPositionSaveTimer.current);
-      }
-    };
-  }, [visible, chatId]);
 
   // Subscribe to typing indicators
   useEffect(() => {
@@ -507,111 +445,32 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     return timeDiff > 60000;
   };
 
-  // Scroll to last read position or bottom after messages load (only once)
+  // Scroll to bottom after messages load (only once per open)
   useEffect(() => {
     if (visible && chatId && listItems.length > 0 && flashListRef.current && !hasScrolledInitially.current) {
-      // Load saved scroll position from SQLite
-      const loadAndScrollToPosition = async () => {
-        // Double-check flag at the start (race condition guard)
-        if (hasScrolledInitially.current) {
+      // Wait for layout to be ready
+      setTimeout(() => {
+        if (hasScrolledInitially.current || !flashListRef.current) {
           return;
         }
         
+        // Always scroll to bottom when opening chat
         try {
-          const savedPosition = await SQLiteService.getScrollPosition(chatId);
-          
-          // Wait for layout to be ready - increased delay for safety
-          setTimeout(() => {
-            // Triple-check before scrolling (in case multiple effects fired)
-            if (hasScrolledInitially.current || !flashListRef.current) {
-              return;
-            }
-            
-            try {
-              if (savedPosition && savedPosition.lastReadMessageId && messages.length > 0) {
-                // Find the index of the saved message
-                const savedMessageIndex = messages.findIndex(
-                  msg => msg.id === savedPosition.lastReadMessageId
-                );
-                
-                if (savedMessageIndex !== -1 && savedMessageIndex < listItems.length) {
-                  // Scroll to saved position
-                  
-                  flashListRef.current?.scrollToIndex({
-                    index: savedMessageIndex,
-                    animated: false,
-                    viewPosition: 0.5, // Center the message in view
-                  });
-                } else {
-                  // Saved message not found or out of bounds, scroll to bottom
-                  if (listItems.length > 0) {
-                    // Add safety check for layout readiness
-                    try {
-                      flashListRef.current?.scrollToEnd({ animated: false });
-                    } catch (scrollError) {
-                      // Retry after a short delay
-                      setTimeout(() => {
-                        try {
-                          flashListRef.current?.scrollToEnd({ animated: false });
-                        } catch (retryError) {
-                          console.error('❌ Failed to scroll to end after retry:', retryError);
-                        }
-                      }, 100);
-                    }
-                  }
-                }
-              } else {
-                // No saved position, scroll to bottom (new chat or first time)
-                if (listItems.length > 0) {
-                  // Add safety check for layout readiness
-                  try {
-                    flashListRef.current?.scrollToEnd({ animated: false });
-                  } catch (scrollError) {
-                    // Retry after a short delay
-                    setTimeout(() => {
-                      try {
-                        flashListRef.current?.scrollToEnd({ animated: false });
-                      } catch (retryError) {
-                        console.error('❌ Failed to scroll to end after retry:', retryError);
-                      }
-                    }, 100);
-                  }
-                }
-              }
-              
-              hasScrolledInitially.current = true;
-            } catch (scrollError) {
-              console.error('Error scrolling:', scrollError);
-              hasScrolledInitially.current = true;
-            }
-          }, 300); // Increased delay to ensure FlashList layout is ready
+          flashListRef.current?.scrollToEnd({ animated: false });
+          hasScrolledInitially.current = true;
         } catch (error) {
-          console.error('Error loading scroll position:', error);
+          // Silently fail - layout might not be ready yet
           hasScrolledInitially.current = true;
         }
-      };
-      
-      loadAndScrollToPosition();
+      }, 300);
     }
   }, [visible, chatId, listItems.length]);
 
   // Handle jump to bottom
   const handleJumpToBottom = () => {
     if (flashListRef.current) {
-      try {
-        flashListRef.current.scrollToEnd({ animated: true });
-        setShowJumpToBottom(false);
-      } catch (scrollError) {
-        // Retry after a short delay
-        setTimeout(() => {
-          try {
-            flashListRef.current?.scrollToEnd({ animated: true });
-            setShowJumpToBottom(false);
-          } catch (retryError) {
-            console.error('❌ Failed to jump to bottom after retry:', retryError);
-          }
-        }, 100);
-      }
+      flashListRef.current.scrollToEnd({ animated: true });
+      setShowJumpToBottom(false);
     }
   };
 
@@ -659,20 +518,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Immediately scroll to bottom after sending (newest message)
       requestAnimationFrame(() => {
         if (flashListRef.current) {
-          try {
-            flashListRef.current.scrollToEnd({ animated: true });
-            setShowJumpToBottom(false);
-          } catch (scrollError) {
-            // Retry after a short delay
-            setTimeout(() => {
-              try {
-                flashListRef.current?.scrollToEnd({ animated: true });
-                setShowJumpToBottom(false);
-              } catch (retryError) {
-                console.error('❌ Failed to scroll after send retry:', retryError);
-              }
-            }, 100);
-          }
+          flashListRef.current.scrollToEnd({ animated: true });
+          setShowJumpToBottom(false);
         }
       });
     } catch (error) {
@@ -694,20 +541,8 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
       // Immediately scroll to bottom after sending (newest message)
       requestAnimationFrame(() => {
         if (flashListRef.current) {
-          try {
-            flashListRef.current.scrollToEnd({ animated: true });
-            setShowJumpToBottom(false);
-          } catch (scrollError) {
-            // Retry after a short delay
-            setTimeout(() => {
-              try {
-                flashListRef.current?.scrollToEnd({ animated: true });
-                setShowJumpToBottom(false);
-              } catch (retryError) {
-                console.error('❌ Failed to scroll after image send retry:', retryError);
-              }
-            }, 100);
-          }
+          flashListRef.current.scrollToEnd({ animated: true });
+          setShowJumpToBottom(false);
         }
       });
     } catch (error) {
@@ -1412,24 +1247,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
                   const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
                   const isNearBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
                   setShowJumpToBottom(!isNearBottom && listItems.length > 10);
-                  
-                  // Track scroll position for saving later
-                  currentScrollPosition.current.offset = contentOffset.y;
-                }}
-                onViewableItemsChanged={({ viewableItems }) => {
-                  // Track first visible item for scroll position restoration
-                  if (viewableItems.length > 0 && viewableItems[0].item.type === 'message') {
-                    const firstVisibleIndex = messages.findIndex(
-                      msg => msg.id === viewableItems[0].item.data.id
-                    );
-                    if (firstVisibleIndex >= 0) {
-                      currentScrollPosition.current.firstVisibleIndex = firstVisibleIndex;
-                    }
-                  }
-                }}
-                viewabilityConfig={{
-                  itemVisiblePercentThreshold: 1,
-                  minimumViewTime: 0,
                 }}
                 scrollEventThrottle={16}
               />

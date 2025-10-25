@@ -6,14 +6,14 @@
 
 import { Contact, User, UsernameAvailability, UserProfileUpdate } from '@/shared/types';
 import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  setDoc,
-  updateDoc,
-  where
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    query,
+    setDoc,
+    updateDoc,
+    where
 } from 'firebase/firestore';
 import { firestore } from './FirebaseConfig';
 
@@ -49,7 +49,6 @@ export class UserService {
       
       await setDoc(userRef, userData);
       
-      console.log('✅ User profile created:', userId);
       return userData as User;
     } catch (error: any) {
       console.error('❌ Failed to create user profile:', error);
@@ -91,7 +90,6 @@ export class UserService {
       const userRef = doc(firestore, this.USERS_COLLECTION, userId);
       await updateDoc(userRef, updates as any);
       
-      console.log('✅ User profile updated:', userId);
     } catch (error: any) {
       console.error('❌ Failed to update user profile:', error);
       throw new Error('Failed to update user profile: ' + error.message);
@@ -388,7 +386,6 @@ export class UserService {
         deleted: true,
         deletedAt: Date.now(),
       });
-      console.log('✅ User profile marked as deleted:', userId);
     } catch (error) {
       console.error('❌ Failed to delete user profile:', error);
       throw error;

@@ -35,7 +35,6 @@ export const useCulturalAnalysis = ({
     }
 
     // Debug: Log the language code being used
-    console.log('🔍 Cultural analysis - languageCode:', languageCode, 'type:', typeof languageCode);
     
     // Skip if language is invalid
     if (!languageCode || typeof languageCode !== 'string') {

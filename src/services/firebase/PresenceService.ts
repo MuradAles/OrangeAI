@@ -139,12 +139,10 @@ export class PresenceService {
    */
   static async setOnline(userId: string, userName: string): Promise<void> {
     if (!userId) {
-      console.error('❌ Firebase: Cannot set online - userId is undefined');
       return;
     }
     
     try {
-      console.log('🔥 Firebase: Setting ONLINE for', userId.substring(0, 8));
       const presenceRef = ref(database, `presence/${userId}`);
       
       // Set user as online
@@ -153,7 +151,6 @@ export class PresenceService {
         lastSeen: serverTimestamp(),
         userName,
       });
-      console.log('✅ Firebase: ONLINE write complete');
       
       // Set up auto-disconnect to mark offline when connection drops
       const disconnectRef = onDisconnect(presenceRef);
@@ -162,7 +159,6 @@ export class PresenceService {
         lastSeen: serverTimestamp(),
         userName,
       });
-      console.log('✅ Firebase: onDisconnect handler set');
     } catch (error) {
       console.error('❌ Firebase: Error setting online status:', error);
       throw error;
@@ -175,21 +171,17 @@ export class PresenceService {
    */
   static async setOffline(userId: string, userName: string): Promise<void> {
     if (!userId) {
-      console.error('❌ Firebase: Cannot set offline - userId is undefined');
       return;
     }
     
     try {
-      console.log('🔥 Firebase: Setting OFFLINE for', userId.substring(0, 8));
       const presenceRef = ref(database, `presence/${userId}`);
       
       // Cancel any pending onDisconnect operations before explicitly setting offline
       try {
         await onDisconnect(presenceRef).cancel();
-        console.log('✅ Firebase: onDisconnect cancelled');
       } catch {
         // Ignore cancel errors - may already be cancelled or not exist
-        console.log('⚠️ Firebase: onDisconnect cancel skipped (may not exist)');
       }
       
       await set(presenceRef, {
@@ -197,7 +189,6 @@ export class PresenceService {
         lastSeen: serverTimestamp(),
         userName,
       });
-      console.log('✅ Firebase: OFFLINE write complete');
     } catch (error) {
       console.error('❌ Firebase: Error setting offline status:', error);
       throw error;
@@ -213,12 +204,10 @@ export class PresenceService {
     onError: (error: Error) => void
   ): Unsubscribe {
     if (!userId) {
-      console.error('❌ Firebase: Cannot subscribe to presence - userId is undefined');
       // Return a no-op unsubscribe function
       return () => {};
     }
     
-    console.log('🔥 Firebase: Creating presence subscription for', userId.substring(0, 8));
     const presenceRef = ref(database, `presence/${userId}`);
 
     return onValue(
@@ -226,7 +215,6 @@ export class PresenceService {
       (snapshot) => {
         try {
           const data = snapshot.val();
-          console.log('🔥 Firebase: Received presence data for', userId?.substring(0, 8) || 'unknown', ':', data);
           
           if (data) {
             onUpdate({
@@ -236,7 +224,6 @@ export class PresenceService {
             });
           } else {
             // No presence data - user is offline
-            console.log('⚠️ Firebase: No presence data for', userId?.substring(0, 8) || 'unknown', '- marking offline');
             onUpdate(null);
           }
         } catch (error) {
@@ -320,7 +307,6 @@ export class PresenceService {
     try {
       // In production, you might want to keep a list of active chats
       // For now, we rely on the 3-second timeout in subscribeToTyping
-      console.log('User typing cleanup triggered for:', userId);
     } catch (error) {
       console.error('Error cleaning up typing indicators:', error);
     }

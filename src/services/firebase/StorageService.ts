@@ -257,12 +257,10 @@ export class StorageService {
     try {
       // Check original size
       const originalSizeMB = await this.getFileSizeMB(imageUri);
-      console.log(`Original image size: ${originalSizeMB.toFixed(2)} MB`);
 
       // Compress full image
       const compressedUri = await this.compressImage(imageUri);
       const compressedSizeMB = await this.getFileSizeMB(compressedUri);
-      console.log(`Compressed image size: ${compressedSizeMB.toFixed(2)} MB`);
 
       // Check if compressed size is within limit
       const isWithinLimit = await this.checkImageSize(compressedUri);

@@ -35,31 +35,51 @@ export default function RootLayout() {
 
   // Initialize app (Firebase + SQLite + Auth)
   useEffect(() => {
+    // Suppress Firestore offline errors (harmless SDK warnings)
+    const originalError = console.error;
+    console.error = (...args: any[]) => {
+      const message = args[0]?.toString() || '';
+      // Suppress known offline-related errors that don't affect functionality
+      if (
+        message.includes('LoadBundleFromServerRequestError') ||
+        message.includes('Could not load bundle') ||
+        (message.includes('Failed to load auto-translate setting') && message.includes('LoadBundleFromServerRequestError'))
+      ) {
+        // Silent - these are expected when offline
+        return;
+      }
+      originalError(...args);
+    };
+
     const initializeApp = async () => {
       try {
-        console.log('🚀 Initializing MessageAI...');
 
         // Initialize Firebase
         initializeFirebase();
-        console.log('✅ Firebase initialized');
 
         // Initialize SQLite (with auto-reset on error in dev mode)
         try {
           await SQLiteService.initialize();
-          console.log('✅ SQLite initialized');
         } catch {
-          console.error('⚠️  SQLite initialization failed, resetting database...');
           await SQLiteService.reset();
-          console.log('✅ SQLite reset and reinitialized');
         }
 
         // Initialize auth state
         await initialize();
-        console.log('✅ Auth initialized');
 
         // Initialize notifications
         await initializeNotifications();
-        console.log('✅ Notifications initialized');
+
+        // Process any pending offline messages (from previous sessions)
+        try {
+          const { MessageQueue } = await import('@/database/MessageQueue');
+          const result = await MessageQueue.processQueue();
+          if (result.total > 0) {
+            console.log(`📨 Synced ${result.success}/${result.total} pending messages from previous session`);
+          }
+        } catch (error) {
+          console.error('Failed to process message queue on startup:', error);
+        }
 
         setIsAppReady(true);
       } catch (error) {
@@ -115,37 +135,29 @@ export default function RootLayout() {
   useEffect(() => {
     if (!isAuthenticated || !user?.id || !user?.displayName) return;
 
-    console.log('🎯 PRESENCE SETUP for user:', user.id.substring(0, 8));
 
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      console.log('🔄 AppState changed:', appState.current, '→', nextAppState);
       
       // Only handle app state changes if user is still authenticated
       if (!isAuthenticated || !user?.id || !user?.displayName) {
-        console.log('⚠️ Skipping presence update - user not authenticated');
         return;
       }
 
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         // App has come to foreground - set online
-        console.log('📱 App foregrounded - setting user online:', user.id.substring(0, 8));
         try {
           await PresenceService.setOnline(user.id, user.displayName);
-          console.log('✅ Online status set successfully');
         } catch (error) {
           console.error('❌ Failed to set online status:', error);
         }
       } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
         // App has gone to background - set offline
-        console.log('📱 App backgrounded - setting user offline:', user.id.substring(0, 8));
         
         try {
           await PresenceService.setOffline(user.id, user.displayName);
-          console.log('✅ Offline status set successfully');
         } catch (error: any) {
           // Silently handle permission errors (happens during logout)
           if (error?.message?.includes('PERMISSION_DENIED') || error?.message?.includes('permission_denied')) {
-            console.log('⚠️ Permission denied (user may have logged out)');
           } else {
             console.error('❌ Failed to set offline status:', error);
           }
@@ -156,9 +168,7 @@ export default function RootLayout() {
     };
 
     // Set initial online status (with onDisconnect backup)
-    console.log('🚀 Setting initial online status for:', user.id.substring(0, 8));
     PresenceService.setOnline(user.id, user.displayName)
-      .then(() => console.log('✅ Initial online status set'))
       .catch(error => console.error('❌ Failed to set initial online status:', error));
 
     // Subscribe to app state changes
@@ -170,14 +180,12 @@ export default function RootLayout() {
       
       // DON'T try to set offline here - it's handled in AuthStore.signOut()
       // If we try here, the user might already be logged out (permission error)
-      console.log('🧹 Presence effect cleanup (no offline call - handled by signOut)');
     };
   }, [isAuthenticated, user?.id, user?.displayName]);
 
   // Update FCM token when user logs in
   useEffect(() => {
     if (isAuthenticated && user?.id) {
-      console.log('🔔 Updating FCM token for user:', user.id.substring(0, 8));
       updateFCMToken(user.id).catch(error => 
         console.error('❌ Failed to update FCM token:', error)
       );

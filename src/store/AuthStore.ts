@@ -56,18 +56,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   initialize: async () => {
     try {
-      console.log('🔐 Initializing auth...');
       
       // Set up auth state listener
       AuthService.onAuthStateChanged(async (firebaseUser) => {
         if (firebaseUser) {
-          console.log('✅ User authenticated:', firebaseUser.uid);
           set({ firebaseUser, isAuthenticated: true });
           
           // Load user profile from Firestore
           await get().loadUserProfile(firebaseUser.uid);
         } else {
-          console.log('ℹ️  No user authenticated');
           set({
             firebaseUser: null,
             user: null,
@@ -108,7 +105,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Create Firebase auth user
       const firebaseUser = await AuthService.signUpWithEmail(email, password);
       
-      console.log('✅ Sign up successful');
       
       set({
         firebaseUser,
@@ -139,7 +135,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Sign in
       const firebaseUser = await AuthService.signInWithEmail(email, password);
       
-      console.log('✅ Sign in successful');
       
       set({
         firebaseUser,
@@ -173,7 +168,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
           const { PresenceService } = await import('@/services/firebase');
           await PresenceService.setOffline(currentUser.id, currentUser.displayName);
-          console.log('✅ User marked offline before logout');
         } catch (presenceError) {
           console.warn('⚠️ Failed to set offline status during logout:', presenceError);
           // Continue with logout even if presence update fails
@@ -185,7 +179,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const { usePresenceStore } = await import('@/store');
         const presenceStore = usePresenceStore.getState();
         presenceStore.cleanup();
-        console.log('✅ Presence subscriptions cleaned up');
       } catch (cleanupError) {
         console.warn('⚠️ Failed to cleanup presence subscriptions:', cleanupError);
       }
@@ -200,7 +193,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
       });
       
-      console.log('✅ Sign out successful');
       
     } catch (error: any) {
       console.error('❌ Sign out failed:', error);
@@ -266,6 +258,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   loadUserProfile: async (userId: string) => {
     try {
+      // STEP 1: Load from SQLite instantly (prevents auth flash)
+      const cachedUser = await SQLiteService.getUserById(userId);
+      if (cachedUser) {
+        // Convert SQLite format to User format
+        const userProfile = {
+          id: cachedUser.id,
+          username: cachedUser.username,
+          displayName: cachedUser.displayName,
+          email: '', // Will be updated from Firestore
+          bio: '', // Will be updated from Firestore
+          profilePictureUrl: cachedUser.profilePictureUrl,
+          phoneNumber: null,
+          phoneNumberVisible: false,
+          isOnline: cachedUser.isOnline === 1,
+          lastSeen: cachedUser.lastSeen,
+          createdAt: cachedUser.createdAt,
+          preferredLanguage: 'en', // Default, will be updated from Firestore
+        };
+        
+        // Set cached profile immediately (prevents auth flash)
+        set({ user: userProfile });
+      }
+      
+      // STEP 2: Load fresh profile from Firestore (background sync)
       const userProfile = await UserService.getProfile(userId);
       
       if (userProfile) {
@@ -282,9 +298,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           createdAt: userProfile.createdAt,
         });
         
-        console.log('✅ User profile loaded');
       } else {
-        console.log('ℹ️  No profile found for user');
         set({ user: null });
       }
     } catch (error: any) {
@@ -321,7 +335,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         createdAt: updatedUser.createdAt,
       });
       
-      console.log('✅ User profile updated');
       
     } catch (error: any) {
       console.error('❌ Failed to update profile:', error);

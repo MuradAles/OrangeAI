@@ -50,15 +50,7 @@ export class Logger {
   private static log(user: string, action: string, details?: Record<string, unknown>): void {
     if (!this.enabled) return;
     
-    console.log('_______________________________________________');
-    console.log(`USER: ${user}`);
-    console.log(`ACTION: ${action}`);
-    if (details) {
-      Object.entries(details).forEach(([key, value]) => {
-        console.log(`${key}: ${value}`);
-      });
-    }
-    console.log('_______________________________________________\n');
+    // Logging disabled
   }
 
   /**
@@ -243,13 +235,7 @@ export class Logger {
   static showUserMapping(): void {
     if (!this.enabled) return;
     
-    console.log('_______________________________________________');
-    console.log('👥 ACTIVE USERS');
-    console.log('_______________________________________________');
-    this.userEmojiMap.forEach((emoji, userId) => {
-      console.log(`${emoji} → ${userId.substring(0, 16)}...`);
-    });
-    console.log('_______________________________________________\n');
+    // Logging disabled
   }
 }
 

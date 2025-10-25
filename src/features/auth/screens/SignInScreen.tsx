@@ -70,7 +70,6 @@ export const SignInScreen: React.FC = () => {
       await signIn(email.trim(), password);
       
       // Navigation handled by auth state listener in root layout
-      console.log('✅ Sign in successful');
     } catch {
       // Error is already displayed in UI via authError from store
       // No need for additional Alert popup

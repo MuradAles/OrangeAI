@@ -6,14 +6,14 @@
  */
 
 import {
-  createUserWithEmailAndPassword,
-  sendEmailVerification as firebaseSendEmailVerification,
-  signOut as firebaseSignOut,
-  User as FirebaseUser,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  updateProfile
+    createUserWithEmailAndPassword,
+    sendEmailVerification as firebaseSendEmailVerification,
+    signOut as firebaseSignOut,
+    User as FirebaseUser,
+    onAuthStateChanged,
+    sendPasswordResetEmail,
+    signInWithEmailAndPassword,
+    updateProfile
 } from 'firebase/auth';
 import { auth } from './FirebaseConfig';
 
@@ -75,7 +75,6 @@ export class AuthService {
       await firebaseSignOut(auth);
       // User signed out successfully
     } catch (error: any) {
-      console.error('❌ Sign out failed:', error.message);
       throw this.handleAuthError(error);
     }
   }
@@ -98,7 +97,6 @@ export class AuthService {
       await firebaseSendEmailVerification(user);
       // Verification email sent successfully
     } catch (error: any) {
-      console.error('❌ Failed to send verification email:', error.message);
       throw this.handleAuthError(error);
     }
   }
@@ -164,7 +162,6 @@ export class AuthService {
       await updateProfile(user, { displayName });
       // User profile updated successfully
     } catch (error: any) {
-      console.error('❌ Failed to update profile:', error.message);
       throw this.handleAuthError(error);
     }
   }

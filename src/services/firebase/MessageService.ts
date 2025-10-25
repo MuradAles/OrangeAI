@@ -192,7 +192,6 @@ export class MessageService {
         }
       } catch (notifError) {
         // Don't fail message send if notification fails
-        console.warn('⚠️  Push notification failed (message still sent):', (notifError as Error).message);
       }
 
       return newMessageId;

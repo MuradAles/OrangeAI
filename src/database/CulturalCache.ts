@@ -3,28 +3,16 @@
  * SQLite caching for cultural analysis results
  */
 
-import SQLite from 'react-native-sqlite-storage';
 import { CulturalAnalysisResult, CulturalCacheEntry } from '../shared/types/CulturalTypes';
+import { SQLiteService } from './SQLiteService';
 
 class CulturalCache {
-  private db: SQLite.SQLiteDatabase | null = null;
-
   async initialize(): Promise<void> {
-    try {
-      this.db = await SQLite.openDatabase({
-        name: 'CulturalCache.db',
-        location: 'default',
-      });
-
-      await this.createTable();
-    } catch (error) {
-      console.error('Failed to initialize Cultural Cache:', error);
-    }
+    // Use existing SQLiteService instead of creating new database
+    await this.createTable();
   }
 
   private async createTable(): Promise<void> {
-    if (!this.db) return;
-
     const createTableQuery = `
       CREATE TABLE IF NOT EXISTS cultural_cache (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,12 +25,10 @@ class CulturalCache {
       )
     `;
 
-    await this.db.executeSql(createTableQuery);
+    await SQLiteService.executeSql(createTableQuery);
   }
 
   async addEntry(entry: CulturalCacheEntry): Promise<void> {
-    if (!this.db) return;
-
     try {
       const insertQuery = `
         INSERT OR REPLACE INTO cultural_cache 
@@ -50,7 +36,7 @@ class CulturalCache {
         VALUES (?, ?, ?, ?, ?)
       `;
 
-      await this.db.executeSql(insertQuery, [
+      await SQLiteService.executeSql(insertQuery, [
         entry.phrase,
         entry.language,
         JSON.stringify(entry.analysis),
@@ -63,8 +49,6 @@ class CulturalCache {
   }
 
   async getEntry(phrase: string, language: string): Promise<CulturalAnalysisResult | null> {
-    if (!this.db) return null;
-
     try {
       const selectQuery = `
         SELECT analysis, expires_at 
@@ -72,13 +56,13 @@ class CulturalCache {
         WHERE phrase = ? AND language = ?
       `;
 
-      const [results] = await this.db.executeSql(selectQuery, [phrase.toLowerCase(), language]);
+      const results = await SQLiteService.executeSql(selectQuery, [phrase.toLowerCase(), language]);
       
-      if (results.rows.length === 0) {
+      if (results.length === 0) {
         return null;
       }
 
-      const row = results.rows.item(0);
+      const row = results[0];
       const expiresAt = row.expires_at;
 
       // Check if entry is expired
@@ -95,59 +79,51 @@ class CulturalCache {
   }
 
   async removeEntry(phrase: string, language: string): Promise<void> {
-    if (!this.db) return;
-
     try {
       const deleteQuery = `
         DELETE FROM cultural_cache 
         WHERE phrase = ? AND language = ?
       `;
 
-      await this.db.executeSql(deleteQuery, [phrase.toLowerCase(), language]);
+      await SQLiteService.executeSql(deleteQuery, [phrase.toLowerCase(), language]);
     } catch (error) {
       console.error('Failed to remove cache entry:', error);
     }
   }
 
   async clearExpiredEntries(): Promise<void> {
-    if (!this.db) return;
-
     try {
       const deleteQuery = `
         DELETE FROM cultural_cache 
         WHERE expires_at < ?
       `;
 
-      await this.db.executeSql(deleteQuery, [Date.now()]);
+      await SQLiteService.executeSql(deleteQuery, [Date.now()]);
     } catch (error) {
       console.error('Failed to clear expired entries:', error);
     }
   }
 
   async clearAll(): Promise<void> {
-    if (!this.db) return;
-
     try {
       const deleteQuery = 'DELETE FROM cultural_cache';
-      await this.db.executeSql(deleteQuery);
+      await SQLiteService.executeSql(deleteQuery);
     } catch (error) {
       console.error('Failed to clear all entries:', error);
     }
   }
 
   async getCacheStats(): Promise<{ totalEntries: number; expiredEntries: number }> {
-    if (!this.db) return { totalEntries: 0, expiredEntries: 0 };
-
     try {
       const totalQuery = 'SELECT COUNT(*) as total FROM cultural_cache';
       const expiredQuery = 'SELECT COUNT(*) as expired FROM cultural_cache WHERE expires_at < ?';
 
-      const [totalResults] = await this.db.executeSql(totalQuery);
-      const [expiredResults] = await this.db.executeSql(expiredQuery, [Date.now()]);
+      const totalResults = await SQLiteService.executeSql(totalQuery);
+      const expiredResults = await SQLiteService.executeSql(expiredQuery, [Date.now()]);
 
       return {
-        totalEntries: totalResults.rows.item(0).total,
-        expiredEntries: expiredResults.rows.item(0).expired,
+        totalEntries: totalResults[0].total,
+        expiredEntries: expiredResults[0].expired,
       };
     } catch (error) {
       console.error('Failed to get cache stats:', error);
@@ -156,10 +132,7 @@ class CulturalCache {
   }
 
   async close(): Promise<void> {
-    if (this.db) {
-      await this.db.close();
-      this.db = null;
-    }
+    // No need to close - SQLiteService handles this
   }
 }
 

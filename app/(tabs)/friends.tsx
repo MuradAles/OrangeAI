@@ -100,7 +100,7 @@ export default function FriendsScreen() {
     });
 
     if (result.success) {
-      Alert.alert('Success', 'Friend request accepted!');
+      // Friend request accepted - no confirmation needed
     } else {
       // Friend requests will auto-sync via real-time listener
       Alert.alert('Error', result.error || 'Failed to accept request');

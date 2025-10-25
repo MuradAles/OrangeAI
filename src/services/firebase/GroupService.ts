@@ -205,7 +205,6 @@ export class GroupService {
       }
 
       await updateDoc(chatRef, updateData);
-      console.log('✅ Group info updated:', groupId);
     } catch (error) {
       console.error('❌ Failed to update group info:', error);
       throw error;
@@ -231,7 +230,6 @@ export class GroupService {
 
       const currentParticipants = chatSnap.data().participants || [];
       if (currentParticipants.includes(userId)) {
-        console.log('⚠️ User already a member, skipping:', userId);
         return; // Silently skip instead of throwing error
       }
 
@@ -255,7 +253,6 @@ export class GroupService {
       });
 
       await batch.commit();
-      console.log('✅ Member added to group:', userId);
     } catch (error) {
       console.error('❌ Failed to add member:', error);
       throw error;
@@ -286,7 +283,6 @@ export class GroupService {
       // If user is the last member, delete the group
       if (currentParticipants.length === 1) {
         await this.deleteGroup(groupId);
-        console.log('✅ Last member left, group deleted');
         return;
       }
 
@@ -315,12 +311,10 @@ export class GroupService {
             role: 'admin',
           });
 
-          console.log('✅ Admin role transferred to:', newAdminId);
         }
       }
 
       await batch.commit();
-      console.log('✅ User left group:', userId);
     } catch (error) {
       console.error('❌ Failed to leave group:', error);
       throw error;
@@ -393,7 +387,6 @@ export class GroupService {
       });
 
       await batch.commit();
-      console.log('✅ Admin role transferred:', currentAdminId, '->', newAdminId);
     } catch (error) {
       console.error('❌ Failed to transfer admin:', error);
       throw error;
@@ -420,7 +413,6 @@ export class GroupService {
       batch.delete(chatRef);
 
       await batch.commit();
-      console.log('✅ Group deleted:', groupId);
     } catch (error) {
       console.error('❌ Failed to delete group:', error);
       throw error;
@@ -476,7 +468,6 @@ export class GroupService {
         inviteCode: newInviteCode,
       });
 
-      console.log('✅ Invite code regenerated:', newInviteCode);
       return newInviteCode;
     } catch (error) {
       console.error('❌ Failed to regenerate invite code:', error);
