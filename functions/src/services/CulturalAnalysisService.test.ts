@@ -65,6 +65,7 @@ describe('CulturalAnalysisService', () => {
 
       const result = await CulturalAnalysisService.analyzeCulturalContext(
         "break a leg lol",
+        "break a leg lol", // translated text (same for test)
         "en",
         "test-message-id"
       );
@@ -87,6 +88,7 @@ describe('CulturalAnalysisService', () => {
 
       const result = await CulturalAnalysisService.analyzeCulturalContext(
         "test text",
+        "test text", // translated text (same for test)
         "en",
         "test-message-id"
       );
@@ -105,6 +107,7 @@ describe('CulturalAnalysisService', () => {
     it('should handle empty text', async () => {
       const result = await CulturalAnalysisService.analyzeCulturalContext(
         "",
+        "", // translated text (same for test)
         "en",
         "test-message-id"
       );

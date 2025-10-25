@@ -19,10 +19,8 @@ interface QuickActionsPopoverProps {
   onClose: () => void;
   message: Message;
   messagePosition: { x: number; y: number; width: number; height: number };
-  onTranslate: () => void;
   onReaction: (emoji: string) => void;
   onCopy: () => void;
-  onDeleteForEveryone: () => void;
 }
 
 const QUICK_EMOJIS = ['❤️', '😂', '👍', '🔥'];
@@ -32,10 +30,8 @@ export const QuickActionsPopover: React.FC<QuickActionsPopoverProps> = ({
   onClose,
   message,
   messagePosition,
-  onTranslate,
   onReaction,
   onCopy,
-  onDeleteForEveryone,
 }) => {
   const theme = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -76,11 +72,10 @@ export const QuickActionsPopover: React.FC<QuickActionsPopoverProps> = ({
 
   // Calculate position (above the message, centered)
   const popoverWidth = 240;
-  const translateButtonHeight = 44;
   const emojisHeight = 56;
   const actionsHeight = 44; // Copy and Delete buttons
   const spacing = 8;
-  const totalHeight = translateButtonHeight + spacing + emojisHeight + spacing + actionsHeight;
+  const totalHeight = emojisHeight + spacing + actionsHeight;
 
   // Center horizontally relative to message
   const left = Math.max(
@@ -114,23 +109,6 @@ export const QuickActionsPopover: React.FC<QuickActionsPopoverProps> = ({
             },
           ]}
         >
-           {/* Translate Button */}
-           <Pressable
-             style={[
-               styles.translateButton,
-               { backgroundColor: '#F8F9FA' },
-             ]}
-             onPress={() => {
-               onTranslate();
-               onClose();
-             }}
-           >
-             <Ionicons name="language" size={20} color="#0084FF" />
-             <Text style={[styles.translateText, { color: '#000000' }]}>
-               Translate
-             </Text>
-           </Pressable>
-
            {/* Emoji Reactions */}
            <View
              style={[
@@ -165,16 +143,6 @@ export const QuickActionsPopover: React.FC<QuickActionsPopoverProps> = ({
                <Text style={styles.actionText}>Copy</Text>
              </Pressable>
              
-             <Pressable
-               style={[styles.actionButton, { backgroundColor: '#F8F9FA' }]}
-               onPress={() => {
-                 onDeleteForEveryone();
-                 onClose();
-               }}
-             >
-               <Ionicons name="trash-outline" size={18} color="#FF3B30" />
-               <Text style={[styles.actionText, { color: '#FF3B30' }]}>Delete</Text>
-             </Pressable>
            </View>
 
            {/* Arrow pointing to message */}
@@ -202,19 +170,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 240,
     alignItems: 'center',
-  },
-   translateButton: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     justifyContent: 'center',
-     width: '100%',
-     height: 44,
-     borderRadius: 12,
-     gap: 8,
-   },
-  translateText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
    emojisContainer: {
      flexDirection: 'row',

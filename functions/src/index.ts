@@ -202,7 +202,6 @@ export const batchTranslateMessages = onCall(
               success: result.success,
               translated: result.translated,
               detectedLanguage: result.detectedLanguage,
-              culturalAnalysis: result.culturalAnalysis,
               formalityLevel: result.formalityLevel,
             };
           } catch (error: any) {
@@ -771,89 +770,6 @@ export const generateChatSummary = onCall(
 );
 
 /**
- * Analyze message for cultural context and slang
- * Callable from React Native app
- */
-export const analyzeCulturalContext = onCall(
-  {
-    invoker: "public",
-  },
-  async (request) => {
-    try {
-      // Check authentication
-      if (!request.auth) {
-        throw new HttpsError(
-          "unauthenticated",
-          "User must be authenticated"
-        );
-      }
-
-      const { text, language, chatMood, relationship } = request.data;
-
-      // Validate required parameters
-      if (!text || typeof text !== "string") {
-        throw new HttpsError(
-          "invalid-argument",
-          "text is required and must be a string"
-        );
-      }
-
-      if (!language || typeof language !== "string") {
-        throw new HttpsError(
-          "invalid-argument",
-          "language is required and must be a string"
-        );
-      }
-
-      logger.info("Analyzing cultural context", {
-        textLength: text.length,
-        language,
-        userId: request.auth.uid,
-        chatMood,
-        relationship
-      });
-
-      // Generate a temporary message ID for analysis
-      const tempMessageId = `temp_${Date.now()}`;
-
-      // Call cultural analysis service
-      const analysis = await CulturalAnalysisService.analyzeCulturalContext(
-        text,
-        language,
-        tempMessageId,
-        chatMood,
-        relationship
-      );
-
-      logger.info("Cultural analysis complete", {
-        culturalPhrasesFound: analysis.culturalPhrases.length,
-        slangExpressionsFound: analysis.slangExpressions.length
-      });
-
-      return {
-        success: true,
-        analysis
-      };
-
-    } catch (error: any) {
-      logger.error("Cultural analysis error:", error);
-
-      // Re-throw HttpsError if it's already one
-      if (error instanceof HttpsError) {
-        throw error;
-      }
-
-      // Wrap other errors
-      throw new HttpsError(
-        "internal",
-        "Failed to analyze cultural context",
-        error.message
-      );
-    }
-  }
-);
-
-/**
  * Generate embeddings for recent messages in a chat
  * Used for RAG (semantic search) in chat summarization
  * 
@@ -1069,7 +985,7 @@ export const searchAllChats = onCall(
                 const userDoc = await admin.firestore().collection("users").doc(otherUserId).get();
                 const userData = userDoc.data();
                 chatName = userData?.displayName || userData?.username || "Unknown User";
-              } catch (error) {
+              } catch {
                 logger.warn("Could not fetch user data", { userId: otherUserId });
                 chatName = "Unknown User";
               }
@@ -1265,6 +1181,111 @@ export const onMessageCreated = onDocumentCreated(
         error: error.message,
       });
       // Don't throw - we don't want to fail message creation
+    }
+  }
+);
+
+/**
+ * Analyze cultural context and slang for a specific message
+ * Called on-demand when user wants cultural analysis
+ */
+export const analyzeCulturalContext = onCall(
+  {
+    invoker: "public",
+  },
+  async (request) => {
+    try {
+      // Check authentication
+      if (!request.auth) {
+        throw new HttpsError(
+          "unauthenticated",
+          "User must be authenticated to analyze cultural context"
+        );
+      }
+
+      const {messageId, chatId, messageText, translatedText, targetLanguage} = request.data;
+
+      // Validate required parameters
+      if (!messageId || typeof messageId !== "string") {
+        throw new HttpsError(
+          "invalid-argument",
+          "messageId is required and must be a string"
+        );
+      }
+
+      if (!messageText || typeof messageText !== "string") {
+        throw new HttpsError(
+          "invalid-argument",
+          "messageText is required and must be a string"
+        );
+      }
+
+      if (!translatedText || typeof translatedText !== "string") {
+        throw new HttpsError(
+          "invalid-argument",
+          "translatedText is required and must be a string"
+        );
+      }
+
+      if (!targetLanguage || typeof targetLanguage !== "string") {
+        throw new HttpsError(
+          "invalid-argument",
+          "targetLanguage is required and must be a string"
+        );
+      }
+
+      logger.info("Cultural analysis requested", {
+        messageId,
+        chatId: chatId || "unknown",
+        targetLanguage,
+        originalTextLength: messageText.length,
+        translatedTextLength: translatedText.length,
+        userId: request.auth.uid,
+      });
+
+      // Detect the original message language
+      const langDetectResult = await translationService.quickDetectLanguage(messageText);
+      const originalLanguage = langDetectResult.language || "en";
+
+      logger.info("Detected original language", {
+        messageId,
+        originalLanguage,
+        targetLanguage,
+      });
+
+      // Call cultural analysis service with CORRECT parameter order
+      const result = await CulturalAnalysisService.analyzeCulturalContext(
+        messageText,       // originalText
+        translatedText,    // translatedText
+        originalLanguage,  // language (original message language - NOT target!)
+        messageId,         // messageId
+        "neutral",         // chatMood
+        "friend",          // relationship
+        targetLanguage     // targetLanguage (user's preferred language for explanations!)
+      );
+
+      logger.info("Cultural analysis completed", {
+        messageId,
+        culturalPhrasesFound: result.culturalPhrases.length,
+        slangExpressionsFound: result.slangExpressions.length,
+      });
+
+      return {
+        success: true,
+        culturalAnalysis: result,
+      };
+
+    } catch (error: any) {
+      logger.error("Cultural analysis failed", {
+        error: error.message,
+        stack: error.stack,
+        userId: request.auth?.uid,
+      });
+
+      throw new HttpsError(
+        "internal",
+        error.message || "Cultural analysis failed"
+      );
     }
   }
 );

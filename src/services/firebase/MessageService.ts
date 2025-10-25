@@ -13,7 +13,6 @@
 import { Message, MessageStatus, User } from '@/shared/types';
 import { Logger } from '@/shared/utils/Logger';
 import {
-    arrayUnion,
     collection,
     doc,
     DocumentData,
@@ -371,45 +370,6 @@ export class MessageService {
       });
     } catch (error) {
       console.error('Error updating message status:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete message for a specific user
-   */
-  static async deleteMessageForMe(
-    chatId: string,
-    messageId: string,
-    userId: string
-  ): Promise<void> {
-    try {
-      const messageRef = doc(firestore, 'chats', chatId, 'messages', messageId);
-      await updateDoc(messageRef, {
-        deletedFor: arrayUnion(userId),
-      });
-    } catch (error) {
-      console.error('Error deleting message for me:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete message for everyone
-   * Only own messages can be deleted for everyone
-   */
-  static async deleteMessageForEveryone(
-    chatId: string,
-    messageId: string
-  ): Promise<void> {
-    try {
-      const messageRef = doc(firestore, 'chats', chatId, 'messages', messageId);
-      await updateDoc(messageRef, {
-        deletedForEveryone: true,
-        deletedAt: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error('Error deleting message for everyone:', error);
       throw error;
     }
   }

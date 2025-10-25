@@ -60,8 +60,6 @@ interface ChatState {
   sendImageMessage: (chatId: string, senderId: string, imageUri: string, caption?: string) => Promise<void>;
   updateMessageStatus: (chatId: string, messageId: string, status: MessageStatus) => Promise<void>;
   retryFailedMessage: (chatId: string, messageId: string) => Promise<void>;
-  deleteMessageForMe: (chatId: string, messageId: string, userId: string) => Promise<void>;
-  deleteMessageForEveryone: (chatId: string, messageId: string) => Promise<void>;
   addReaction: (chatId: string, messageId: string, emoji: string, userId: string) => Promise<void>;
   removeReaction: (chatId: string, messageId: string, emoji: string, userId: string) => Promise<void>;
   markChatAsRead: (chatId: string, userId: string) => Promise<void>;
@@ -458,27 +456,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ isLoadingMessages: true, error: null });
       const messageRows = await SQLiteService.getMessages(chatId, 50);
       
-      // Convert MessageRow[] to Message[]
-      const messages: Message[] = messageRows.map(row => ({
-        id: row.id,
-        chatId: row.chatId,
-        senderId: row.senderId,
-        text: row.text,
-        timestamp: row.timestamp, // Already a number
-        status: row.status as MessageStatus,
-        type: row.type as MessageType,
-        imageUrl: row.imageUrl,
-        thumbnailUrl: row.thumbnailUrl,
-        caption: row.caption,
-        reactions: row.reactions ? JSON.parse(row.reactions) : {},
-        deletedFor: [], // Not stored separately in SQLite
-        deletedForEveryone: row.deletedForEveryone === 1,
-        deletedAt: null, // Not stored in SQLite
-        translations: row.translations ? JSON.parse(row.translations) : {},
-        detectedLanguage: row.detectedLanguage || undefined,
-        syncStatus: row.syncStatus as MessageSyncStatus,
-      }));
+      // Convert MessageRow[] to Message[] and filter out deleted messages
+      const messages: Message[] = messageRows
+        .filter(row => row.deletedForEveryone !== 1) // Filter out deleted messages
+        .map(row => ({
+          id: row.id,
+          chatId: row.chatId,
+          senderId: row.senderId,
+          text: row.text,
+          timestamp: row.timestamp, // Already a number
+          status: row.status as MessageStatus,
+          type: row.type as MessageType,
+          imageUrl: row.imageUrl,
+          thumbnailUrl: row.thumbnailUrl,
+          caption: row.caption,
+          reactions: row.reactions ? JSON.parse(row.reactions) : {},
+          deletedFor: [], // Not stored separately in SQLite
+          deletedForEveryone: false, // We filtered these out, so they're all false
+          deletedAt: null, // Not stored in SQLite
+          translations: row.translations ? JSON.parse(row.translations) : {},
+          detectedLanguage: row.detectedLanguage || undefined,
+          syncStatus: row.syncStatus as MessageSyncStatus,
+        }));
       
+      console.log(`📱 Loaded ${messages.length} non-deleted messages from SQLite (filtered out ${messageRows.length - messages.length} deleted)`);
       set({ messages, isLoadingMessages: false });
     } catch (error) {
       console.error('Error loading messages from SQLite:', error);
@@ -625,6 +626,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const messagesToUpdate: Message[] = [];
         
         for (const msg of newMessages) {
+          
           if (currentMessageIds.has(msg.id)) {
             // Update existing message (status change, etc.)
             messagesToUpdate.push(msg);
@@ -736,10 +738,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                             text: result.data.translated,
                             formalityLevel: result.data.formalityLevel,
                             formalityIndicators: result.data.formalityIndicators,
-                            culturalAnalysis: result.data.culturalAnalysis ? {
-                              culturalPhrases: result.data.culturalAnalysis.culturalPhrases || [],
-                              slangExpressions: result.data.culturalAnalysis.slangExpressions || [],
-                            } : undefined,
                           };
                           
                           // Save to SQLite
@@ -786,7 +784,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // 🔔 Trigger in-app notification if message is from someone else AND not actively viewing this chat
             // AND message was sent AFTER user joined (to avoid notifications for old messages when rejoining)
             // AND this is NOT the initial load (to avoid notifications when loading cached messages)
-            if (currentUserId && msg.senderId !== currentUserId && activeChatId !== chatId && !isInitialLoad) {
+            // AND message is NOT deleted for everyone (to avoid notifications for deletions)
+            // AND message is actually NEW (not an update to existing message)
+            // AND message is not from current user (to avoid notifications for own actions)
+            if (currentUserId && msg.senderId !== currentUserId && activeChatId !== chatId && !isInitialLoad && !currentMessageIds.has(msg.id)) {
               try {
                 // Fetch user's CURRENT joinedAt for THIS chat to check if message is new
                 const participantData = await ChatService.getParticipant(chatId, currentUserId);
@@ -838,6 +839,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         // Add new messages
         updatedMessages = [...updatedMessages, ...messagesToAdd];
+        
+        // Sort by timestamp (oldest first)
+        updatedMessages.sort((a, b) => {
+          const aTime = typeof a.timestamp === 'number' ? a.timestamp : a.timestamp.getTime();
+          const bTime = typeof b.timestamp === 'number' ? b.timestamp : b.timestamp.getTime();
+          return aTime - bTime;
+        });
         
         set({ messages: updatedMessages });
         

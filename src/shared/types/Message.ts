@@ -47,6 +47,7 @@ export interface Message {
   // AI Translation
   translations?: MessageTranslations; // Translations { "es": "Translated text", "fr": "..." }
   detectedLanguage?: string;         // Auto-detected source language (ISO 639-1 code)
+  isTranslating?: boolean;           // True if message is currently being translated
   
   // Translation metadata (for sent-as-translation feature)
   originalText?: string;             // Original text when sent as translation
@@ -77,11 +78,11 @@ export interface MessageReactions {
 }
 
 /**
- * Message translations map with cultural analysis
- * Key: language code (ISO 639-1), Value: translation with cultural data
+ * Message translations map
+ * Key: language code (ISO 639-1), Value: translation
  * Example: { 
- *   "es": { text: "¡Hola!", culturalAnalysis: {...} },
- *   "fr": { text: "Bonjour!", culturalAnalysis: {...} }
+ *   "es": { text: "¡Hola!", formalityLevel: "casual" },
+ *   "fr": { text: "Bonjour!", formalityLevel: "formal" }
  * }
  */
 export interface MessageTranslations {
@@ -89,30 +90,12 @@ export interface MessageTranslations {
 }
 
 /**
- * Single translation with optional cultural analysis and formality detection
+ * Single translation with formality detection
  */
 export interface MessageTranslation {
   text: string;
   formalityLevel?: 'casual' | 'formal' | 'professional' | 'friendly'; // Detected formality level
   formalityIndicators?: string[]; // What made us detect this level (e.g., ["informal greeting", "slang"])
-  culturalAnalysis?: {
-    culturalPhrases: Array<{
-      phrase: string;
-      position: [number, number];
-      meaning: string;
-      culturalContext: string;
-      examples: string[];
-      confidence: number;
-    }>;
-    slangExpressions: Array<{
-      slang: string;
-      position: [number, number];
-      meaning: string;
-      formalEquivalent: string;
-      usage: string;
-      confidence: number;
-    }>;
-  };
 }
 
 /**
