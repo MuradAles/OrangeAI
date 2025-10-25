@@ -38,6 +38,7 @@ async function testCulturalAnalysis() {
     try {
       const result = await CulturalAnalysisService.analyzeCulturalContext(
         testCase.text,
+        testCase.text, // translated text (same for test)
         testCase.language,
         testCase.messageId
       );

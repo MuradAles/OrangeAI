@@ -1,114 +1,169 @@
-/**
- * Hook for analyzing messages for cultural context and slang
- */
+import { Message } from '@/shared/types';
+import { useEffect, useState } from 'react';
 
-import { CulturalService } from '@/services/firebase';
-import { CulturalAnalysisResult } from '@/shared/types/CulturalTypes';
-import { createCacheEntry, createCacheKey, useCulturalStore } from '@/store/CulturalStore';
-import { useCallback, useEffect, useState } from 'react';
+interface UseCulturalAnalysisProps {
+  message: Message;
+  chatId: string;
+  preferredLanguage: string;
+  translatedText?: string;
+}
 
-interface UseCulturalAnalysisOptions {
-  messageId: string;
-  messageText: string;
-  languageCode: string;
-  chatMood?: string;
-  relationship?: string;
-  enabled?: boolean;
+interface CulturalAnalysis {
+  messageExplanation?: string; // Overall explanation of what the message means
+  culturalPhrases: {
+    phrase: string;
+    position: [number, number];
+    explanation: string;
+    culturalContext: string;
+    examples: string[];
+    confidence: number;
+  }[];
+  slangExpressions: {
+    slang: string;
+    position: [number, number];
+    standardMeaning: string;
+    usage: string;
+    confidence: number;
+  }[];
+}
+
+interface UseCulturalAnalysisReturn {
+  // State
+  culturalAnalysis: CulturalAnalysis | null;
+  showCulturalPopup: boolean;
+  selectedPhrase: {
+    phrase: any;
+    type: 'cultural' | 'slang';
+  } | null;
+  isAnalyzing: boolean;
+  
+  // Actions
+  handleCulturalAnalysis: () => Promise<void>;
+  setShowCulturalPopup: (show: boolean) => void;
+  setSelectedPhrase: (phrase: any) => void;
 }
 
 export const useCulturalAnalysis = ({
-  messageId,
-  messageText,
-  languageCode,
-  chatMood,
-  relationship,
-  enabled = true,
-}: UseCulturalAnalysisOptions) => {
-  const { preferences, getFromCache, addToCache, setLoading, setError } = useCulturalStore();
-  const [analysis, setAnalysis] = useState<CulturalAnalysisResult | null>(null);
+  message,
+  chatId,
+  preferredLanguage,
+  translatedText,
+}: UseCulturalAnalysisProps): UseCulturalAnalysisReturn => {
+  // Cultural analysis state
+  const [culturalAnalysis, setCulturalAnalysis] = useState<CulturalAnalysis | null>(null);
+  const [showCulturalPopup, setShowCulturalPopup] = useState(false);
+  const [selectedPhrase, setSelectedPhrase] = useState<{
+    phrase: any;
+    type: 'cultural' | 'slang';
+  } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const analyzeMessage = useCallback(async () => {
-    // Skip if disabled or message is empty
-    if (!enabled || !messageText || !preferences.autoAnalyze) {
-      return;
-    }
 
-    // Debug: Log the language code being used
-    
-    // Skip if language is invalid
-    if (!languageCode || typeof languageCode !== 'string') {
-      console.warn('⚠️ Skipping cultural analysis - invalid languageCode:', languageCode);
-      return;
-    }
-
-    // Check cache first
-    const cacheKey = createCacheKey(messageText, languageCode);
-    const cached = getFromCache(cacheKey);
-    
-    if (cached) {
-      setAnalysis(cached.analysis);
-      return;
-    }
-
-    // Analyze message
-    setIsAnalyzing(true);
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await CulturalService.analyzeCulturalContext(
-        messageText,
-        languageCode,
-        {
-          useWebSearch: preferences.useWebSearch,
-          chatMood,
-          relationship,
-        }
-      );
-
-      // Add message ID to result
-      const analysisWithId: CulturalAnalysisResult = {
-        ...result,
-        messageId,
-      };
-
-      setAnalysis(analysisWithId);
-      
-      // Cache the result
-      const cacheEntry = createCacheEntry(messageText, languageCode, analysisWithId);
-      addToCache(cacheKey, cacheEntry);
-    } catch (error) {
-      console.error('Cultural analysis failed:', error);
-      setError('Failed to analyze cultural context');
-    } finally {
-      setIsAnalyzing(false);
-      setLoading(false);
-    }
-  }, [
-    messageId,
-    messageText,
-    languageCode,
-    chatMood,
-    relationship,
-    enabled,
-    preferences.autoAnalyze,
-    preferences.useWebSearch,
-    getFromCache,
-    addToCache,
-    setLoading,
-    setError,
-  ]);
-
-  // Auto-analyze on mount and when parameters change
+  // Load existing cultural analysis from SQLite
   useEffect(() => {
-    analyzeMessage();
-  }, [analyzeMessage]);
+    const loadCulturalAnalysis = async () => {
+      if (!message.id || !chatId) return;
+      
+      try {
+        const { SQLiteService } = await import('@/database/SQLiteService');
+        const existingAnalysis = await SQLiteService.getCulturalAnalysis(message.id, chatId);
+        
+        if (existingAnalysis) {
+          setCulturalAnalysis({
+            messageExplanation: existingAnalysis.messageExplanation,
+            culturalPhrases: existingAnalysis.culturalPhrases,
+            slangExpressions: existingAnalysis.slangExpressions
+          });
+        }
+      } catch {
+        // Silently ignore database errors - table might not exist yet
+        // console.log('Failed to load cultural analysis:', error);
+      }
+    };
+
+    loadCulturalAnalysis();
+  }, [message.id, chatId]);
+
+  const handleCulturalAnalysis = async () => {
+    if (!message.text || !preferredLanguage) return;
+    
+    
+    try {
+      // Check if we already have cultural analysis in SQLite WITH messageExplanation
+      try {
+        const { SQLiteService } = await import('@/database/SQLiteService');
+        const existingAnalysis = await SQLiteService.getCulturalAnalysis(message.id, chatId || '');
+        
+        // Only use cached data if it has messageExplanation (new field)
+        if (existingAnalysis && existingAnalysis.messageExplanation) {
+          // Load from SQLite
+          setCulturalAnalysis({
+            messageExplanation: existingAnalysis.messageExplanation,
+            culturalPhrases: existingAnalysis.culturalPhrases,
+            slangExpressions: existingAnalysis.slangExpressions
+          });
+          return;
+        }
+        // If cached data is missing messageExplanation, re-fetch
+      } catch (dbError) {
+        // Ignore database errors
+      }
+
+      // Show loading state and start animation
+      setIsAnalyzing(true);
+      
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('@/services/firebase/FirebaseConfig');
+      
+      const analyzeFn = httpsCallable(functions, 'analyzeCulturalContext');
+      
+      const result: any = await analyzeFn({
+        messageId: message.id,
+        chatId: chatId || 'temp',
+        messageText: message.text, // Analyze the ORIGINAL text
+        translatedText: translatedText || '', // Include translated text
+        targetLanguage: preferredLanguage,
+      });
+      
+      if (result.data.success && result.data.culturalAnalysis) {
+        const analysis = result.data.culturalAnalysis;
+        
+        // Save to SQLite
+        try {
+          const { SQLiteService } = await import('@/database/SQLiteService');
+          await SQLiteService.saveCulturalAnalysis(
+            message.id,
+            chatId || '',
+            analysis.culturalPhrases || [],
+            analysis.slangExpressions || [],
+            analysis.messageExplanation
+          );
+        } catch (saveError) {
+          // Ignore save errors
+        }
+        
+        // Update state
+        setCulturalAnalysis(analysis);
+      }
+    } catch (error: any) {
+      console.error('🎭 Cultural analysis failed:', error);
+      setCulturalAnalysis(null); // Reset on error
+    } finally {
+      // Stop animation when done (success or error)
+      setIsAnalyzing(false);
+    }
+  };
 
   return {
-    analysis,
+    // State
+    culturalAnalysis,
+    showCulturalPopup,
+    selectedPhrase,
     isAnalyzing,
-    reanalyze: analyzeMessage,
+    
+    // Actions
+    handleCulturalAnalysis,
+    setShowCulturalPopup,
+    setSelectedPhrase,
   };
 };
-

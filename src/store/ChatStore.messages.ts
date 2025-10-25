@@ -408,58 +408,6 @@ export const createMessageActions = (set: any, get: any) => ({
     }
   },
 
-  // Delete message for current user only
-  deleteMessageForMe: async (chatId: string, messageId: string, userId: string) => {
-    try {
-      await MessageService.deleteMessageForMe(chatId, messageId, userId);
-      
-      // Update in SQLite
-      await SQLiteService.deleteMessage(messageId, userId);
-      
-      // Update in state
-      const { messages } = get();
-      const updatedMessages = messages.map((msg: Message) => 
-        msg.id === messageId 
-          ? { ...msg, deletedFor: [...(msg.deletedFor || []), userId] }
-          : msg
-      );
-      set({ messages: updatedMessages });
-    } catch (error) {
-      console.error('Error deleting message for me:', error);
-      throw error;
-    }
-  },
-
-  // Delete message for everyone
-  deleteMessageForEveryone: async (chatId: string, messageId: string) => {
-    try {
-      await MessageService.deleteMessageForEveryone(chatId, messageId);
-      
-      // Update in SQLite (non-blocking)
-      SQLiteService.getMessageById(messageId).then(messageRow => {
-        if (messageRow) {
-          const updatedRow = { 
-            ...messageRow, 
-            deletedForEveryone: 1, // SQLite uses 1 for true
-          };
-          SQLiteService.saveMessage(updatedRow).catch(() => {});
-        }
-      }).catch(() => {});
-      
-      // Update in state
-      const { messages } = get();
-      const updatedMessages = messages.map((msg: Message) => 
-        msg.id === messageId 
-          ? { ...msg, deletedForEveryone: true, deletedAt: Date.now() }
-          : msg
-      );
-      set({ messages: updatedMessages });
-    } catch (error) {
-      console.error('Error deleting message for everyone:', error);
-      throw error;
-    }
-  },
-
   // Add reaction to a message
   addReaction: async (chatId: string, messageId: string, emoji: string, userId: string) => {
     try {

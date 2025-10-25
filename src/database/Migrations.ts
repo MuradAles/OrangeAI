@@ -53,6 +53,37 @@ export const migrations: Migration[] = [
       'ALTER TABLE messages DROP COLUMN sentAsTranslation;',
     ],
   },
+  {
+    version: 4,
+    name: 'Add cultural analysis table',
+    up: [
+      `CREATE TABLE IF NOT EXISTS cultural_analysis (
+        messageId TEXT NOT NULL,
+        chatId TEXT NOT NULL,
+        culturalPhrases TEXT NOT NULL,
+        slangExpressions TEXT NOT NULL,
+        analyzedAt INTEGER NOT NULL,
+        PRIMARY KEY (messageId, chatId),
+        FOREIGN KEY (messageId) REFERENCES messages(id) ON DELETE CASCADE,
+        FOREIGN KEY (chatId) REFERENCES chats(id) ON DELETE CASCADE
+      );`,
+    ],
+    down: [
+      'DROP TABLE IF EXISTS cultural_analysis;',
+    ],
+  },
+  {
+    version: 5,
+    name: 'Add messageExplanation to cultural_analysis',
+    up: [
+      'ALTER TABLE cultural_analysis ADD COLUMN messageExplanation TEXT;',
+    ],
+    down: [
+      // SQLite doesn't support DROP COLUMN directly, so we'd need to recreate the table
+      // For simplicity, we'll just note it here
+      'SELECT 1;', // No-op - can't easily drop column in SQLite
+    ],
+  },
 ];
 
 /**

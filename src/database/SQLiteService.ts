@@ -449,6 +449,78 @@ class SQLiteServiceClass {
   }
 
   /**
+   * Save cultural analysis for a message
+   */
+  async saveCulturalAnalysis(
+    messageId: string,
+    chatId: string,
+    culturalPhrases: any[],
+    slangExpressions: any[],
+    messageExplanation?: string
+  ): Promise<void> {
+    await this.db!.runAsync(
+      `INSERT OR REPLACE INTO cultural_analysis 
+       (messageId, chatId, messageExplanation, culturalPhrases, slangExpressions, analyzedAt) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        messageId,
+        chatId,
+        messageExplanation || '',
+        JSON.stringify(culturalPhrases),
+        JSON.stringify(slangExpressions),
+        Date.now()
+      ]
+    );
+  }
+
+  /**
+   * Get cultural analysis for a message
+   */
+  async getCulturalAnalysis(
+    messageId: string,
+    chatId: string
+  ): Promise<{
+    messageExplanation?: string;
+    culturalPhrases: any[];
+    slangExpressions: any[];
+    analyzedAt: number;
+  } | null> {
+    const result = await this.db!.getFirstAsync<{
+      messageExplanation: string;
+      culturalPhrases: string;
+      slangExpressions: string;
+      analyzedAt: number;
+    }>(
+      'SELECT messageExplanation, culturalPhrases, slangExpressions, analyzedAt FROM cultural_analysis WHERE messageId = ? AND chatId = ?',
+      [messageId, chatId]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      messageExplanation: result.messageExplanation || undefined,
+      culturalPhrases: JSON.parse(result.culturalPhrases),
+      slangExpressions: JSON.parse(result.slangExpressions),
+      analyzedAt: result.analyzedAt
+    };
+  }
+
+  /**
+   * Delete cultural analysis for a message
+   */
+  async deleteCulturalAnalysis(
+    messageId: string,
+    chatId: string
+  ): Promise<void> {
+    await this.db!.runAsync(
+      'DELETE FROM cultural_analysis WHERE messageId = ? AND chatId = ?',
+      [messageId, chatId]
+    );
+  }
+
+  /**
    * Get messages for a chat (paginated)
    */
   async getMessages(
@@ -458,7 +530,7 @@ class SQLiteServiceClass {
   ): Promise<MessageRow[]> {
     const result = await this.db!.getAllAsync<MessageRow>(
       `SELECT * FROM messages 
-       WHERE chatId = ? AND deletedForMe = 0
+       WHERE chatId = ? AND deletedForMe = 0 AND deletedForEveryone = 0
        ORDER BY timestamp DESC 
        LIMIT ? OFFSET ?`,
       [chatId, limit, offset]
@@ -488,7 +560,7 @@ class SQLiteServiceClass {
     // Get messages before and after
     const result = await this.db!.getAllAsync<MessageRow>(
       `SELECT * FROM messages 
-       WHERE chatId = ? AND deletedForMe = 0
+       WHERE chatId = ? AND deletedForMe = 0 AND deletedForEveryone = 0
        AND timestamp >= ?
        ORDER BY timestamp ASC 
        LIMIT ?`,

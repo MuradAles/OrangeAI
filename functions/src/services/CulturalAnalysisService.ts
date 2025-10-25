@@ -14,6 +14,9 @@ export interface CulturalPhrase {
   culturalContext: string;
   examples: string[];
   confidence: number;
+  // New fields for mapping
+  englishPhrase?: string;
+  englishPosition?: [number, number];
 }
 
 export interface SlangExpression {
@@ -22,10 +25,14 @@ export interface SlangExpression {
   standardMeaning: string;
   usage: string;
   confidence: number;
+  // New fields for mapping
+  englishSlang?: string;
+  englishPosition?: [number, number];
 }
 
 export interface CulturalAnalysisResult {
   messageId: string;
+  messageExplanation: string; // Overall explanation of what the message means
   culturalPhrases: CulturalPhrase[];
   slangExpressions: SlangExpression[];
   analysisTimestamp: number;
@@ -56,11 +63,12 @@ export class CulturalAnalysisService {
   }
   
   /**
-   * Analyze text for cultural phrases and slang expressions (now mood-aware)
+   * Analyze text for cultural phrases and slang expressions in ONE API call
    * @param targetLanguage - Language for explanations (e.g., 'ru' for Russian explanations)
    */
   static async analyzeCulturalContext(
-    text: string,
+    originalText: string,
+    translatedText: string,
     language: string,
     messageId: string,
     chatMood?: string,
@@ -68,19 +76,21 @@ export class CulturalAnalysisService {
     targetLanguage?: string
   ): Promise<CulturalAnalysisResult> {
     try {
-      logger.info('Starting mood-aware cultural analysis', {
+      logger.info('Starting single-call cultural analysis', {
         messageId,
-        textLength: text.length,
+        originalTextLength: originalText.length,
+        translatedTextLength: translatedText.length,
         language,
         chatMood: chatMood || 'none',
         relationship: relationship || 'none'
       });
 
       // Skip ONLY extremely simple messages (< 3 chars)
-      if (text.trim().length < 3) {
-        logger.info('Skipping extremely simple message', { messageId, length: text.trim().length });
+      if (originalText.trim().length < 3) {
+        logger.info('Skipping extremely simple message', { messageId, length: originalText.trim().length });
         return {
           messageId,
+          messageExplanation: originalText,
           culturalPhrases: [],
           slangExpressions: [],
           analysisTimestamp: Date.now(),
@@ -88,43 +98,33 @@ export class CulturalAnalysisService {
         };
       }
 
-      // Step 1: Detect cultural phrases (now mood-aware and localized)
-      const culturalPhrases = await this.detectCulturalPhrases(
-        text,
+      // Do everything in ONE AI call
+      const result = await this.performSingleCallAnalysis(
+        originalText,
+        translatedText,
         language,
         chatMood,
         relationship,
         targetLanguage
       );
 
-      // Step 2: Detect slang expressions (now mood-aware and localized)
-      const slangExpressions = await this.detectSlangExpressions(
-        text,
-        language,
-        chatMood,
-        relationship,
-        targetLanguage
-      );
-
-      // Step 3: REMOVED fake web search enhancement (was adding 2-5 seconds with no real benefit)
-
-      const result: CulturalAnalysisResult = {
+      const finalResult: CulturalAnalysisResult = {
         messageId,
-        culturalPhrases: culturalPhrases,
-        slangExpressions,
+        messageExplanation: result.messageExplanation || translatedText || originalText,
+        culturalPhrases: result.culturalPhrases,
+        slangExpressions: result.slangExpressions,
         analysisTimestamp: Date.now(),
-        webSearchUsed: false, // No longer using web search
+        webSearchUsed: false,
       };
 
-      logger.info('Mood-aware cultural analysis completed', {
+      logger.info('Single-call cultural analysis completed', {
         messageId,
-        culturalPhrasesCount: result.culturalPhrases.length,
-        slangExpressionsCount: result.slangExpressions.length,
-        webSearchUsed: result.webSearchUsed,
+        culturalPhrasesCount: finalResult.culturalPhrases.length,
+        slangExpressionsCount: finalResult.slangExpressions.length,
         chatMood: chatMood || 'none'
       });
 
-      return result;
+      return finalResult;
     } catch (error: any) {
       logger.error('Cultural analysis error:', {
         messageId,
@@ -134,6 +134,7 @@ export class CulturalAnalysisService {
       // Return empty result on error
       return {
         messageId,
+        messageExplanation: originalText,
         culturalPhrases: [],
         slangExpressions: [],
         analysisTimestamp: Date.now(),
@@ -143,19 +144,20 @@ export class CulturalAnalysisService {
   }
 
   /**
-   * Detect cultural phrases using AI SDK (now mood-aware and localized)
+   * Perform simple cultural analysis with word mapping
    */
-  private static async detectCulturalPhrases(
-    text: string,
+  private static async performSingleCallAnalysis(
+    originalText: string,
+    translatedText: string,
     language: string,
     chatMood?: string,
     relationship?: string,
     targetLanguage?: string
-  ): Promise<CulturalPhrase[]> {
+  ): Promise<{ messageExplanation: string, culturalPhrases: CulturalPhrase[], slangExpressions: SlangExpression[] }> {
     try {
       const explanationLanguage = targetLanguage ? this.getLanguageName(targetLanguage) : 'English';
       
-      let prompt = `Analyze this text for cultural phrases, idioms, metaphors, and culture-specific expressions. `;
+      let prompt = `Analyze this text for cultural phrases, slang, and idioms. `;
       
       if (chatMood) {
         prompt += `Conversation mood: "${chatMood}". `;
@@ -165,61 +167,92 @@ export class CulturalAnalysisService {
         prompt += `Relationship: "${relationship}". `;
       }
       
-      prompt += `⚠️ IMPORTANT: Provide ALL explanations in ${explanationLanguage}. `;
-      prompt += `Respond with ONLY a JSON array in this exact format:
-[
-  {
-    "phrase": "break a leg",
-    "position": [0, 12],
-    "explanation": "Good luck wish",
-    "culturalContext": "Theater idiom",
-    "examples": [],
-    "confidence": 95
-  }
-]
+      prompt += `⚠️ IMPORTANT: Provide ALL explanations in ${explanationLanguage}. 
 
-Text to analyze: "${text}"
-Language: ${language}
+ORIGINAL TEXT: "${originalText}"
+TRANSLATED TEXT: "${translatedText}"
+ORIGINAL LANGUAGE: ${language}
 
-POSITION CALCULATION:
-- Count characters from start (index 0)
-- Include ALL characters (letters, spaces, punctuation)
-- Position = [startIndex, endIndex]
-- VERIFY position matches the actual text before responding
+TASK: 
+1. Explain the OVERALL meaning and context of this message
+2. Find cultural phrases and slang in the ORIGINAL text
+3. Provide simple word mappings to the TRANSLATED text
 
-WHAT TO DETECT (BE EXTREMELY GENEROUS - INCLUDE EVERYTHING):
-✅ Idioms and metaphors (e.g., "break a leg", "red as a tomato", "spill the tea", "blow off steam")
-✅ Cultural references that only locals would understand
-✅ Expressions unique to that culture/language
-✅ Figurative language and colorful expressions
-✅ Traditional sayings or proverbs
-✅ Pop culture references (movies, TV, memes, etc.)
-✅ Regional expressions and local slang
-✅ Food/sports/historical references
-✅ Expressions with non-literal meanings
-✅ Comparisons and similes ("like a...", "as...as...")
-✅ ANY phrase that might confuse someone from another culture
-✅ WHEN IN DOUBT, INCLUDE IT!
+Respond with ONLY a JSON object in this exact format:
+{
+  "messageExplanation": "A comprehensive 2-3 sentence explanation of what this message means, including tone, intent, and cultural context",
+  "culturalPhrases": [
+    {
+      "phrase": "qué chévere",
+      "position": [0, 10],
+      "explanation": "This is a Colombian expression used to express excitement or approval about something. It's similar to saying 'how cool' or 'how awesome' in English, but carries a distinctly Latin American casual and friendly tone.",
+      "culturalContext": "This phrase is particularly popular in Colombian Spanish and other Latin American countries. It reflects the warm, expressive communication style common in these cultures.",
+      "examples": ["¡Qué chévere tu casa!", "Está chévere la fiesta", "Qué chévere que viniste"],
+      "confidence": 95,
+      "englishPhrase": "how cool"
+    }
+  ],
+  "slangExpressions": [
+    {
+      "slang": "chévere",
+      "position": [4, 10],
+      "standardMeaning": "This means 'cool', 'awesome', or 'nice' when describing something positive or agreeable.",
+      "usage": "Used in casual conversations among friends and family to express approval, excitement, or agreement. Common in everyday speech throughout Latin America.",
+      "confidence": 98,
+      "englishSlang": "cool"
+    }
+  ]
+}
 
-IMPORTANT RULES:
-- BE EXTREMELY GENEROUS: When uncertain if something is cultural, ALWAYS INCLUDE IT
-- Lower your detection threshold - we want MORE results, not fewer
-- Borderline cases? INCLUDE THEM
-- Might be cultural? INCLUDE IT
-- Could be confusing? INCLUDE IT
-- Don't limit to specific words - analyze the actual meaning
-- Language-agnostic: detect cultural expressions in ANY language
-- Explanation = MAXIMUM 6 WORDS (can be longer if needed)
-- CulturalContext = MAXIMUM 4 WORDS (can be longer if needed)
-- It's BETTER to include too many than to miss any
-- Minimum confidence score: 60 (even low-confidence matches should be included)
+CRITICAL MAPPING RULES:
+- "phrase" field: Extract from ORIGINAL TEXT (e.g. "qué chévere" if original is Spanish)
+- "englishPhrase" field: Extract the equivalent from TRANSLATED TEXT (e.g. "how cool" if translated to English, or "qué genial" if translated to Spanish)
+- "slang" field: Extract from ORIGINAL TEXT (e.g. "chévere" if original is Spanish)
+- "englishSlang" field: Extract the equivalent from TRANSLATED TEXT (e.g. "cool" if translated to English, or "genial" if translated to Spanish)
+- The "englishPhrase/englishSlang" fields are MISNAMED but must be used - they should contain the phrase in the TARGET LANGUAGE (from TRANSLATED TEXT), NOT always English!
+- BOTH FIELDS ARE REQUIRED for every item - always extract both the original and translated versions
+
+CRITICAL: ONLY DETECT ACTUAL CULTURAL CONTENT!
+
+❌ DO NOT DETECT (Skip these):
+- Simple nouns (sunglasses, car, phone, shoes, house, etc.)
+- Basic verbs (eat, run, sleep, walk, etc.)
+- Common adjectives (big, small, red, blue, etc.)
+- Direct 1-to-1 translations with no cultural meaning
+- Everyday vocabulary that exists in all languages
+- Standard words that are just part of normal speech
+
+✅ ONLY DETECT (Flag these):
+- Idioms: Phrases with non-literal meaning ("break a leg", "piece of cake")
+- Slang: Informal expressions specific to a group ("that's fire", "no cap", "qué chévere")
+- Regional expressions: Words/phrases unique to a culture ("y'all", "mate", "güey")
+- Cultural references: References to traditions, holidays, local customs
+- Metaphors: Figurative language that needs explanation
+- Proverbs/sayings: Traditional wisdom phrases
+- Expressions that DON'T translate word-for-word
+
+STRICT RULES:
+- messageExplanation: 2-3 sentences explaining the meaning, tone, and intent
+- BE STRICT: Only flag if it TRULY needs cultural explanation
+- Single common words = SKIP (unless they're slang)
+- If it translates literally = SKIP
+- If a 5-year-old would understand = SKIP
+- Minimum confidence score: 85 (be confident!)
+- Language-agnostic: detect expressions in ANY language
+
+EXPLANATION DETAILS (provide full sentences):
+- Explanation: 2-3 sentences explaining what the phrase means, why it's cultural, and how it's used
+- CulturalContext: 1-2 sentences about the cultural/regional origin and significance
+- StandardMeaning: 1 clear sentence explaining the literal meaning
+- Usage: 1 sentence describing when and how people use this expression
+- Examples: Provide 2-3 real usage examples in the original language
 ${chatMood ? `- Adjust to mood: "${chatMood}"` : ''}
 ${relationship === 'close friends' || relationship === 'family' ? '- Include informal expressions' : ''}`;
 
       const { text: response } = await generateText({
         model: aiModel,
         prompt: prompt,
-        temperature: 0.3, // Higher temperature for more generous detection
+        temperature: 0.3,
       });
 
       // Parse JSON response - handle markdown code blocks
@@ -228,139 +261,40 @@ ${relationship === 'close friends' || relationship === 'family' ? '- Include inf
         cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
       }
       
-      const phrases = JSON.parse(cleanResponse);
+      const result = JSON.parse(cleanResponse);
       
-      // Filter to only include items with confidence >= 60 (very permissive)
-      const filteredPhrases = Array.isArray(phrases) 
-        ? phrases.filter((p: CulturalPhrase) => p.confidence >= 60)
+      // Filter to only include items with confidence >= 85 (strict threshold)
+      const filteredCulturalPhrases = Array.isArray(result.culturalPhrases) 
+        ? result.culturalPhrases.filter((p: CulturalPhrase) => p.confidence >= 85)
         : [];
       
-      logger.info('Cultural phrase detection completed', {
-        totalDetected: phrases.length,
-        afterFiltering: filteredPhrases.length,
-        minConfidence: 60
+      const filteredSlangExpressions = Array.isArray(result.slangExpressions) 
+        ? result.slangExpressions.filter((s: SlangExpression) => s.confidence >= 85)
+        : [];
+      
+      const messageExplanation = result.messageExplanation || translatedText;
+      
+      logger.info('Simple word mapping analysis completed', {
+        hasExplanation: !!messageExplanation,
+        culturalPhrasesDetected: filteredCulturalPhrases.length,
+        slangExpressionsDetected: filteredSlangExpressions.length,
+        minConfidence: 85
       });
       
-      return filteredPhrases;
+      return {
+        messageExplanation,
+        culturalPhrases: filteredCulturalPhrases,
+        slangExpressions: filteredSlangExpressions
+      };
     } catch (error) {
-      logger.error('Cultural phrase detection error:', error);
-      return [];
+      logger.error('Simple word mapping analysis error:', error);
+      return {
+        messageExplanation: translatedText || originalText,
+        culturalPhrases: [],
+        slangExpressions: []
+      };
     }
   }
 
-  /**
-   * Detect slang expressions using AI SDK (now mood-aware and localized)
-   */
-  private static async detectSlangExpressions(
-    text: string,
-    language: string,
-    chatMood?: string,
-    relationship?: string,
-    targetLanguage?: string
-  ): Promise<SlangExpression[]> {
-    try {
-      const explanationLanguage = targetLanguage ? this.getLanguageName(targetLanguage) : 'English';
-      
-      let prompt = `Analyze this text for slang, informal language, abbreviations, and trendy expressions. `;
-      
-      if (chatMood) {
-        prompt += `Conversation mood: "${chatMood}". `;
-      }
-      
-      if (relationship) {
-        prompt += `Relationship: "${relationship}". `;
-      }
-      
-      prompt += `⚠️ IMPORTANT: Provide ALL explanations (standardMeaning and usage) in ${explanationLanguage}. `;
-      prompt += `Respond with ONLY a JSON array in this exact format:
-[
-  {
-    "slang": "fire",
-    "position": [15, 19],
-    "standardMeaning": "Very cool",
-    "translatedWord": "огонь",
-    "fullExplanation": "This slang term means something is very cool, exciting, or impressive. It's commonly used to express admiration or approval.",
-    "usage": "Praise",
-    "confidence": 98
-  }
-]
-
-Text to analyze: "${text}"
-Language: ${language}
-
-POSITION CALCULATION:
-- Count characters from start (index 0)
-- Include ALL characters (letters, spaces, punctuation)
-- Position = [startIndex, endIndex]
-- VERIFY position matches the actual text before responding
-
-WHAT TO DETECT (BE EXTREMELY GENEROUS - INCLUDE EVERYTHING):
-✅ Internet slang and text speak (e.g., "lol", "brb", "ngl", "fr", "omg", "tbh", "imo")
-✅ Informal contractions (e.g., "tryna", "gonna", "wanna", "gotta", "kinda", "sorta")
-✅ Trendy expressions (e.g., "fire", "lit", "cap", "bussin", "slay", "vibe", "bet", "mood", "tea", "facts")
-✅ Casual address terms (e.g., "bro", "dude", "homie", "fam", "sis", "bestie", "mate")
-✅ Generation-specific slang (Gen Z, Millennial, Gen X, etc.)
-✅ Platform-specific lingo (TikTok, Twitter, Instagram, Discord, etc.)
-✅ Regional/dialect informal words (UK, US, Aussie, etc.)
-✅ Shortened words and abbreviations ("congrats", "thx", "pls", "ur")
-✅ Intensifiers and emphasis words ("so", "really", "totally", "absolutely" when used casually)
-✅ Filler words used informally ("like", "literally", "basically", "actually")
-✅ ANY informal, trendy, or casual expression in ANY language
-✅ WHEN IN DOUBT, INCLUDE IT!
-
-IMPORTANT RULES:
-- BE EXTREMELY GENEROUS: When uncertain if something is slang, ALWAYS INCLUDE IT
-- Lower your detection threshold - we want MORE results, not fewer
-- Borderline cases? INCLUDE THEM
-- Might be informal? INCLUDE IT
-- Could be slang? INCLUDE IT
-- Sounds casual or trendy? INCLUDE IT
-- Don't hardcode specific words - analyze what sounds casual in context
-- Language-agnostic: detect informal expressions in ANY language
-- StandardMeaning = MAXIMUM 4 WORDS (can be longer if needed)
-- Usage = MAXIMUM 3 WORDS (can be more specific)
-- It's BETTER to over-include than to miss any slang
-- Minimum confidence score: 60 (even low-confidence matches should be included)
-${chatMood && (chatMood.includes('playful') || chatMood.includes('casual')) ? '- Extra casual/playful mood - include more' : ''}
-${relationship === 'colleagues' || relationship === 'professional' ? '- Focus on professional jargon too' : '- Include all casual language'}
-
-TRANSLATION REQUIREMENTS:
-- translatedWord: Provide a direct translation of the slang term in ${explanationLanguage}
-- fullExplanation: Provide a complete 1-2 sentence explanation in ${explanationLanguage} explaining what the slang means and how it's used
-- Example: If slang is "fire" and target language is Russian:
-  - translatedWord: "огонь" 
-  - fullExplanation: "Этот сленговый термин означает, что что-то очень крутое, захватывающее или впечатляющее. Обычно используется для выражения восхищения или одобрения."`;
-
-      const { text: response } = await generateText({
-        model: aiModel,
-        prompt: prompt,
-        temperature: 0.3, // Higher temperature for more generous detection
-      });
-
-      // Parse JSON response - handle markdown code blocks
-      let cleanResponse = response.trim();
-      if (cleanResponse.startsWith('```json')) {
-        cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      }
-      
-      const slang = JSON.parse(cleanResponse);
-      
-      // Filter to only include items with confidence >= 60 (very permissive)
-      const filteredSlang = Array.isArray(slang) 
-        ? slang.filter((s: SlangExpression) => s.confidence >= 60)
-        : [];
-      
-      logger.info('Slang detection completed', {
-        totalDetected: slang.length,
-        afterFiltering: filteredSlang.length,
-        minConfidence: 60
-      });
-      
-      return filteredSlang;
-    } catch (error) {
-      logger.error('Slang detection error:', error);
-      return [];
-    }
-  }
 
 }

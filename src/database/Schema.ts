@@ -8,7 +8,7 @@
  * Database schema version
  * Increment this when making schema changes
  */
-export const CURRENT_SCHEMA_VERSION = 2; // v2: Added translations column
+export const CURRENT_SCHEMA_VERSION = 5; // v5: Added messageExplanation to cultural_analysis
 export const DATABASE_VERSION = CURRENT_SCHEMA_VERSION; // Alias for tests
 
 /**
@@ -112,6 +112,23 @@ export const CREATE_FRIEND_REQUESTS_TABLE = `
 `;
 
 /**
+ * Create cultural analysis table
+ */
+export const CREATE_CULTURAL_ANALYSIS_TABLE = `
+  CREATE TABLE IF NOT EXISTS cultural_analysis (
+    messageId TEXT NOT NULL,
+    chatId TEXT NOT NULL,
+    messageExplanation TEXT, -- Overall explanation of the message
+    culturalPhrases TEXT NOT NULL, -- JSON string
+    slangExpressions TEXT NOT NULL, -- JSON string
+    analyzedAt INTEGER NOT NULL,
+    PRIMARY KEY (messageId, chatId),
+    FOREIGN KEY (messageId) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (chatId) REFERENCES chats(id) ON DELETE CASCADE
+  );
+`;
+
+/**
  * Create metadata table (for schema versioning)
  */
 export const CREATE_METADATA_TABLE = `
@@ -152,6 +169,7 @@ export const CREATE_ALL_TABLES = [
   CREATE_MESSAGES_TABLE,
   CREATE_SCROLL_POSITIONS_TABLE,
   CREATE_FRIEND_REQUESTS_TABLE,
+  CREATE_CULTURAL_ANALYSIS_TABLE,
   ...CREATE_INDEXES,
 ];
 
@@ -159,6 +177,7 @@ export const CREATE_ALL_TABLES = [
  * Drop all tables (for testing/reset)
  */
 export const DROP_ALL_TABLES = [
+  'DROP TABLE IF EXISTS cultural_analysis;',
   'DROP TABLE IF EXISTS scroll_positions;',
   'DROP TABLE IF EXISTS friend_requests;',
   'DROP TABLE IF EXISTS messages;',
@@ -177,6 +196,7 @@ export const TABLES = {
   MESSAGES: CREATE_MESSAGES_TABLE,
   SCROLL_POSITIONS: CREATE_SCROLL_POSITIONS_TABLE,
   FRIEND_REQUESTS: CREATE_FRIEND_REQUESTS_TABLE,
+  CULTURAL_ANALYSIS: CREATE_CULTURAL_ANALYSIS_TABLE,
   SCHEMA_VERSION: CREATE_METADATA_TABLE, // metadata table stores schema version
   MESSAGES_INDEX: CREATE_INDEXES[0],
   MESSAGES_TIMESTAMP_INDEX: CREATE_INDEXES[1],

@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { AI_CONFIG, aiModel } from '../config/ai-sdk.config';
 import { ChatContext } from '../shared/types/ChatContext';
 import { ChatContextService } from './ChatContextService';
-import { CulturalAnalysisResult } from './CulturalAnalysisService';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -22,7 +21,6 @@ interface TranslationResult {
   chatId?: string;
   formalityLevel?: 'casual' | 'formal' | 'professional' | 'friendly';
   formalityIndicators?: string[];
-  culturalAnalysis?: CulturalAnalysisResult;
   error?: string;
 }
 
@@ -40,21 +38,6 @@ const translationSchema = z.object({
   detectedLanguage: z.string().describe('Two-letter ISO 639-1 language code of the source text (e.g., en, es, fr)'),
   formalityLevel: z.enum(['casual', 'formal', 'professional', 'friendly']).describe('Detected formality level of the message'),
   formalityIndicators: z.array(z.string()).default([]).describe('Indicators that led to formality detection (e.g., "informal greeting", "slang")'),
-  culturalPhrases: z.array(z.object({
-    phrase: z.string().describe('The cultural phrase or idiom found'),
-    position: z.array(z.number()).length(2).describe('Start and end character positions as array [startIndex, endIndex]'),
-    explanation: z.string().describe('Brief explanation (max 5 words) in target language'),
-    culturalContext: z.string().describe('Cultural context (max 3 words) in target language'),
-    examples: z.array(z.string()).describe('Usage examples in target language'),
-    confidence: z.number().min(0).max(100).describe('Confidence score 0-100'),
-  })).default([]).describe('Cultural phrases and idioms found in the TRANSLATED text. Return empty array if none found.'),
-  slangExpressions: z.array(z.object({
-    slang: z.string().describe('The slang term found'),
-    position: z.array(z.number()).length(2).describe('Start and end character positions as array [startIndex, endIndex]'),
-    standardMeaning: z.string().describe('Standard meaning (max 3 words) in target language'),
-    usage: z.string().describe('Usage context (max 2 words) in target language'),
-    confidence: z.number().min(0).max(100).describe('Confidence score 0-100'),
-  })).default([]).describe('Slang expressions found in the TRANSLATED text. Return empty array if none found.'),
 });
 
 export class TranslationService {
@@ -207,13 +190,6 @@ Keep the translation natural and preserve the tone.`;
           detectedLanguage: quickLanguageCheck.language,
           formalityLevel: 'casual',
           formalityIndicators: [],
-          culturalAnalysis: {
-            messageId: params.messageId,
-            culturalPhrases: [],
-            slangExpressions: [],
-            analysisTimestamp: Date.now(),
-            webSearchUsed: false,
-          },
         };
       }
 
@@ -240,13 +216,6 @@ Keep the translation natural and preserve the tone.`;
           detectedLanguage: quickLanguageCheck.language,
           formalityLevel: 'casual',
           formalityIndicators: [],
-          culturalAnalysis: {
-            messageId: params.messageId,
-            culturalPhrases: [],
-            slangExpressions: [],
-            analysisTimestamp: Date.now(),
-            webSearchUsed: false,
-          },
           messageId: params.messageId,
           chatId: params.chatId,
         };
@@ -267,7 +236,6 @@ Keep the translation natural and preserve the tone.`;
         chatContext: chatContext,
         recentMessages: recentMessages,
         targetLang: params.targetLanguage,
-        skipCulturalAnalysis: isSimpleMessage,
       });
 
       // Step 5: SINGLE AI CALL - gets everything at once! 🚀
@@ -294,8 +262,6 @@ Keep the translation natural and preserve the tone.`;
             detectedLanguage: z.string(),
             formalityLevel: z.enum(['casual', 'formal', 'professional', 'friendly']).optional().default('casual'),
             formalityIndicators: z.array(z.string()).optional().default([]),
-            culturalPhrases: z.array(z.any()).optional().default([]),
-            slangExpressions: z.array(z.any()).optional().default([]),
           });
           
           logger.info('🔄 Retrying with minimal schema (attempt 2)...');
@@ -329,8 +295,6 @@ Keep the translation natural and preserve the tone.`;
                   detectedLanguage: parsed.detectedLanguage || 'en',
                   formalityLevel: 'casual',
                   formalityIndicators: [],
-                  culturalPhrases: [],
-                  slangExpressions: [],
                 }
               };
             } catch {
@@ -341,8 +305,6 @@ Keep the translation natural and preserve the tone.`;
                   detectedLanguage: 'en',
                   formalityLevel: 'casual',
                   formalityIndicators: [],
-                  culturalPhrases: [],
-                  slangExpressions: [],
                 }
               };
             }
@@ -355,8 +317,6 @@ Keep the translation natural and preserve the tone.`;
                 detectedLanguage: 'en',
                 formalityLevel: 'casual',
                 formalityIndicators: [],
-                culturalPhrases: [],
-                slangExpressions: [],
               }
             };
             logger.warn('⚠️ Using ultimate fallback: original text');
@@ -364,35 +324,12 @@ Keep the translation natural and preserve the tone.`;
         }
       }
 
-      const culturalAnalysis: CulturalAnalysisResult = {
-        messageId: params.messageId,
-        culturalPhrases: (result.object.culturalPhrases || []).filter((p: any) => p && p.phrase).map((p: any) => ({
-          phrase: p.phrase,
-          position: [p.position?.[0] || 0, p.position?.[1] || 0] as [number, number],
-          explanation: p.explanation || '',
-          culturalContext: p.culturalContext || '',
-          examples: p.examples || [],
-          confidence: p.confidence || 50,
-        })),
-        slangExpressions: (result.object.slangExpressions || []).filter((s: any) => s && s.slang).map((s: any) => ({
-          slang: s.slang,
-          position: [s.position?.[0] || 0, s.position?.[1] || 0] as [number, number],
-          standardMeaning: s.standardMeaning || '',
-          usage: s.usage || '',
-          confidence: s.confidence || 50,
-        })),
-        analysisTimestamp: Date.now(),
-        webSearchUsed: false, // No longer using fake web search
-      };
-
       logger.info("Optimized translation completed successfully (SINGLE AI CALL)", {
         messageId: params.messageId,
         detectedLanguage: result.object.detectedLanguage,
         formalityLevel: result.object.formalityLevel,
         chatMood: chatContext?.mood || 'none',
         chatTopics: chatContext?.topics?.join(', ') || 'none',
-        culturalPhrasesFound: culturalAnalysis.culturalPhrases.length,
-        slangExpressionsFound: culturalAnalysis.slangExpressions.length,
         wasSimpleMessage: isSimpleMessage,
       });
 
@@ -404,7 +341,6 @@ Keep the translation natural and preserve the tone.`;
         detectedLanguage: result.object.detectedLanguage,
         formalityLevel: result.object.formalityLevel,
         formalityIndicators: result.object.formalityIndicators,
-        culturalAnalysis: culturalAnalysis,
         messageId: params.messageId,
         chatId: params.chatId,
       };
@@ -504,7 +440,6 @@ Keep the translation natural and preserve the tone.`;
     chatContext: ChatContext | null;
     recentMessages: string;
     targetLang: string;
-    skipCulturalAnalysis: boolean;
   }): string {
     const languageNames: Record<string, string> = {
       en: "English",
@@ -579,40 +514,16 @@ Keep the translation natural and preserve the tone.`;
     prompt += `   - Classify as: casual, formal, professional, or friendly\n`;
     prompt += `   - Provide indicators (e.g., "informal greeting", "slang", "contractions")\n\n`;
     
-    if (data.skipCulturalAnalysis) {
-      prompt += `4. CULTURAL ANALYSIS: SKIP (message too simple)\n`;
-      prompt += `   - REQUIRED: Return empty arrays [] for BOTH culturalPhrases AND slangExpressions\n\n`;
-    } else {
-      prompt += `4. ANALYZE CULTURAL PHRASES in the TRANSLATED text:\n`;
-      prompt += `   - Find idioms, metaphors, culture-specific expressions\n`;
-      prompt += `   - If NO cultural phrases found, return EMPTY ARRAY []\n`;
-      prompt += `   - For each phrase:\n`;
-      prompt += `     * phrase: the exact text\n`;
-      prompt += `     * position: [startIndex, endIndex] character positions\n`;
-      prompt += `     * explanation: Brief meaning (max 5 words) in ${targetLanguage}\n`;
-      prompt += `     * culturalContext: Context (max 3 words) in ${targetLanguage}\n`;
-      prompt += `     * examples: Usage examples in ${targetLanguage}\n`;
-      prompt += `     * confidence: 0-100 score\n`;
-      prompt += `   - Be generous - include any phrase that might confuse non-natives\n\n`;
-      
-      prompt += `5. ANALYZE SLANG in the TRANSLATED text:\n`;
-      prompt += `   - Find slang, informal language, abbreviations, trendy expressions\n`;
-      prompt += `   - If NO slang found, return EMPTY ARRAY []\n`;
-      prompt += `   - For each slang term:\n`;
-      prompt += `     * slang: the exact term\n`;
-      prompt += `     * position: [startIndex, endIndex] character positions\n`;
-      prompt += `     * standardMeaning: Formal meaning (max 3 words) in ${targetLanguage}\n`;
-      prompt += `     * usage: Context (max 2 words) in ${targetLanguage}\n`;
-      prompt += `     * confidence: 0-100 score\n`;
-      prompt += `   - Be generous - include informal/casual/trendy expressions\n\n`;
-    }
     
-    prompt += `🚨 REMINDER: ALL explanations (explanation, culturalContext, standardMeaning, usage) must be in ${targetLanguage}!\n\n`;
     
-    prompt += `POSITION CALCULATION:\n`;
-    prompt += `- Count characters from start of TRANSLATED text (index 0)\n`;
-    prompt += `- Include ALL characters (letters, spaces, punctuation)\n`;
-    prompt += `- Position format: [startIndex, endIndex]\n`;
+    prompt += `RESPONSE FORMAT:\n`;
+    prompt += `Return ONLY a JSON object with these exact fields:\n`;
+    prompt += `{\n`;
+    prompt += `  "translated": "your translation here",\n`;
+    prompt += `  "detectedLanguage": "en",\n`;
+    prompt += `  "formalityLevel": "casual",\n`;
+    prompt += `  "formalityIndicators": ["indicator1", "indicator2"]\n`;
+    prompt += `}\n\n`;
 
     return prompt.trim();
   }
