@@ -56,7 +56,7 @@ class CulturalCache {
         WHERE phrase = ? AND language = ?
       `;
 
-      const results = await SQLiteService.executeSql(selectQuery, [phrase.toLowerCase(), language]);
+      const results = await SQLiteService.executeSql<{ analysis: string; expires_at: number }>(selectQuery, [phrase.toLowerCase(), language]);
       
       if (results.length === 0) {
         return null;
@@ -118,8 +118,8 @@ class CulturalCache {
       const totalQuery = 'SELECT COUNT(*) as total FROM cultural_cache';
       const expiredQuery = 'SELECT COUNT(*) as expired FROM cultural_cache WHERE expires_at < ?';
 
-      const totalResults = await SQLiteService.executeSql(totalQuery);
-      const expiredResults = await SQLiteService.executeSql(expiredQuery, [Date.now()]);
+      const totalResults = await SQLiteService.executeSql<{ total: number }>(totalQuery);
+      const expiredResults = await SQLiteService.executeSql<{ expired: number }>(expiredQuery, [Date.now()]);
 
       return {
         totalEntries: totalResults[0].total,

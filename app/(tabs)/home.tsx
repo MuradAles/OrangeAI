@@ -6,7 +6,7 @@
 import { ChatListItem, ChatModal, NewChatModal } from '@/features/chat/components';
 import { ChatService, StorageService } from '@/services/firebase';
 import { useTheme } from '@/shared/hooks/useTheme';
-import { Chat, Contact } from '@/shared/types';
+import { Chat, ChatType, Contact } from '@/shared/types';
 import { useAuthStore, useChatStore, useContactStore, useGroupStore, usePresenceStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
@@ -156,16 +156,16 @@ export default function HomeScreen() {
 
       // Create group
       const group = await createGroup(
-        name,
-        description || undefined,
-        groupIconUrl,
         user.id,
-        memberIds
+        name,
+        memberIds,
+        description || undefined,
+        groupIconUrl
       );
 
-      if (group) {
+      if (group.success && group.chatId) {
         setIsNewChatModalVisible(false);
-        setSelectedChatId(group.id);
+        setSelectedChatId(group.chatId);
       }
     } catch (error) {
       console.error('Failed to create group:', error);
@@ -215,7 +215,7 @@ export default function HomeScreen() {
     const hasValidTime = chat.lastMessageTime && chat.lastMessageTime !== 0;
     
     // Must have either text or be a group chat (groups can have image-only messages)
-    const hasContent = chat.lastMessageText || chat.type === 'group';
+    const hasContent = chat.lastMessageText || (chat.type as ChatType) === 'group';
     
     return hasValidTime && hasContent;
   });

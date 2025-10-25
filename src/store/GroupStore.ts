@@ -30,11 +30,11 @@ export const useGroupStore = create<GroupState>()((set, get) => ({
   ) => {
     try {
       const chat = await GroupService.createGroup(
-        adminId,
         name,
-        memberIds,
         description,
-        avatarUrl
+        avatarUrl,
+        adminId,
+        memberIds
       );
 
       return {

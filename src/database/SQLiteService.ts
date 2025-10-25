@@ -224,6 +224,13 @@ class SQLiteServiceClass {
     return await this.db.getAllAsync<T>(sql, params);
   }
 
+  /**
+   * Execute SQL query (alias for queryRaw for backward compatibility)
+   */
+  async executeSql<T>(sql: string, params: any[] = []): Promise<T[]> {
+    return this.queryRaw<T>(sql, params);
+  }
+
   // ==================== USER OPERATIONS ====================
 
   /**

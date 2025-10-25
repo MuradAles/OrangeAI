@@ -1,5 +1,5 @@
 import { MessageService } from '@/services/firebase/MessageService';
-import { MessageStatus, MessageType } from '@/shared/types';
+import { MessageStatus, MessageSyncStatus, MessageType } from '@/shared/types';
 import type { QueuedMessage as ImportedQueuedMessage } from '@/shared/types/Message';
 import { SQLiteService } from './SQLiteService';
 
@@ -40,8 +40,11 @@ class MessageQueueClass {
         ...msg,
         status: msg.status as MessageStatus,
         type: msg.type as MessageType,
-        reactions: undefined,
-        deletedForEveryone: undefined,
+        reactions: msg.reactions ? JSON.parse(msg.reactions) : undefined,
+        deletedForEveryone: msg.deletedForEveryone === 1,
+        translations: msg.translations ? JSON.parse(msg.translations) : undefined,
+        syncStatus: msg.syncStatus as MessageSyncStatus,
+        sentAsTranslation: msg.sentAsTranslation === 1,
         retryCount: 0, // Will be tracked during processing
         lastAttempt: null,
       } as QueuedMessage));
@@ -165,7 +168,7 @@ class MessageQueueClass {
           const currentMessages = useChatStore.getState().messages;
           const updatedMessages = currentMessages.map(msg => 
             msg.id === message.id 
-              ? { ...msg, status: 'sent' as MessageStatus, syncStatus: 'synced' }
+              ? { ...msg, status: 'sent' as MessageStatus, syncStatus: 'synced' as MessageSyncStatus }
               : msg
           );
           useChatStore.setState({ messages: updatedMessages });
@@ -219,8 +222,11 @@ class MessageQueueClass {
         ...message,
         status: message.status as MessageStatus,
         type: message.type as MessageType,
-        reactions: undefined,
-        deletedForEveryone: undefined,
+        reactions: message.reactions ? JSON.parse(message.reactions) : undefined,
+        deletedForEveryone: message.deletedForEveryone === 1,
+        translations: message.translations ? JSON.parse(message.translations) : undefined,
+        syncStatus: message.syncStatus as MessageSyncStatus,
+        sentAsTranslation: message.sentAsTranslation === 1,
         retryCount: 0,
         lastAttempt: null,
       } as QueuedMessage;
