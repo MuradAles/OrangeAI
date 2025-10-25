@@ -78,7 +78,7 @@ export default function FindScreen() {
               );
 
               // If translation exists, use it
-              if (localMessage?.translations?.[user.preferredLanguage]) {
+              if (localMessage?.translations && user.preferredLanguage && localMessage.translations[user.preferredLanguage]) {
                 const translation = localMessage.translations[user.preferredLanguage];
                 const translatedText = typeof translation === 'string' 
                   ? translation 
@@ -290,7 +290,7 @@ export default function FindScreen() {
   const handleResultTap = useCallback((chatId: string, messageId: string) => {
     // Navigate to chat
     router.push({
-      pathname: '/(tabs)/chat/[id]',
+      pathname: '/chat/[id]' as any,
       params: { id: chatId, highlightMessage: messageId },
     });
   }, []);

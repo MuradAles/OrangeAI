@@ -305,7 +305,7 @@ export const MessageInput = ({
     setText('');
     setInputHeight(40);
     setTranslationPreview(null);
-    setDetectedInputLanguage(null);
+    setDetectedInputLanguage('en');
   };
   
   // Backward compatible handleSend (sends original)
