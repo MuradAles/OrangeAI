@@ -148,7 +148,6 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
         
         // If requests disappeared, reload contacts (they might have been accepted)
         if (disappearedRequests.length > 0 && currentRequests.length > 0) {
-          console.log('📥 Friend requests decreased, reloading contacts');
           get().loadContacts(userId);
         }
         
@@ -268,7 +267,6 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
     const result = await FriendRequestService.sendFriendRequest(fromUserId, toUserId);
     
     if (result.success) {
-      console.log('✅ Friend request sent, adding optimistic update');
       // Optimistically update sent requests immediately for instant UI feedback
       // The real-time listener will sync the actual state shortly after
       const tempRequest: FriendRequest = {
@@ -282,7 +280,6 @@ export const useContactStore = create<ContactStoreState>((set, get) => ({
       
       set(state => {
         const newSentRequests = [...state.sentRequests, tempRequest];
-        console.log('📤 Optimistic sent requests count:', newSentRequests.length);
         return {
           sentRequests: newSentRequests
         };

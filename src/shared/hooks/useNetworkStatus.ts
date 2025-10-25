@@ -1,6 +1,6 @@
 import { MessageQueue } from '@/database/MessageQueue';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * useNetworkStatus
@@ -28,18 +28,19 @@ export const useNetworkStatus = () => {
   });
 
   const [wasOffline, setWasOffline] = useState(false);
+  const previousOnlineState = useRef(true); // Track previous state in ref
 
   const handleConnectivityChange = useCallback(async (state: NetInfoState) => {
     const isConnected = state.isConnected ?? false;
     const isInternetReachable = state.isInternetReachable ?? null;
     const isOnline = isConnected && (isInternetReachable === null || isInternetReachable === true);
 
-    // Track network changes silently
-
-    // Detect transition from offline to online
-    const wasOfflineBefore = !networkStatus.isOnline;
+    const wasOfflineBefore = !previousOnlineState.current;
     const isOnlineNow = isOnline;
 
+    console.log(`📡 Network status: ${isOnline ? 'ONLINE' : 'OFFLINE'} (was: ${previousOnlineState.current ? 'ONLINE' : 'OFFLINE'})`);
+
+    // Update state
     setNetworkStatus({
       isConnected,
       isInternetReachable,
@@ -49,22 +50,30 @@ export const useNetworkStatus = () => {
 
     // If we just came back online, process message queue
     if (wasOfflineBefore && isOnlineNow) {
-      console.log('🔄 Connection restored! Processing message queue...');
       setWasOffline(true);
+      console.log('🌐 Network restored! Processing message queue...');
       
-      try {
-        const result = await MessageQueue.processQueue();
-        console.log(`✅ Queue processed: ${result.success} sent, ${result.failed} failed`);
-      } catch (error) {
-        console.error('Error processing queue after reconnection:', error);
-      }
+      // Wait a bit for network to stabilize
+      setTimeout(async () => {
+        try {
+          const result = await MessageQueue.processQueue();
+          if (result.total > 0) {
+            console.log(`📨 Synced ${result.success}/${result.total} offline messages`);
+          }
+        } catch (error) {
+          console.error('❌ Error processing queue after reconnection:', error);
+        }
+      }, 1500); // 1.5 second delay
     }
 
     // Track offline state
-    if (!isOnline && networkStatus.isOnline) {
+    if (!isOnline) {
       setWasOffline(true);
     }
-  }, [networkStatus.isOnline]);
+
+    // Update ref for next comparison
+    previousOnlineState.current = isOnline;
+  }, []);
 
   useEffect(() => {
     // Subscribe to network state changes

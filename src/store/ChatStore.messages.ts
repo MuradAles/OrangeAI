@@ -12,6 +12,7 @@
 import { SQLiteService } from '@/database/SQLiteService';
 import { ChatService, MessageService } from '@/services/firebase';
 import { Message, MessageStatus } from '@/shared/types';
+import NetInfo from '@react-native-community/netinfo';
 
 export const createMessageActions = (set: any, get: any) => ({
   // Send a new message (optimistic update)
@@ -22,6 +23,10 @@ export const createMessageActions = (set: any, get: any) => ({
     sentAsTranslation?: boolean;
   }) => {
     try {
+      // Check network status to determine if we should queue or send immediately
+      const networkState = await NetInfo.fetch();
+      const isOnline = networkState.isConnected && (networkState.isInternetReachable === null || networkState.isInternetReachable === true);
+      
       // Generate a unique message ID (will be used in both local state and Firestore)
       // This prevents duplicates because Firestore will use the same ID
       const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -71,17 +76,27 @@ export const createMessageActions = (set: any, get: any) => ({
         reactions: JSON.stringify(optimisticMessage.reactions || {}),
         deletedForMe: 0,
         deletedForEveryone: 0,
-        syncStatus: optimisticMessage.syncStatus,
+        syncStatus: 'pending', // Always set to pending initially
         // Translation metadata
         originalText: optimisticMessage.originalText,
         originalLanguage: optimisticMessage.originalLanguage,
         translatedTo: optimisticMessage.translatedTo,
         sentAsTranslation: optimisticMessage.sentAsTranslation ? 1 : 0,
       };
-      // Non-blocking save, ignore errors
-      SQLiteService.saveMessage(messageRow).catch(() => {});
+      
+      // Save to SQLite synchronously (wait for it)
+      await SQLiteService.saveMessage(messageRow);
+      console.log(`💾 Message saved to SQLite: ${messageRow.id} (syncStatus: pending)`);
 
-      // Upload to Firestore in background with the same ID
+      // If offline, queue the message and return early
+      if (!isOnline) {
+        // Message is already saved to SQLite with pending status
+        // MessageQueue will process it when connection is restored
+        console.log('📱 Offline: Message queued locally, will sync when online');
+        return;
+      }
+
+      // Upload to Firestore in background with the same ID (online only)
       try {
         await MessageService.sendMessage(chatId, senderId, text, messageId, undefined, translationMetadata);
         
@@ -114,6 +129,10 @@ export const createMessageActions = (set: any, get: any) => ({
         // THEN: Update last message in chat with 'sent' status and the message timestamp
         // This triggers the chat subscription, which will now fetch the updated unread count
         await ChatService.updateChatLastMessage(chatId, text, senderId, 'sent', optimisticMessage.timestamp);
+        
+        // Update SQLite: mark as synced
+        await SQLiteService.updateMessageStatus(messageId, 'sent', 'synced');
+        console.log(`✅ Message sent successfully: ${messageId}`);
         
         // The Firestore listener will update the message with the real timestamp and 'sent' status
         // Since we use the same ID, it will replace the optimistic message automatically
@@ -167,6 +186,16 @@ export const createMessageActions = (set: any, get: any) => ({
   // Send image message with optional caption
   sendImageMessage: async (chatId: string, senderId: string, imageUri: string, caption?: string) => {
     try {
+      // Check network status before sending
+      const networkState = await NetInfo.fetch();
+      const isOnline = networkState.isConnected && (networkState.isInternetReachable === null || networkState.isInternetReachable === true);
+      
+      // For now, block image uploads when offline (images need to be uploaded first)
+      // TODO: Implement offline image queuing with local storage
+      if (!isOnline) {
+        throw new Error('No internet connection. Please try again when you\'re online.');
+      }
+      
       const { StorageService } = await import('@/services/firebase');
       
       // Generate unique message ID
@@ -217,13 +246,11 @@ export const createMessageActions = (set: any, get: any) => ({
 
       // Upload image to Storage in background
       try {
-        console.log('📸 Uploading image to Firebase Storage...');
         const { imageUrl, thumbnailUrl } = await StorageService.uploadMessageImage(
           chatId,
           messageId,
           imageUri
         );
-        console.log('✅ Image uploaded successfully');
 
         // Send message to Firestore with real image URLs
         await MessageService.sendMessage(chatId, senderId, '', messageId, {

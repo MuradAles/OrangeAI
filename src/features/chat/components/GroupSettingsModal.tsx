@@ -258,7 +258,6 @@ export const GroupSettingsModal = ({ visible, chatId, onClose, onChatDeleted }: 
               // Use the store's remove function for complete cleanup
               const { useChatStore } = await import('@/store');
               await useChatStore.getState().removeChatLocally(chatId, user.id);
-              console.log('✅ Left group and cleaned up local data');
 
               // Close settings modal
               onClose();
@@ -266,10 +265,7 @@ export const GroupSettingsModal = ({ visible, chatId, onClose, onChatDeleted }: 
               // Close parent chat modal if provided
               onChatDeleted?.();
               
-              // Show success message
-              setTimeout(() => {
-                Alert.alert('Left Group', 'You have left the group successfully');
-              }, 300);
+              // Group left successfully - no confirmation needed
             } catch (error) {
               console.error('Failed to leave group:', error);
               Alert.alert('Error', 'Failed to leave group. Please try again.');

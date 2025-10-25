@@ -70,7 +70,9 @@ export const createProfileActions = (set: any, get: any) => ({
               // Ignore SQLite errors (database locked, etc.) - profile is already in memory
             });
           }
-        }).catch(err => console.error('Error updating profile from Firestore:', err));
+        }).catch(() => {
+          // Ignore Firestore errors
+        });
         
         return profile;
       }
@@ -161,7 +163,6 @@ export const createProfileActions = (set: any, get: any) => ({
   // Remove a chat from local state and SQLite (when user loses access)
   removeChatLocally: async (chatId: string, userId: string) => {
     try {
-      console.log(`🧹 Removing chat ${chatId} from local state (user ${userId} lost access)`);
       
       // Remove from SQLite
       await SQLiteService.deleteMessagesByChatId(chatId);
@@ -176,7 +177,6 @@ export const createProfileActions = (set: any, get: any) => ({
         chatsVersion: state.chatsVersion + 1
       }));
       
-      console.log(`✅ Successfully removed chat ${chatId} from local state`);
     } catch (error) {
       console.error(`❌ Failed to remove chat ${chatId} locally:`, error);
     }

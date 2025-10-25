@@ -219,12 +219,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // If any chats were filtered out, clean them from SQLite
         const removedChats = chats.filter(chat => !chat.participants.includes(userId));
         if (removedChats.length > 0) {
-          console.log(`🧹 Cleaning ${removedChats.length} chats where user is no longer a participant`);
           for (const chat of removedChats) {
             try {
               await SQLiteService.deleteMessagesByChatId(chat.id);
               await SQLiteService.deleteChatById(chat.id);
-              console.log(`✅ Cleaned chat ${chat.id} from SQLite`);
             } catch (error) {
               console.error(`Failed to clean chat ${chat.id}:`, error);
             }
@@ -333,7 +331,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                       isImage: false, // We don't know from chat list, assume text
                     });
                   } else {
-                    console.log(`⏭️ Skipping chat list notification for old message (sent before user joined)`);
                   }
                 } catch (error) {
                   console.error('Error triggering notification from chat list:', error);
@@ -420,7 +417,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // If permission error, likely user was removed from a group
         // Clean up local state to ensure removed chats don't appear
         if (error.message?.includes?.('permission') || error.message?.includes?.('insufficient')) {
-          console.log('🧹 Permission error detected, cleaning up inaccessible chats...');
           // Trigger a refresh by clearing error after a short delay
           setTimeout(() => {
             set({ error: null });
@@ -695,7 +691,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 }
               }
             } else {
-              console.log('⏭️ Skipping status update for old message during initial load');
             }
             
             // 🌐 Auto-translate incoming messages if enabled
@@ -716,12 +711,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   const messageText = msg.type === 'text' ? msg.text : msg.caption;
                   
                   if (messageText && messageText.trim().length > 0) {
-                    console.log('🌐 Auto-translating incoming message:', {
-                      messageId: msg.id,
-                      chatId,
-                      preferredLanguage,
-                    });
-                    
                     // Trigger translation immediately (async, don't block message display)
                     (async () => {
                       try {
@@ -739,11 +728,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         if (result.data.success && result.data.translated) {
                           // Check if message is already in user's preferred language
                           if (result.data.detectedLanguage === preferredLanguage) {
-                            console.log('⏭️ Skipping translation - message already in preferred language:', {
-                              messageId: msg.id,
-                              detectedLanguage: result.data.detectedLanguage,
-                              preferredLanguage,
-                            });
                             return; // Don't save translation
                           }
 
@@ -785,12 +769,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                           });
                           
                           set({ messages: updatedMessages });
-                          
-                          console.log('✅ Auto-translation saved:', {
-                            messageId: msg.id,
-                            detectedLanguage: result.data.detectedLanguage,
-                            hasTranslation: true,
-                          });
                         }
                       } catch (error) {
                         console.error('❌ Auto-translation error:', error);
@@ -834,7 +812,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     isImage: msg.type === 'image',
                   });
                 } else {
-                  console.log(`⏭️ Skipping notification for old message (sent ${new Date(messageTimestamp).toISOString()} before user joined ${new Date(userJoinedAt).toISOString()})`);
                 }
               } catch (error) {
                 console.error('Error triggering notification:', error);
@@ -869,13 +846,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // before enabling notifications
         if (!hasReceivedFirstSnapshot) {
           hasReceivedFirstSnapshot = true;
-          console.log('📦 First snapshot received, waiting for all initial batches...');
           
           // Wait 2 seconds after first snapshot to ensure all initial batches are processed
           setTimeout(() => {
             if (isInitialLoad) {
               isInitialLoad = false;
-              console.log('✅ Initial message load complete, notifications now enabled');
             }
           }, 2000);
         }
@@ -898,25 +873,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         imageUrl: message.imageUrl || null,
         thumbnailUrl: message.thumbnailUrl || null,
         caption: message.caption || null,
-            reactions: JSON.stringify(message.reactions || {}),
-            deletedForMe: 0,
-            deletedForEveryone: message.deletedForEveryone ? 1 : 0,
-            translations: message.translations ? JSON.stringify(message.translations) : null,
-            detectedLanguage: message.detectedLanguage || null,
-            syncStatus: 'synced',
-          };
-          // Non-blocking save, ignore errors
-          SQLiteService.saveMessage(messageRow).catch(() => {});
-        }
-      },
-      (error) => {
-        console.error('Error in message subscription:', error);
-        set({ error: error.message });
-      },
-      initialLoadLimit // Pass adaptive limit based on unread count
-    );
+        reactions: JSON.stringify(message.reactions || {}),
+        deletedForMe: 0,
+        deletedForEveryone: message.deletedForEveryone ? 1 : 0,
+        translations: message.translations ? JSON.stringify(message.translations) : null,
+        detectedLanguage: message.detectedLanguage || null,
+        syncStatus: 'synced',
+      };
+      // Non-blocking save, ignore errors
+      SQLiteService.saveMessage(messageRow).catch(() => {});
+    }
+  },
+  (error) => {
+    console.error('Error in message subscription:', error);
+    set({ error: error.message });
+  },
+  initialLoadLimit // Pass adaptive limit based on unread count
+  );
 
-    set({ messagesUnsubscribe: unsubscribe });
+  set({ messagesUnsubscribe: unsubscribe });
   },
 
   // Import message actions from separate file

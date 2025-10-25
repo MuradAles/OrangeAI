@@ -463,7 +463,6 @@ export class ChatService {
         detectedLanguages: updatedLanguages,
       });
 
-      console.log('✅ Updated detected languages:', chatId, updatedLanguages);
     } catch (error) {
       console.error('❌ Error updating detected languages:', error);
       // Don't throw - this is a non-critical update

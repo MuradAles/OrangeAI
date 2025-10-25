@@ -5,12 +5,12 @@
 
 import React from 'react';
 import {
-    Dimensions,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { CulturalPhrase, SlangExpression } from '../../shared/types/CulturalTypes';
 
@@ -60,7 +60,7 @@ export const CulturalPopup: React.FC<CulturalPopupProps> = ({
           <View style={styles.content}>
             <View style={styles.phraseContainer}>
               <Text style={styles.phraseText}>
-                "{isCultural ? culturalPhrase.phrase : slangExpression.slang}"
+                {isCultural ? culturalPhrase.phrase : slangExpression.slang}
               </Text>
               {!isCultural && slangExpression.translatedWord && (
                 <Text style={styles.translatedText}>

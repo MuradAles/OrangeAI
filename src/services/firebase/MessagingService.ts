@@ -61,7 +61,6 @@ class MessagingServiceClass {
           lightColor: '#0084FF',
           sound: 'default',
         });
-        console.log('✅ Notification channel configured');
       }
     } catch (error) {
       console.error('Error configuring notification channel:', error);
@@ -77,7 +76,6 @@ class MessagingServiceClass {
   async requestPermissions(): Promise<boolean> {
     try {
       if (!Device.isDevice) {
-        console.log('Push notifications only work on physical devices');
         return false;
       }
 
@@ -91,7 +89,6 @@ class MessagingServiceClass {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('Notification permission denied');
         return false;
       }
 
@@ -114,7 +111,6 @@ class MessagingServiceClass {
   async getFCMToken(): Promise<string | null> {
     try {
       if (!Device.isDevice) {
-        console.log('⚠️  Push tokens only work on physical devices');
         return null;
       }
 
@@ -122,14 +118,8 @@ class MessagingServiceClass {
         projectId: 'abdece3f-a5c7-4a4b-92bb-471bc2ba5d9b', // From app.json
       });
 
-      console.log('✅ FCM token retrieved:', tokenData.data);
       return tokenData.data;
     } catch (error) {
-      console.warn('⚠️  Could not get push token (FCM credentials not configured):', (error as Error).message);
-      console.log('ℹ️  In-app notifications will still work. To enable push notifications:');
-      console.log('   1. Run: eas credentials');
-      console.log('   2. Select: Android > FCM credentials > Upload');
-      console.log('   3. Upload your google-services.json file');
       return null;
     }
   }
@@ -140,7 +130,6 @@ class MessagingServiceClass {
    */
   async saveFCMToken(userId: string, token: string | null): Promise<void> {
     if (!token) {
-      console.log('ℹ️  No FCM token to save (running without push notification support)');
       return;
     }
 
@@ -180,21 +169,18 @@ class MessagingServiceClass {
       // Request permission
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
-        console.log('User denied notification permission');
         return null;
       }
 
       // Get token
       const token = await this.getFCMToken();
       if (!token) {
-        console.log('Could not get push token');
         return null;
       }
 
       // Save to Firestore
       await this.saveFCMToken(userId, token);
 
-      console.log('Successfully registered for push notifications');
       return token;
     } catch (error) {
       console.error('Error registering for push notifications:', error);
@@ -213,7 +199,6 @@ class MessagingServiceClass {
         lastTokenUpdate: new Date().toISOString(),
       }, { merge: true });
 
-      console.log('FCM token removed');
     } catch (error) {
       console.error('Error removing FCM token:', error);
     }
@@ -466,7 +451,6 @@ class MessagingServiceClass {
     // Listen for notification taps (when user taps notification)
     this.notificationResponseSubscription = this.addNotificationResponseListener(onTap);
 
-    console.log('✅ Notification listeners set up');
   }
 
   /**
@@ -484,7 +468,6 @@ class MessagingServiceClass {
       this.notificationResponseSubscription = null;
     }
 
-    console.log('🧹 Notification listeners cleaned up');
   }
 }
 

@@ -67,15 +67,8 @@ export default function SearchScreen() {
     });
 
     if (result.success) {
-      if (result.error?.includes('automatically')) {
-        Alert.alert('Success', 'Friend request accepted automatically! You are now friends.', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
-      } else {
-        Alert.alert('Success', 'Friend request sent!', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
-      }
+      // Friend request sent successfully - no confirmation needed
+      router.back();
     } else {
       Alert.alert('Error', result.error || 'Failed to send request');
     }

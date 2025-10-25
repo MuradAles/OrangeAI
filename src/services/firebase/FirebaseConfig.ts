@@ -92,9 +92,6 @@ export const initializeFirebase = () => {
       // Initialize Cloud Functions (region must match deployment region)
       functions = getFunctions(app, 'us-central1');
       
-      console.log('_______________________________________________');
-      console.log('🔥 FIREBASE INITIALIZED');
-      console.log('_______________________________________________\n');
       
     } else {
       // Use existing Firebase app

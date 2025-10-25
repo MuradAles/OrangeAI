@@ -42,6 +42,11 @@ export interface Message {
   senderName: string;
   senderId: string;
   timestamp: number;
+  
+  // RAG / Semantic Search
+  embedding?: number[];
+  embeddingGenerated?: boolean;
+  embeddingGeneratedAt?: number;
 }
 
 export type ContextUpdateTrigger = 'interval' | 'mood_shift' | 'full';

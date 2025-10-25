@@ -6,12 +6,12 @@
  */
 
 import {
-  ChatRow,
-  DatabaseInitResult,
-  FriendRequestRow,
-  MessageRow,
-  ScrollPositionRow,
-  UserRow,
+    ChatRow,
+    DatabaseInitResult,
+    FriendRequestRow,
+    MessageRow,
+    ScrollPositionRow,
+    UserRow,
 } from '@/shared/types';
 import * as SQLite from 'expo-sqlite';
 import { getPendingMigrations, validateMigrations } from './Migrations';
@@ -38,7 +38,6 @@ class SQLiteServiceClass {
     }
 
     try {
-      console.log('📦 Initializing SQLite database...');
       
       // Validate migrations
       if (!validateMigrations()) {
@@ -47,25 +46,20 @@ class SQLiteServiceClass {
 
       // Open database
       this.db = await SQLite.openDatabaseAsync(DATABASE_NAME);
-      console.log('✅ Database opened successfully');
 
       // Get current version
       const currentVersion = await this.getCurrentVersion();
-      console.log(`📌 Current database version: ${currentVersion}`);
 
       // Apply pending migrations
       const pendingMigrations = getPendingMigrations(currentVersion);
       
       if (pendingMigrations.length > 0) {
-        console.log(`🔄 Applying ${pendingMigrations.length} migrations...`);
         
         for (const migration of pendingMigrations) {
           await this.applyMigration(migration);
         }
         
-        console.log('✅ All migrations applied successfully');
       } else {
-        console.log('✅ Database is up to date');
       }
 
       // Emergency fix: Check for missing columns (in case migrations didn't work)
@@ -104,8 +98,6 @@ class SQLiteServiceClass {
    * Apply a single migration
    */
   private async applyMigration(migration: any): Promise<void> {
-    console.log(`⬆️  Applying migration ${migration.version}: ${migration.name}`);
-    console.log(`📝 Total statements to execute: ${migration.up.length}`);
     
     try {
       // Execute all up statements in a transaction
@@ -114,14 +106,12 @@ class SQLiteServiceClass {
         for (const statement of migration.up) {
           try {
             statementIndex++;
-            console.log(`   Executing statement ${statementIndex}/${migration.up.length}...`);
             // Use runAsync instead of execAsync for better compatibility
             await this.db!.runAsync(statement);
           } catch (stmtError: any) {
             // If column already exists, continue (for ALTER TABLE ADD COLUMN)
             if (stmtError.message.includes('duplicate column name') || 
                 stmtError.message.includes('already exists')) {
-              console.log(`   ⚠️ Column already exists, skipping: ${statement.substring(0, 50)}...`);
               continue;
             }
             console.error(`   ❌ Statement ${statementIndex} failed:`, stmtError.message);
@@ -137,7 +127,6 @@ class SQLiteServiceClass {
         );
       });
       
-      console.log(`✅ Migration ${migration.version} applied successfully`);
     } catch (error) {
       console.error(`❌ Migration ${migration.version} failed:`, error);
       throw error;
@@ -151,20 +140,16 @@ class SQLiteServiceClass {
     if (!this.db) throw new Error('Database not initialized');
     
     const currentVersion = await this.getCurrentVersion();
-    console.log(`🔄 Force running migrations from version ${currentVersion}`);
     
     const pendingMigrations = getPendingMigrations(currentVersion);
     
     if (pendingMigrations.length > 0) {
-      console.log(`🔄 Applying ${pendingMigrations.length} migrations...`);
       
       for (const migration of pendingMigrations) {
         await this.applyMigration(migration);
       }
       
-      console.log('✅ All migrations applied successfully');
     } else {
-      console.log('✅ Database is up to date');
     }
   }
 
@@ -174,81 +159,61 @@ class SQLiteServiceClass {
   async fixMissingColumns(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     
-    console.log('🔧 Checking for missing columns...');
     
     // Check if translations column exists
     try {
       await this.db.runAsync('SELECT translations FROM messages LIMIT 1');
-      console.log('✅ translations column exists');
     } catch (error: any) {
       if (error.message.includes('no such column')) {
-        console.log('⚠️ translations column missing, adding...');
         await this.db.runAsync('ALTER TABLE messages ADD COLUMN translations TEXT;');
-        console.log('✅ translations column added');
       }
     }
     
     // Check if detectedLanguage column exists
     try {
       await this.db.runAsync('SELECT detectedLanguage FROM messages LIMIT 1');
-      console.log('✅ detectedLanguage column exists');
     } catch (error: any) {
       if (error.message.includes('no such column')) {
-        console.log('⚠️ detectedLanguage column missing, adding...');
         await this.db.runAsync('ALTER TABLE messages ADD COLUMN detectedLanguage TEXT;');
-        console.log('✅ detectedLanguage column added');
       }
     }
     
     // Check if originalText column exists
     try {
       await this.db.runAsync('SELECT originalText FROM messages LIMIT 1');
-      console.log('✅ originalText column exists');
     } catch (error: any) {
       if (error.message.includes('no such column')) {
-        console.log('⚠️ originalText column missing, adding...');
         await this.db.runAsync('ALTER TABLE messages ADD COLUMN originalText TEXT;');
-        console.log('✅ originalText column added');
       }
     }
     
     // Check if originalLanguage column exists
     try {
       await this.db.runAsync('SELECT originalLanguage FROM messages LIMIT 1');
-      console.log('✅ originalLanguage column exists');
     } catch (error: any) {
       if (error.message.includes('no such column')) {
-        console.log('⚠️ originalLanguage column missing, adding...');
         await this.db.runAsync('ALTER TABLE messages ADD COLUMN originalLanguage TEXT;');
-        console.log('✅ originalLanguage column added');
       }
     }
     
     // Check if translatedTo column exists
     try {
       await this.db.runAsync('SELECT translatedTo FROM messages LIMIT 1');
-      console.log('✅ translatedTo column exists');
     } catch (error: any) {
       if (error.message.includes('no such column')) {
-        console.log('⚠️ translatedTo column missing, adding...');
         await this.db.runAsync('ALTER TABLE messages ADD COLUMN translatedTo TEXT;');
-        console.log('✅ translatedTo column added');
       }
     }
     
     // Check if sentAsTranslation column exists
     try {
       await this.db.runAsync('SELECT sentAsTranslation FROM messages LIMIT 1');
-      console.log('✅ sentAsTranslation column exists');
     } catch (error: any) {
       if (error.message.includes('no such column')) {
-        console.log('⚠️ sentAsTranslation column missing, adding...');
         await this.db.runAsync('ALTER TABLE messages ADD COLUMN sentAsTranslation INTEGER DEFAULT 0;');
-        console.log('✅ sentAsTranslation column added');
       }
     }
     
-    console.log('✅ Column check complete');
   }
 
   /**
@@ -474,10 +439,6 @@ class SQLiteServiceClass {
       ]
     );
 
-    console.log(`✅ Translation saved locally for message ${messageId}`, {
-      type: typeof translation,
-      hasCulturalAnalysis: typeof translation === 'object' && translation.culturalAnalysis,
-    });
   }
 
   /**
@@ -534,9 +495,14 @@ class SQLiteServiceClass {
    * Get pending messages (for offline queue)
    */
   async getPendingMessages(): Promise<MessageRow[]> {
+    console.log('🔍 Checking for pending messages in SQLite...');
     const result = await this.db!.getAllAsync<MessageRow>(
       "SELECT * FROM messages WHERE syncStatus = 'pending' ORDER BY timestamp ASC"
     );
+    console.log(`📦 Found ${result.length} pending messages in SQLite`);
+    if (result.length > 0) {
+      console.log('Pending messages:', result.map(m => ({ id: m.id, text: m.text?.substring(0, 30), syncStatus: m.syncStatus })));
+    }
     return result;
   }
 
@@ -590,6 +556,27 @@ class SQLiteServiceClass {
       [messageId]
     );
     return result || null;
+  }
+
+  /**
+   * Get a specific message with parsed translations
+   * Used for search results enhancement
+   */
+  async getMessage(chatId: string, messageId: string): Promise<any | null> {
+    const result = await this.db!.getFirstAsync<MessageRow>(
+      'SELECT * FROM messages WHERE chatId = ? AND id = ?',
+      [chatId, messageId]
+    );
+    
+    if (!result) return null;
+
+    // Parse translations JSON
+    return {
+      ...result,
+      translations: result.translations 
+        ? JSON.parse(result.translations)
+        : undefined,
+    };
   }
 
   /**
@@ -650,7 +637,6 @@ class SQLiteServiceClass {
       await this.db.closeAsync();
       this.db = null;
       this.isInitialized = false;
-      console.log('✅ Database closed');
     }
   }
 
@@ -658,20 +644,17 @@ class SQLiteServiceClass {
    * Reset database (for testing)
    */
   async reset(): Promise<void> {
-    console.warn('⚠️  Resetting database...');
     
     try {
       // First, try to drop all tables if database is open
       if (this.db) {
         try {
-          console.log('🗑️  Dropping all tables...');
           await this.db.runAsync('DROP TABLE IF EXISTS scroll_positions');
           await this.db.runAsync('DROP TABLE IF EXISTS friend_requests');
           await this.db.runAsync('DROP TABLE IF EXISTS messages');
           await this.db.runAsync('DROP TABLE IF EXISTS chats');
           await this.db.runAsync('DROP TABLE IF EXISTS users');
           await this.db.runAsync('DROP TABLE IF EXISTS metadata');
-          console.log('✅ All tables dropped');
         } catch (dropError) {
           console.warn('Could not drop tables:', dropError);
         }
@@ -684,7 +667,6 @@ class SQLiteServiceClass {
       // Delete database file
       try {
         await SQLite.deleteDatabaseAsync(DATABASE_NAME);
-        console.log('✅ Database file deleted');
       } catch (deleteError) {
         console.warn('Could not delete database file:', deleteError);
       }
@@ -872,7 +854,6 @@ class SQLiteServiceClass {
         'DELETE FROM messages WHERE chatId = ?',
         [chatId]
       );
-      console.log(`✅ Deleted all messages for chat: ${chatId}`);
     } catch (error) {
       console.error('Error deleting messages by chatId:', error);
       throw error;
@@ -890,7 +871,6 @@ class SQLiteServiceClass {
         'DELETE FROM chats WHERE id = ?',
         [chatId]
       );
-      console.log(`✅ Deleted chat: ${chatId}`);
     } catch (error) {
       console.error('Error deleting chat by ID:', error);
       throw error;
@@ -907,7 +887,6 @@ class SQLiteServiceClass {
       for (const operation of operations) {
         await operation();
       }
-      console.log(`✅ Transaction completed with ${operations.length} operations`);
     } catch (error) {
       console.error('Transaction error:', error);
       throw error;
@@ -926,7 +905,6 @@ class SQLiteServiceClass {
       await this.db!.runAsync('DELETE FROM users');
       await this.db!.runAsync('DELETE FROM scroll_positions');
       await this.db!.runAsync('DELETE FROM friend_requests');
-      console.log('✅ All data cleared');
     } catch (error) {
       console.error('Error clearing data:', error);
       throw error;

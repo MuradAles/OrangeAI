@@ -54,6 +54,11 @@ export interface Message {
   translatedTo?: string;             // Target language for translation (ISO 639-1)
   sentAsTranslation?: boolean;       // True if message was sent as translation
   
+  // RAG / Semantic Search (for summarization & action item extraction)
+  embedding?: number[];              // 1536-dimensional vector for semantic search (text-embedding-3-small)
+  embeddingGenerated?: boolean;      // True if embedding has been generated
+  embeddingGeneratedAt?: number;     // Timestamp when embedding was generated
+  
   // Local fields (SQLite only)
   syncStatus?: MessageSyncStatus;   // synced | pending | failed (for offline queue)
   

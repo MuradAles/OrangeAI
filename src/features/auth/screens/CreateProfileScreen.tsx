@@ -53,7 +53,6 @@ export const CreateProfileScreen: React.FC = () => {
         setUsernameError(result.error || 'Username not available');
       }
     } catch (error) {
-      console.error('Failed to check username:', error);
     } finally {
       setIsCheckingUsername(false);
     }

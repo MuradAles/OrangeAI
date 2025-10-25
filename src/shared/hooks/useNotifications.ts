@@ -59,7 +59,6 @@ export const useNotifications = () => {
       setHasPermission(granted);
 
       if (!granted) {
-        console.log('Notification permission not granted');
         return;
       }
 
@@ -80,7 +79,6 @@ export const useNotifications = () => {
         handleNotificationTap
       );
 
-      console.log('✅ Notifications initialized');
     } catch (error) {
       console.error('Error initializing notifications:', error);
     }
@@ -90,7 +88,6 @@ export const useNotifications = () => {
    * Handle notification received while app is in foreground
    */
   const handleNotificationReceived = (notification: Notifications.Notification) => {
-    console.log('📬 Notification received:', notification);
 
     const data = notification.request.content.data as NotificationData;
     const chatId = data?.chatId;
@@ -99,7 +96,6 @@ export const useNotifications = () => {
     // Otherwise, let the system notification show
     if (chatId && activeChatId === chatId) {
       // User is in this chat - don't show any notification
-      console.log('User already in this chat, suppressing notification');
       return;
     }
 
@@ -122,7 +118,6 @@ export const useNotifications = () => {
    * Handle notification tap (when user taps on notification)
    */
   const handleNotificationTap = (response: Notifications.NotificationResponse) => {
-    console.log('👆 Notification tapped:', response);
 
     const data = response.notification.request.content.data as NotificationData;
 
@@ -130,7 +125,6 @@ export const useNotifications = () => {
     if (data?.chatId) {
       // Navigate to specific chat
       // This will be handled by the navigation logic in app layout
-      console.log('Navigating to chat:', data.chatId);
     }
   };
 

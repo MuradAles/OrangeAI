@@ -339,69 +339,37 @@ Respond with ONLY "true" or "false" (lowercase, no quotes).`;
   }
 
   /**
-   * Generate user-facing summary
-   * @param chatId - The chat ID to summarize
-   * @param targetLanguage - The language code for the summary (e.g., 'en', 'es', 'ru')
+   * Helper: Generate summary from messages text
+   * @private
    */
-  static async generateUserSummary(chatId: string, targetLanguage: string = 'en'): Promise<string> {
-    try {
-      logger.info('Generating user summary', { chatId });
+  private static async generateSummaryFromMessages(
+    messagesText: string, 
+    messageCount: number, 
+    targetLanguage: string
+  ): Promise<string> {
+    const languageNames: Record<string, string> = {
+      'en': 'English',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'ru': 'Russian',
+      'zh': 'Chinese',
+      'ja': 'Japanese',
+      'ko': 'Korean',
+      'ar': 'Arabic',
+      'pt': 'Portuguese',
+      'it': 'Italian',
+      'nl': 'Dutch',
+      'tr': 'Turkish',
+      'hi': 'Hindi',
+      'th': 'Thai',
+      'vi': 'Vietnamese',
+    };
+    const languageName = languageNames[targetLanguage] || 'English';
 
-      const context = await this.loadContext(chatId);
+    const prompt = `Generate a user-friendly chat summary from these messages.
 
-      // If no context exists yet (< 20 messages), generate summary from messages directly
-      if (!context) {
-        logger.info('No context available, generating summary from messages', { chatId });
-        
-        // Load all messages from the chat
-        const messagesRef = firestore
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .orderBy('timestamp', 'desc')
-          .limit(50); // Last 50 messages max
-        
-        const snapshot = await messagesRef.get();
-        
-        if (snapshot.empty) {
-          return "No messages yet! Start chatting to generate a summary.";
-        }
-
-        const messages = snapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          } as Message))
-          .reverse(); // Chronological order
-
-        const messagesText = messages
-          .map(m => `- ${m.senderName}: ${m.text}`)
-          .join('\n');
-
-        // Get language name for prompt
-        const languageNames: Record<string, string> = {
-          'en': 'English',
-          'es': 'Spanish',
-          'fr': 'French',
-          'de': 'German',
-          'ru': 'Russian',
-          'zh': 'Chinese',
-          'ja': 'Japanese',
-          'ko': 'Korean',
-          'ar': 'Arabic',
-          'pt': 'Portuguese',
-          'it': 'Italian',
-          'nl': 'Dutch',
-          'tr': 'Turkish',
-          'hi': 'Hindi',
-          'th': 'Thai',
-          'vi': 'Vietnamese',
-        };
-        const languageName = languageNames[targetLanguage] || 'English';
-
-        const prompt = `Generate a user-friendly chat summary from these messages.
-
-MESSAGES (${messages.length} total):
+MESSAGES (${messageCount} total):
 ${messagesText}
 
 Create a friendly summary in this format:
@@ -421,13 +389,162 @@ IMPORTANT: Generate the summary in ${languageName}. Keep it concise and user-fri
 
 CRITICAL: The entire summary must be written in ${languageName}. Do not use any other language.`;
 
-        const { text: summary } = await generateText({
-          model: aiModel,
-          prompt,
-          temperature: 0.5,
-        });
+    const { text: summary } = await generateText({
+      model: aiModel,
+      prompt,
+      temperature: 0.5,
+    });
 
-        return summary.trim();
+    return summary.trim();
+  }
+
+  /**
+   * Generate user-facing summary
+   * @param chatId - The chat ID to summarize
+   * @param targetLanguage - The language code for the summary (e.g., 'en', 'es', 'ru')
+   */
+  static async generateUserSummary(chatId: string, targetLanguage: string = 'en'): Promise<string> {
+    try {
+      logger.info('Generating user summary', { chatId });
+
+      const context = await this.loadContext(chatId);
+
+      // If no context exists yet (< 20 messages), generate summary from messages directly
+      if (!context) {
+        logger.info('No context available, generating summary from messages with RAG', { chatId });
+        
+        // 🚀 RAG APPROACH: Find semantically important messages
+        try {
+          // Step 1: Load recent messages with embeddings
+          const messagesRef = firestore
+            .collection('chats')
+            .doc(chatId)
+            .collection('messages')
+            .where('embeddingGenerated', '==', true)
+            .orderBy('timestamp', 'desc')
+            .limit(50);
+          
+          const snapshot = await messagesRef.get();
+          
+          if (snapshot.empty) {
+            // Fallback: No embeddings yet, use chronological
+            logger.info('No embeddings found, using chronological messages', { chatId });
+            const fallbackRef = firestore
+              .collection('chats')
+              .doc(chatId)
+              .collection('messages')
+              .orderBy('timestamp', 'desc')
+              .limit(50);
+            
+            const fallbackSnapshot = await fallbackRef.get();
+            
+            if (fallbackSnapshot.empty) {
+              return "No messages yet! Start chatting to generate a summary.";
+            }
+
+            const messages = fallbackSnapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() } as Message))
+              .reverse();
+
+            const messagesText = messages
+              .map(m => `- ${m.senderName}: ${m.text}`)
+              .join('\n');
+
+            return await this.generateSummaryFromMessages(messagesText, messages.length, targetLanguage);
+          }
+
+          // Step 2: Use semantic search to find key messages
+          const { EmbeddingService } = await import('./EmbeddingService.js');
+          
+          const messages = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as Message));
+
+          // Semantic queries for important content
+          const queries = [
+            "important decisions commitments",
+            "deadlines dates schedules meetings",
+            "plans actions todo tasks",
+            "problems issues concerns",
+          ];
+
+          // Find relevant messages for each query
+          const allKeyMessages: Message[] = [];
+          for (const query of queries) {
+            const results = await EmbeddingService.findSimilar(
+              query,
+              messages.map(m => ({
+                text: m.text,
+                embedding: m.embedding,
+                messageId: m.id,
+                timestamp: m.timestamp,
+              })),
+              5 // Top 5 per query
+            );
+
+            // Add corresponding messages
+            results.forEach((result: { messageId?: string }) => {
+              const msg = messages.find(m => m.id === result.messageId);
+              if (msg && !allKeyMessages.find(m => m.id === msg.id)) {
+                allKeyMessages.push(msg);
+              }
+            });
+          }
+
+          // Step 3: Add recent context (last 10 messages)
+          const recentMessages = messages.slice(0, 10);
+          recentMessages.forEach(msg => {
+            if (!allKeyMessages.find(m => m.id === msg.id)) {
+              allKeyMessages.push(msg);
+            }
+          });
+
+          // Step 4: Sort by timestamp and create summary text
+          allKeyMessages.sort((a, b) => a.timestamp - b.timestamp);
+
+          const messagesText = allKeyMessages
+            .map(m => `- ${m.senderName}: ${m.text}`)
+            .join('\n');
+
+          logger.info('RAG found key messages for summary', {
+            chatId,
+            keyMessages: allKeyMessages.length,
+            totalScanned: messages.length,
+          });
+
+          return await this.generateSummaryFromMessages(messagesText, allKeyMessages.length, targetLanguage);
+
+        } catch (ragError: any) {
+          // Fallback to chronological if RAG fails
+          logger.error('RAG failed, falling back to chronological', {
+            chatId,
+            error: ragError.message,
+          });
+
+          const fallbackRef = firestore
+            .collection('chats')
+            .doc(chatId)
+            .collection('messages')
+            .orderBy('timestamp', 'desc')
+            .limit(50);
+          
+          const fallbackSnapshot = await fallbackRef.get();
+          
+          if (fallbackSnapshot.empty) {
+            return "No messages yet! Start chatting to generate a summary.";
+          }
+
+          const messages = fallbackSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Message))
+            .reverse();
+
+          const messagesText = messages
+            .map(m => `- ${m.senderName}: ${m.text}`)
+            .join('\n');
+
+          return await this.generateSummaryFromMessages(messagesText, messages.length, targetLanguage);
+        }
       }
 
       // Context exists - generate summary from context
