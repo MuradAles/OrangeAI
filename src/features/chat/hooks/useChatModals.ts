@@ -11,6 +11,8 @@
 
 import { CulturalService } from '@/services/firebase';
 import { Message } from '@/shared/types';
+import { useAuthStore } from '@/store/AuthStore';
+import * as Clipboard from 'expo-clipboard';
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -51,7 +53,9 @@ export function useChatModals({
     setIsGeneratingSummary(true);
     try {
       // Generate summary in user's preferred language
-      const summary = await CulturalService.generateChatSummary(chatId, userId?.preferredLanguage || 'en');
+      const user = useAuthStore.getState().user;
+      const preferredLanguage = user?.preferredLanguage || 'en';
+      const summary = await CulturalService.generateChatSummary(chatId, preferredLanguage);
       
       if (!summary || summary.trim().length === 0) {
         Alert.alert('Error', 'Summary generation returned empty result. Please try again.');
@@ -66,11 +70,12 @@ export function useChatModals({
     } finally {
       setIsGeneratingSummary(false);
     }
-  }, [chatId, userId?.preferredLanguage, messages.length]);
+  }, [chatId, messages.length]);
 
   // Handle cultural analysis
   const handleCulturalAnalysis = useCallback(async (message: Message) => {
-    if (!userId?.preferredLanguage || !chatId) return;
+    const user = useAuthStore.getState().user;
+    if (!user?.preferredLanguage || !chatId) return;
     
     try {
       const { httpsCallable } = await import('firebase/functions');
@@ -81,7 +86,7 @@ export function useChatModals({
         messageId: message.id,
         chatId: chatId,
         messageText: message.text,
-        targetLanguage: userId.preferredLanguage,
+        targetLanguage: user.preferredLanguage,
       });
       
       if (result.data.success && result.data.culturalAnalysis) {
@@ -116,12 +121,11 @@ export function useChatModals({
       console.error('Cultural analysis failed:', error);
       Alert.alert('Analysis Failed', 'Could not analyze cultural context. Please try again.');
     }
-  }, [userId?.preferredLanguage, chatId]);
+  }, [chatId]);
 
   // Handle copy message to clipboard
   const handleCopyMessage = useCallback(async (message: Message) => {
     try {
-      const { default: Clipboard } = await import('expo-clipboard');
       const textToCopy = message.type === 'image' && message.caption 
         ? message.caption 
         : message.text;
@@ -142,10 +146,11 @@ export function useChatModals({
 
   // Handle long press (for delete, react, copy)
   const handleLongPress = useCallback((message: Message) => {
-    const isDeleted = message.deletedForEveryone || (message.deletedFor || []).includes(userId?.id || '');
+    const user = useAuthStore.getState().user;
+    const isDeleted = message.deletedForEveryone || (message.deletedFor || []).includes(user?.id || '');
     
     // If failed message, show delete option only
-    if (message.status === 'failed' && message.senderId === userId?.id) {
+    if (message.status === 'failed' && message.senderId === user?.id) {
       Alert.alert(
         'Delete Failed Message',
         'This message failed to send. Do you want to delete it?',
@@ -170,7 +175,7 @@ export function useChatModals({
     // Open the message options sheet
     setSelectedMessage(message);
     setShowMessageOptions(true);
-  }, [userId?.id]);
+  }, []);
 
   // Handle AI Commands
   const handleAITranslate = useCallback(async (message: Message, onTranslateMessage: (message: Message) => Promise<void>) => {

@@ -27,6 +27,7 @@ import { GroupSettingsModal } from './GroupSettingsModal';
 import { MessageInput } from './MessageInput';
 import { MessageOptionsSheet } from './MessageOptionsSheet';
 import { MessagesList } from './MessagesList';
+import { SmartReplyBar } from './SmartReplyBar';
 
 interface ChatModalProps {
   visible: boolean;
@@ -41,6 +42,9 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
   
   // Refs
   const flashListRef = useRef<any>(null);
+  
+  // State for input text (for smart replies to set)
+  const [inputText, setInputText] = React.useState('');
 
   // Get current chat and other user info
   const currentChat = chats.find(chat => chat.id === chatId);
@@ -125,6 +129,32 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
     await chatModals.handleCulturalAnalysis(message);
   }, [chatModals]);
 
+  // Get last received message for smart replies
+  // Only show smart replies if the LAST message in the conversation is from the OTHER person
+  const lastReceivedMessage = useMemo(() => {
+    const lastMessage = chatMessages.messages[chatMessages.messages.length - 1];
+    
+    // Only return the last message if:
+    // 1. It exists
+    // 2. It's NOT from the current user
+    // 3. It's a text message with content
+    if (
+      lastMessage &&
+      lastMessage.senderId !== user?.id &&
+      lastMessage.type === 'text' &&
+      lastMessage.text
+    ) {
+      return lastMessage;
+    }
+    
+    return undefined;
+  }, [chatMessages.messages, user?.id]);
+
+  // Handle smart reply selection
+  const handleSelectSmartReply = useCallback((replyText: string) => {
+    setInputText(replyText);
+  }, []);
+
   if (!user) {
     return null;
   }
@@ -175,8 +205,7 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           getUserProfile={chatMessages.getUserProfile}
           flashListRef={flashListRef}
           showJumpToBottom={chatScroll.showJumpToBottom}
-          isInitializing={chatScroll.isInitializing}
-          contentOffset={chatScroll.contentOffset}
+          isReady={chatScroll.isReady}
           typingUsers={chatPresence.typingUsers}
           onScroll={chatScroll.handleScroll}
           onJumpToBottom={chatScroll.handleJumpToBottom}
@@ -190,6 +219,16 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           onCulturalAnalysis={handleCulturalAnalysis}
         />
 
+        {/* Smart Reply Bar (above input) */}
+        {lastReceivedMessage && chatId && (
+          <SmartReplyBar
+            message={lastReceivedMessage}
+            chatId={chatId}
+            preferredLanguage={user.preferredLanguage || 'en'}
+            onSelectReply={handleSelectSmartReply}
+          />
+        )}
+
             {/* Message Input */}
             <MessageInput
               onSend={handleSend}
@@ -199,7 +238,9 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           userId={user.id}
           userName={user.displayName}
           preferredLanguage={user.preferredLanguage || 'en'}
-          showTranslationPreview={autoTranslate.autoTranslateEnabled}
+          showTranslationPreview={autoTranslate.translationPreviewEnabled}
+          initialText={inputText}
+          onTextChange={setInputText}
             />
       </Animated.View>
 

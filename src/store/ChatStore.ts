@@ -479,10 +479,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           syncStatus: row.syncStatus as MessageSyncStatus,
         }));
       
-      console.log(`📱 Loaded ${messages.length} non-deleted messages from SQLite (filtered out ${messageRows.length - messages.length} deleted)`);
       set({ messages, isLoadingMessages: false });
     } catch (error) {
-      console.error('Error loading messages from SQLite:', error);
       set({ error: (error as Error).message, isLoadingMessages: false });
     }
   },
@@ -842,8 +840,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         // Sort by timestamp (oldest first)
         updatedMessages.sort((a, b) => {
-          const aTime = typeof a.timestamp === 'number' ? a.timestamp : a.timestamp.getTime();
-          const bTime = typeof b.timestamp === 'number' ? b.timestamp : b.timestamp.getTime();
+          const aTime = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime();
+          const bTime = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp).getTime();
           return aTime - bTime;
         });
         

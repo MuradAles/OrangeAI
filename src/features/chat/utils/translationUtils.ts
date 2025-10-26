@@ -39,7 +39,7 @@ export function filterMessagesForTranslation(
  * Get text to translate from message
  */
 export function getTextToTranslate(message: Message): string | undefined {
-  return message.type === 'text' ? message.text : message.caption;
+  return message.type === 'text' ? message.text : message.caption || undefined;
 }
 
 /**

@@ -183,6 +183,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.warn('⚠️ Failed to cleanup presence subscriptions:', cleanupError);
       }
       
+      // Clean up AI Assistant conversation history
+      try {
+        const AsyncStorage = await import('@react-native-async-storage/async-storage');
+        const userId = currentUser?.id;
+        if (userId) {
+          const aiAssistantKey = `@ai_assistant_conversation_${userId}`;
+          await AsyncStorage.default.removeItem(aiAssistantKey);
+          console.log('🧹 Cleared AI Assistant conversation history for user:', userId);
+        }
+      } catch (aiCleanupError) {
+        console.warn('⚠️ Failed to cleanup AI Assistant history:', aiCleanupError);
+      }
+      
       await AuthService.signOut();
       
       // Clear state

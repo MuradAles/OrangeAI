@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TranslationOptionsModal } from './TranslationOptionsModal';
 
 interface MessageInputProps {
   onSend: (text: string, translationMetadata?: {
@@ -33,6 +34,8 @@ interface MessageInputProps {
   userName?: string;
   preferredLanguage?: string; // User's preferred language for translation preview
   showTranslationPreview?: boolean; // Enable/disable real-time translation preview
+  initialText?: string; // Initial text (for smart replies)
+  onTextChange?: (text: string) => void; // Text change callback
 }
 
 type TimeoutId = ReturnType<typeof setTimeout>;
@@ -51,27 +54,24 @@ export const MessageInput = ({
   userName,
   preferredLanguage = 'en',
   showTranslationPreview = false,
+  initialText = '',
+  onTextChange,
 }: MessageInputProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
   const [inputHeight, setInputHeight] = useState(40);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const typingTimeoutRef = useRef<TimeoutId | null>(null);
   const isTypingRef = useRef(false);
   
-  // Translation preview state
-  const [translationPreview, setTranslationPreview] = useState<{
-    translated: string;
-    detectedLanguage: string;
-  } | null>(null);
-  const [isTranslating, setIsTranslating] = useState(false);
-  const translationTimeoutRef = useRef<TimeoutId | null>(null);
+  // Translation options modal state
+  const [showTranslationModal, setShowTranslationModal] = useState(false);
+  const [detectedInputLanguage, setDetectedInputLanguage] = useState<string>('en');
   
   // Language selection state
   const [chatLanguages, setChatLanguages] = useState<string[]>(['en']); // Detected languages in chat
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en'); // Target language for translation
-  const [detectedInputLanguage, setDetectedInputLanguage] = useState<string>('en'); // Language user is typing in
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [isLoadingLanguages, setIsLoadingLanguages] = useState(false);
 
@@ -100,15 +100,13 @@ export const MessageInput = ({
             setSelectedLanguage(chatData.detectedLanguages[0]);
           }
         } else {
-          // New chat or no messages yet - use common languages
-          const commonLanguages = ['en', 'es', 'fr', 'de', 'ru', 'zh', 'ja', 'ko'];
-          setChatLanguages(commonLanguages);
+          // New chat or no messages yet - use only user's preferred language
+          setChatLanguages([preferredLanguage]);
           setSelectedLanguage(preferredLanguage);
         }
       } catch (error) {
-        // Fallback to common languages
-        const commonLanguages = ['en', 'es', 'fr', 'de', 'ru', 'zh', 'ja', 'ko'];
-        setChatLanguages(commonLanguages);
+        // Fallback to user's preferred language only
+        setChatLanguages([preferredLanguage]);
         setSelectedLanguage(preferredLanguage);
       } finally {
         setIsLoadingLanguages(false);
@@ -140,44 +138,40 @@ export const MessageInput = ({
     }
   };
 
-  // Translate text with debouncing
-  const translateText = async (textToTranslate: string, targetLang: string) => {
-    if (!textToTranslate.trim()) return;
+  // Quick language detection for input text
+  const detectInputLanguage = async (textToDetect: string) => {
+    if (!textToDetect.trim()) return;
     
     try {
-      setIsTranslating(true);
-      
-      // Import Firebase Functions
       const { httpsCallable } = await import('firebase/functions');
       const { functions } = await import('@/services/firebase/FirebaseConfig');
       
-      // Call NEW translatePreview function (fixes schema error!)
-      const translateFn = httpsCallable(functions, 'translatePreview');
-      const result: any = await translateFn({
-        messageText: textToTranslate,
-        targetLanguage: targetLang,
-      });
+      const detectFn = httpsCallable(functions, 'quickDetectLanguage');
+      const result: any = await detectFn({ text: textToDetect });
       
-      if (result.data.success && result.data.translated) {
-        setTranslationPreview({
-          translated: result.data.translated,
-          detectedLanguage: result.data.detectedLanguage,
-        });
-        // Also save detected input language
-        if (result.data.detectedLanguage) {
-          setDetectedInputLanguage(result.data.detectedLanguage);
-        }
+      if (result.data.language) {
+        setDetectedInputLanguage(result.data.language);
       }
     } catch (error) {
-      // Silently fail for preview - don't show alerts
-    } finally {
-      setIsTranslating(false);
+      // Silent fail
     }
   };
+
+  // Sync with initialText changes from parent (e.g., smart replies)
+  useEffect(() => {
+    if (initialText !== text) {
+      setText(initialText);
+    }
+  }, [initialText]);
 
   // Handle text change with typing indicator and translation preview
   const handleTextChange = (newText: string) => {
     setText(newText);
+    
+    // Notify parent of text change
+    if (onTextChange) {
+      onTextChange(newText);
+    }
     
     // Only send typing indicator if user is actually typing
     if (newText.length > 0) {
@@ -196,31 +190,16 @@ export const MessageInput = ({
         stopTyping();
       }, TYPING_TIMEOUT);
       
-      // Handle translation preview with debouncing
-      if (showTranslationPreview && newText.trim().length > 3) {
-        // Clear existing translation timeout
-        if (translationTimeoutRef.current) {
-          clearTimeout(translationTimeoutRef.current);
-        }
-        
-        // Debounce translation - wait 1 second after user stops typing
-        translationTimeoutRef.current = setTimeout(() => {
-          translateText(newText.trim(), selectedLanguage);
-        }, 1000);
-      } else {
-        // Clear translation if text is too short
-        setTranslationPreview(null);
+      // Detect input language for translation modal
+      if (newText.trim().length > 10) {
+        detectInputLanguage(newText.trim());
       }
     } else {
-      // Empty input - stop typing immediately and clear translation
+      // Empty input - stop typing immediately
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      if (translationTimeoutRef.current) {
-        clearTimeout(translationTimeoutRef.current);
-      }
       stopTyping();
-      setTranslationPreview(null);
     }
   };
 
@@ -258,9 +237,6 @@ export const MessageInput = ({
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    if (translationTimeoutRef.current) {
-      clearTimeout(translationTimeoutRef.current);
-    }
     stopTyping();
 
     if (selectedImage && onSendImage) {
@@ -270,42 +246,24 @@ export const MessageInput = ({
       setSelectedImage(null);
       setText('');
       setInputHeight(40);
-      setTranslationPreview(null);
     } else if (text.trim().length > 0) {
       // Send text message
       onSend(text.trim());
       setText('');
       setInputHeight(40);
-      setTranslationPreview(null);
     }
   };
   
-  // Send translated message
-  const handleSendTranslated = () => {
-    if (isSending || !translationPreview || !translationPreview.translated) return;
+  // Open translation options modal
+  const handleOpenTranslationModal = () => {
+    if (!text.trim()) return;
+    setShowTranslationModal(true);
+  };
 
-    // Stop typing indicator
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    if (translationTimeoutRef.current) {
-      clearTimeout(translationTimeoutRef.current);
-    }
-    stopTyping();
-
-    // Send translated message with metadata
-    onSend(translationPreview.translated, {
-      originalText: text.trim(),
-      originalLanguage: detectedInputLanguage || 'unknown',
-      translatedTo: selectedLanguage,
-      sentAsTranslation: true,
-    });
-
-    // Clear input and preview
-    setText('');
-    setInputHeight(40);
-    setTranslationPreview(null);
-    setDetectedInputLanguage('en');
+  // Handle selection from translation modal
+  const handleSelectTranslationOption = (selectedText: string) => {
+    setText(selectedText);
+    setShowTranslationModal(false);
   };
   
   // Backward compatible handleSend (sends original)
@@ -317,9 +275,6 @@ export const MessageInput = ({
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      if (translationTimeoutRef.current) {
-        clearTimeout(translationTimeoutRef.current);
-      }
       if (isTypingRef.current && chatId && userId) {
         PresenceService.stopTyping(chatId, userId).catch(console.error);
       }
@@ -329,8 +284,6 @@ export const MessageInput = ({
   const showCounter = text.length >= SHOW_COUNTER_AT;
   const isAtLimit = text.length >= MAX_LENGTH;
   const canSend = (text.trim().length > 0 || selectedImage) && !isSending;
-  const canSendTranslation = translationPreview && translationPreview.translated && !isSending;
-  const showTranslationChoice = showTranslationPreview && translationPreview && translationPreview.translated;
 
   // Language names map
   const languageNames: Record<string, string> = {
@@ -339,6 +292,12 @@ export const MessageInput = ({
     ko: '한국어', zh: '中文', ar: 'العربية', hi: 'हिन्दी',
     tr: 'Türkçe', nl: 'Nederlands', pl: 'Polski', sv: 'Svenska',
   };
+
+  // All available languages
+  const allLanguages = ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'ja', 'ko', 'zh', 'ar', 'hi', 'tr', 'nl', 'pl', 'sv'];
+  
+  // Separate chat languages from other languages
+  const otherLanguages = allLanguages.filter(lang => !chatLanguages.includes(lang));
 
   return (
     <View style={[styles.container, { 
@@ -359,33 +318,69 @@ export const MessageInput = ({
               Translate to:
             </Text>
             <ScrollView style={styles.languageList}>
-              {chatLanguages.map((lang) => (
-                <Pressable
-                  key={lang}
-                  style={[
-                    styles.languageItem,
-                    selectedLanguage === lang && { backgroundColor: theme.colors.primary + '15' }
-                  ]}
-                  onPress={() => {
-                    setSelectedLanguage(lang);
-                    setShowLanguageMenu(false);
-                    // Re-translate with new language
-                    if (text.trim().length > 3) {
-                      translateText(text.trim(), lang);
-                    }
-                  }}
-                >
-                  <Text style={[styles.languageCode, { color: theme.colors.text }]}>
-                    {lang.toUpperCase()}
+              {/* Chat Languages Section */}
+              {chatLanguages.length > 0 && (
+                <>
+                  <Text style={[styles.languageSectionTitle, { color: theme.colors.textSecondary }]}>
+                    Chat Languages
                   </Text>
-                  <Text style={[styles.languageName, { color: theme.colors.textSecondary }]}>
-                    {languageNames[lang] || lang}
+                  {chatLanguages.map((lang) => (
+                    <Pressable
+                      key={lang}
+                      style={[
+                        styles.languageItem,
+                        selectedLanguage === lang && { backgroundColor: theme.colors.primary + '15' }
+                      ]}
+                      onPress={() => {
+                        setSelectedLanguage(lang);
+                        setShowLanguageMenu(false);
+                      }}
+                    >
+                      <Text style={[styles.languageCode, { color: theme.colors.text }]}>
+                        {lang.toUpperCase()}
+                      </Text>
+                      <Text style={[styles.languageName, { color: theme.colors.textSecondary }]}>
+                        {languageNames[lang] || lang}
+                      </Text>
+                      {selectedLanguage === lang && (
+                        <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                      )}
+                    </Pressable>
+                  ))}
+                </>
+              )}
+
+              {/* Other Languages Section */}
+              {otherLanguages.length > 0 && (
+                <>
+                  <Text style={[styles.languageSectionTitle, { color: theme.colors.textSecondary }]}>
+                    Other Languages
                   </Text>
-                  {selectedLanguage === lang && (
-                    <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
-                  )}
-                </Pressable>
-              ))}
+                  {otherLanguages.map((lang) => (
+                    <Pressable
+                      key={lang}
+                      style={[
+                        styles.languageItem,
+                        selectedLanguage === lang && { backgroundColor: theme.colors.primary + '15' }
+                      ]}
+                      onPress={() => {
+                        setSelectedLanguage(lang);
+                        setShowLanguageMenu(false);
+                      }}
+                    >
+                      <Text style={[styles.languageCode, { color: theme.colors.text }]}>
+                        {lang.toUpperCase()}
+                      </Text>
+                      <Text style={[styles.languageName, { color: theme.colors.textSecondary }]}>
+                        {languageNames[lang] || lang}
+                      </Text>
+                      {selectedLanguage === lang && (
+                        <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                      )}
+                    </Pressable>
+                  ))}
+                </>
+              )}
             </ScrollView>
           </View>
         </Pressable>
@@ -417,47 +412,7 @@ export const MessageInput = ({
         </View>
       )}
 
-      {/* Row 1: Translation Preview (only when translation is available) */}
-      {showTranslationChoice && (
-        <View style={[styles.translationRow, { backgroundColor: theme.colors.primary + '15' }]}>
-          {/* Translation Preview - FULL WIDTH with bluish background */}
-          <View style={[styles.translationPreviewClean, { backgroundColor: 'transparent' }]}>
-            <Text style={[styles.translationPreviewText, { color: theme.colors.text }]}>
-              {translationPreview?.translated}
-            </Text>
-          </View>
-
-          {/* Right Side Buttons Container */}
-          <View style={styles.translationButtonsContainer}>
-            {/* Language Selector Button (Top Right) */}
-            <Pressable
-              style={[styles.translationActionButton, { backgroundColor: theme.colors.backgroundInput }]}
-              onPress={() => setShowLanguageMenu(true)}
-              disabled={isLoadingLanguages}
-            >
-              <Ionicons name="globe-outline" size={16} color={theme.colors.primary} />
-              <Text style={[styles.translationLanguageText, { color: theme.colors.primary }]}>
-                {selectedLanguage.toUpperCase()}
-              </Text>
-            </Pressable>
-
-            {/* Send Translated Button (Bottom Right) - Translation + Send */}
-            <Pressable
-              style={[styles.translationActionButton, { backgroundColor: theme.colors.primary }]}
-              onPress={handleSendTranslated}
-              disabled={!canSendTranslation}
-            >
-              <Ionicons 
-                name="language" 
-                size={14} 
-                color={canSendTranslation ? "#fff" : theme.colors.textSecondary} 
-              />
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {/* Row 2: Input Field */}
+      {/* Input Field */}
       <View style={styles.inputRow}>
         {/* Image Picker Button */}
         <IconButton
@@ -493,7 +448,17 @@ export const MessageInput = ({
           />
         </View>
 
-        {/* Send Original Button */}
+        {/* Auto-Translate Button */}
+        <IconButton
+          icon="globe"
+          size={24}
+          color={text.trim().length > 0 ? theme.colors.primary : theme.colors.textSecondary}
+          onPress={handleOpenTranslationModal}
+          disabled={!text.trim() || isSending}
+          style={styles.translateButton}
+        />
+
+        {/* Send Button */}
         <IconButton
           icon={isSending ? 'hourglass' : 'send'}
           size={24}
@@ -503,6 +468,16 @@ export const MessageInput = ({
           style={styles.sendButton}
         />
       </View>
+
+      {/* Translation Options Modal */}
+      <TranslationOptionsModal
+        visible={showTranslationModal}
+        originalText={text}
+        originalLanguage={detectedInputLanguage}
+        chatLanguages={chatLanguages}
+        onClose={() => setShowTranslationModal(false)}
+        onSelectOption={handleSelectTranslationOption}
+      />
     </View>
   );
 };
@@ -536,6 +511,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 16,
   },
+  languageSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    letterSpacing: 0.5,
+  },
   languageList: {
     maxHeight: 400,
   },
@@ -557,19 +541,33 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
   },
-  // Language Button
+  // Language Button (Left in translation row)
   languageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 20,
     gap: 4,
-    marginBottom: 4,
   },
   languageButtonText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
+  },
+  // Translation Preview Center
+  translationPreviewCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    minHeight: 44,
+  },
+  // Send Translated Button (Right)
+  sendTranslatedButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Translation Preview
   translationPreviewContainer: {
@@ -724,6 +722,12 @@ const styles = StyleSheet.create({
     maxHeight: 120,
     paddingTop: 8,
     paddingBottom: 8,
+  },
+  aiButton: {
+    marginBottom: 4,
+  },
+  translateButton: {
+    marginBottom: 4,
   },
   sendButton: {
     marginBottom: 4,

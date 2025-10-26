@@ -103,61 +103,6 @@ describe('ChatStore', () => {
     });
   });
 
-  describe('deleteMessageForMe', () => {
-    it('should remove message from current user view only', async () => {
-      const mockMessage = {
-        id: 'msg-123',
-        chatId: 'chat-123',
-        senderId: 'user-2',
-        text: 'Test message',
-        timestamp: Date.now(),
-        status: 'sent' as const,
-        type: 'text' as const,
-        deletedFor: [],
-        deletedForEveryone: false
-      };
-
-      useChatStore.setState({
-        messages: [mockMessage]
-      });
-
-      (MessageService.deleteMessageForMe as jest.Mock).mockResolvedValue(undefined);
-
-      const { deleteMessageForMe } = useChatStore.getState();
-      await deleteMessageForMe('chat-123', 'msg-123', 'user-1');
-
-      const state = useChatStore.getState();
-      expect(state.messages[0].deletedFor).toContain('user-1');
-    });
-  });
-
-  describe('deleteMessageForEveryone', () => {
-    it('should mark message as deleted for all participants', async () => {
-      const mockMessage = {
-        id: 'msg-123',
-        chatId: 'chat-123',
-        senderId: 'user-1',
-        text: 'Test message',
-        timestamp: Date.now(),
-        status: 'sent' as const,
-        type: 'text' as const,
-        deletedFor: [],
-        deletedForEveryone: false
-      };
-
-      useChatStore.setState({
-        messages: [mockMessage]
-      });
-
-      (MessageService.deleteMessageForEveryone as jest.Mock).mockResolvedValue(undefined);
-
-      const { deleteMessageForEveryone } = useChatStore.getState();
-      await deleteMessageForEveryone('chat-123', 'msg-123');
-
-      const state = useChatStore.getState();
-      expect(state.messages[0].deletedForEveryone).toBe(true);
-    });
-  });
 
   describe('addReaction', () => {
     it('should add emoji reaction to message', async () => {

@@ -10,6 +10,7 @@
 
 import { Message } from '@/shared/types';
 import { useChatStore } from '@/store';
+import { useAuthStore } from '@/store/AuthStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -76,7 +77,7 @@ export function useChatMessages({
         
         // 2.5. Sync user's preferred language to chat's detectedLanguages (non-blocking)
         // This ensures the chat knows what languages users prefer for translation
-        const user = useChatStore.getState().user;
+        const user = useAuthStore.getState().user;
         const preferredLanguage = user?.preferredLanguage;
         if (preferredLanguage) {
           // Capture as const for TypeScript type narrowing in async function
@@ -91,6 +92,29 @@ export function useChatMessages({
           };
           syncLanguage(); // Fire and forget
         }
+        
+        // 2.6. Detect actual languages used in chat messages (non-blocking)
+        // This populates chat.detectedLanguages with real languages from messages
+        const detectActualLanguages = async () => {
+          try {
+            const { httpsCallable } = await import('firebase/functions');
+            const { functions } = await import('@/services/firebase/FirebaseConfig');
+            
+            const detectFn = httpsCallable(functions, 'detectChatLanguages');
+            const result: any = await detectFn({ chatId, limit: 50 });
+            
+            if (result.data.success && result.data.languages.length > 0) {
+              // Update chat with detected languages
+              const { ChatService } = await import('@/services/firebase');
+              for (const lang of result.data.languages) {
+                await ChatService.updateDetectedLanguages(chatId, lang);
+              }
+            }
+          } catch (error) {
+            // Silent fail - not critical
+          }
+        };
+        detectActualLanguages(); // Fire and forget
         
         // 3. Mark messages as read (PRD: If chat open → Mark as read)
         // Wait a bit to ensure messages are loaded first

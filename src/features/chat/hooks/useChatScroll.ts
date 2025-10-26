@@ -1,10 +1,11 @@
 /**
- * useChatScroll Hook - SIMPLIFIED
+ * useChatScroll Hook - OPTIMIZED FOR SMOOTH SCROLLING
  * 
- * Handles essential chat scrolling:
- * - Scroll to bottom on chat open
+ * Handles chat scrolling with consistent behavior:
+ * - Always opens at bottom (newest messages)
+ * - No random scroll positions
  * - Auto-scroll for new messages IF user is at bottom
- * - Show "Jump to Bottom" button when scrolled up
+ * - Smooth animations
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -25,77 +26,154 @@ export function useChatScroll({
 }: UseChatScrollOptions) {
   
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const isAtBottomRef = useRef(true);
   const previousMessagesLength = useRef(0);
+  const previousChatId = useRef<string | null>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
+  const hasInitializedRef = useRef(false);
 
-  // Simple scroll to bottom with safety checks
-  const scrollToBottom = useCallback((animated = true) => {
-    try {
-      if (flashListRef.current && messagesLength > 0) {
-        flashListRef.current.scrollToEnd({ animated });
-        isAtBottomRef.current = true;
-        setShowJumpToBottom(false);
+  // Detect when chat changes
+  const chatChanged = previousChatId.current !== chatId;
+  
+  // Reset state when chat changes or closes
+  useEffect(() => {
+    if (!visible || chatChanged) {
+      setIsReady(false);
+      setShowJumpToBottom(false);
+      isAtBottomRef.current = true;
+      hasInitializedRef.current = false;
+      previousMessagesLength.current = 0;
+      
+      // Clear any pending scroll timeouts
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
       }
+    }
+    
+    if (visible && chatId) {
+      previousChatId.current = chatId;
+    }
+  }, [visible, chatId, chatChanged]);
+
+  // Reliable scroll to bottom
+  const scrollToBottom = useCallback((animated = true) => {
+    if (!flashListRef.current || messagesLength === 0) {
+      return;
+    }
+
+    try {
+      // Use scrollToEnd for consistent behavior
+      flashListRef.current.scrollToEnd({ animated });
+      isAtBottomRef.current = true;
+      setShowJumpToBottom(false);
     } catch (error) {
-      // Silently ignore scroll errors - FlashList not ready yet
-      console.log('Scroll error (ignoring):', error);
+      // FlashList not ready yet, ignore
     }
   }, [flashListRef, messagesLength]);
 
-  // Scroll to bottom with small delay (for reliability)
-  const debouncedScrollToBottom = useCallback((animated = true) => {
-    if (messagesLength > 0) {
-      setTimeout(() => scrollToBottom(animated), 150);
+  // Smart scroll with proper timing
+  const debouncedScrollToBottom = useCallback((animated = true, delay = 100) => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
     }
-  }, [scrollToBottom, messagesLength]);
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      scrollToBottom(animated);
+      scrollTimeoutRef.current = null;
+    }, delay);
+  }, [scrollToBottom]);
 
-  // Scroll to bottom when chat opens (with delay for FlashList to mount)
+  // Initialize scroll position on first render
   useEffect(() => {
-    if (visible && chatId && messagesLength > 0) {
-      // Wait a bit longer for FlashList to fully render
-      setTimeout(() => {
-        scrollToBottom(false);
-      }, 300);
-      previousMessagesLength.current = messagesLength;
+    if (!visible || !chatId || messagesLength === 0) {
+      return;
     }
+
+    // Only run once per chat open
+    if (hasInitializedRef.current) {
+      return;
+    }
+
+    // Mark as ready and scroll after a short delay
+    // This ensures FlashList has rendered the items
+    const initTimeout = setTimeout(() => {
+      setIsReady(true);
+      scrollToBottom(false); // No animation on initial load
+      hasInitializedRef.current = true;
+    }, 200);
+
+    return () => clearTimeout(initTimeout);
   }, [visible, chatId, messagesLength, scrollToBottom]);
 
-  // Auto-scroll on new messages IF user is at bottom
+  // Handle new messages - auto-scroll ONLY if user is at bottom
   useEffect(() => {
-    if (!visible || !chatId) return;
+    if (!visible || !chatId || !isReady) {
+      return;
+    }
 
-    // Check if new messages arrived
     const hasNewMessages = messagesLength > previousMessagesLength.current;
     
-    if (hasNewMessages && isAtBottomRef.current) {
-      // User is at bottom + new messages = auto-scroll
-      debouncedScrollToBottom(true);
+    if (hasNewMessages) {
+      if (isAtBottomRef.current) {
+        // User is at bottom, auto-scroll to show new messages
+        debouncedScrollToBottom(true, 100);
+      } else {
+        // User scrolled up, don't interrupt - just show button
+        setShowJumpToBottom(true);
+      }
     }
     
     previousMessagesLength.current = messagesLength;
-  }, [messagesLength, visible, chatId, debouncedScrollToBottom]);
+  }, [messagesLength, visible, chatId, isReady, debouncedScrollToBottom]);
 
-  // Handle scroll events - track if user is at bottom
+  // Track scroll position
   const handleScroll = useCallback((event: any) => {
-    const offsetY = event.nativeEvent.contentOffset.y;
-    const contentHeight = event.nativeEvent.contentSize.height;
-    const scrollViewHeight = event.nativeEvent.layoutMeasurement.height;
-    
-    // Check if at bottom (within 100px)
-    const distanceFromBottom = contentHeight - (offsetY + scrollViewHeight);
-    const isNearBottom = distanceFromBottom < 100;
-    
-    isAtBottomRef.current = isNearBottom;
-    setShowJumpToBottom(!isNearBottom && messagesLength > 10);
-  }, [messagesLength]);
+    if (!isReady) return;
+
+    try {
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      const offsetY = contentOffset.y;
+      const contentHeight = contentSize.height;
+      const scrollViewHeight = layoutMeasurement.height;
+      
+      // Calculate distance from bottom
+      const distanceFromBottom = contentHeight - (offsetY + scrollViewHeight);
+      const isNearBottom = distanceFromBottom < 50; // Tighter threshold
+      
+      // Update state
+      const wasAtBottom = isAtBottomRef.current;
+      isAtBottomRef.current = isNearBottom;
+      
+      // Show/hide jump button (only if scrolled up significantly AND have messages)
+      const shouldShow = !isNearBottom && messagesLength > 10 && distanceFromBottom > 200;
+      setShowJumpToBottom(shouldShow);
+      
+      // If user scrolled back to bottom, dismiss button
+      if (isNearBottom && !wasAtBottom) {
+        setShowJumpToBottom(false);
+      }
+    } catch (error) {
+      // Ignore scroll errors
+    }
+  }, [messagesLength, isReady]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return {
     scrollToBottom,
     debouncedScrollToBottom,
     handleScroll,
     showJumpToBottom,
-    handleJumpToBottom: scrollToBottom, // Just use scrollToBottom directly
-    isInitializing: false, // No longer needed
-    contentOffset: undefined, // No longer saving/restoring position
+    handleJumpToBottom: () => scrollToBottom(true),
+    isReady, // Expose ready state
   };
 }

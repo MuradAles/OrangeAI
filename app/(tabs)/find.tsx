@@ -1,603 +1,514 @@
 /**
- * Global Message Search Screen
- * RAG-powered semantic search across all chats
+ * AI Assistant Screen
+ * Conversational AI that helps users find information in their chat history
  */
 
-import { SQLiteService } from '@/database/SQLiteService';
 import { functions } from '@/services/firebase/FirebaseConfig';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { useAuthStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { httpsCallable } from 'firebase/functions';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 
-interface SearchResult {
-  messageId: string;
-  text: string;
-  score: number;
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
   timestamp: number;
+  sources?: {
+    chatId: string;
+    chatName: string;
+    messageId: string;
+    snippet: string;
+    timestamp: number;
+  }[];
 }
 
-interface ChatResult {
-  chatId: string;
-  chatName: string;
-  isGroup: boolean;
-  results: SearchResult[];
-  bestScore: number;
-}
+const SUGGESTED_PROMPTS = [
+  "What did I talk about yesterday?",
+  "Help me plan my day",
+  "Explain something I don't understand",
+  "Give me advice on a problem",
+];
 
-interface EnhancedResult extends SearchResult {
-  displayText: string;
-  isTranslated: boolean;
-  originalText: string;
-}
-
-interface EnhancedChatResult extends ChatResult {
-  results: EnhancedResult[];
-}
-
-export default function FindScreen() {
+export default function AIAssistantScreen() {
   const theme = useTheme();
   const user = useAuthStore((state) => state.user);
   
-  const [query, setQuery] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<EnhancedChatResult[]>([]);
-  const [translating, setTranslating] = useState<Set<string>>(new Set());
-  const [indexing, setIndexing] = useState(false);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // User-specific storage key
+  const STORAGE_KEY = user?.id ? `@ai_assistant_conversation_${user.id}` : '@ai_assistant_conversation';
 
   /**
-   * Enhance results with cached translations from SQLite
+   * Load conversation history from AsyncStorage
    */
-  const enhanceWithTranslations = useCallback(async (
-    chatResults: ChatResult[]
-  ): Promise<EnhancedChatResult[]> => {
-    if (!user?.preferredLanguage) return chatResults as EnhancedChatResult[];
-
-    const enhanced = await Promise.all(
-      chatResults.map(async (chat) => ({
-        ...chat,
-        results: await Promise.all(
-          chat.results.map(async (msg): Promise<EnhancedResult> => {
-            try {
-              // Check SQLite for cached translation
-              const localMessage = await SQLiteService.getMessage(
-                chat.chatId,
-                msg.messageId
-              );
-
-              // If translation exists, use it
-              if (localMessage?.translations && user.preferredLanguage && localMessage.translations[user.preferredLanguage]) {
-                const translation = localMessage.translations[user.preferredLanguage];
-                const translatedText = typeof translation === 'string' 
-                  ? translation 
-                  : translation.text;
-
-                return {
-                  ...msg,
-                  originalText: msg.text,
-                  displayText: translatedText,
-                  isTranslated: true,
-                };
-              }
-
-              // No translation, show original
-              return {
-                ...msg,
-                originalText: msg.text,
-                displayText: msg.text,
-                isTranslated: false,
-              };
-            } catch (error) {
-              console.error('Error checking translation:', error);
-              return {
-                ...msg,
-                originalText: msg.text,
-                displayText: msg.text,
-                isTranslated: false,
-              };
-            }
-          })
-        ),
-      }))
-    );
-
-    return enhanced;
-  }, [user?.preferredLanguage]);
-
-  /**
-   * Perform global semantic search
-   */
-  const handleSearch = useCallback(async () => {
-    if (!query.trim() || query.trim().length < 2) {
-      Alert.alert('Invalid Query', 'Please enter at least 2 characters');
-      return;
-    }
-
-    setSearching(true);
-    setResults([]);
-
-    try {
-      console.log('🔍 Searching for:', query);
-
-      const searchFn = httpsCallable(functions, 'searchAllChats');
-      const result: any = await searchFn({ query: query.trim(), limit: 20 });
-
-      console.log('✅ Search results:', result.data);
-
-       if (result.data.success && result.data.results.length > 0) {
-         // Enhance with translations
-         const enhanced = await enhanceWithTranslations(result.data.results);
-         setResults(enhanced);
-       } else {
-         // No results found
-         setResults([]);
-       }
-    } catch (error: any) {
-      console.error('❌ Search error:', error);
-      Alert.alert('Search Failed', error.message || 'Please try again');
-    } finally {
-      setSearching(false);
-    }
-  }, [query, enhanceWithTranslations]);
-
-  /**
-   * Translate a specific message
-   */
-  const handleTranslate = useCallback(async (
-    chatId: string,
-    messageId: string,
-    messageText: string
-  ) => {
-    if (!user?.preferredLanguage) {
-      Alert.alert('Error', 'Please set your preferred language in settings');
-      return;
-    }
-
-    const key = `${chatId}-${messageId}`;
-    setTranslating(prev => new Set(prev).add(key));
-
-    try {
-      console.log('🌍 Translating message:', messageId);
-
-      const translateFn = httpsCallable(functions, 'translateMessage');
-      const result: any = await translateFn({
-        messageId,
-        chatId,
-        targetLanguage: user.preferredLanguage,
-        messageText,
-      });
-
-      if (result.data.translated) {
-        // Save to SQLite
-        const translationObject = {
-          text: result.data.translated,
-          culturalAnalysis: result.data.culturalAnalysis,
-          translatedAt: Date.now(),
-        };
-
-        await SQLiteService.updateMessageTranslation(
-          chatId,
-          messageId,
-          user.preferredLanguage,
-          translationObject,
-          result.data.detectedLanguage || 'unknown'
-        );
-
-        // Update results with new translation
-        const updatedResults = results.map(chat => {
-          if (chat.chatId !== chatId) return chat;
-
-          return {
-            ...chat,
-            results: chat.results.map(msg => {
-              if (msg.messageId !== messageId) return msg;
-
-              return {
-                ...msg,
-                displayText: result.data.translated,
-                isTranslated: true,
-              };
-            }),
-          };
-        });
-
-         setResults(updatedResults);
-       }
-     } catch (error: any) {
-       console.error('❌ Translation error:', error);
-       Alert.alert('Translation Failed', error.message || 'Please try again');
-    } finally {
-      setTranslating(prev => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    }
-  }, [user?.preferredLanguage, results]);
-
-  /**
-   * Generate embeddings for all user's chats
-   */
-  const handleIndexMessages = useCallback(async () => {
-    if (!user) return;
-
-    setIndexing(true);
-
-    try {
-      // Get user's chats from Firestore
-      const { collection, query: firestoreQuery, where, getDocs } = await import('firebase/firestore');
-      const { firestore } = await import('@/services/firebase/FirebaseConfig');
-
-      const chatsSnapshot = await getDocs(
-        firestoreQuery(
-          collection(firestore, 'chats'),
-          where('participants', 'array-contains', user.id)
-        )
-      );
-
-      const chatIds = chatsSnapshot.docs.map(doc => doc.id);
-      
-      if (chatIds.length === 0) {
-        Alert.alert('No Chats', 'You don\'t have any chats yet');
-        return;
-      }
-
-      Alert.alert(
-        'Indexing Messages',
-        `Generating search index for ${chatIds.length} chats. This may take a minute...`
-      );
-
-      // Generate embeddings for each chat
-      const generateFn = httpsCallable(functions, 'generateChatEmbeddings');
-      
-      let successCount = 0;
-      for (const chatId of chatIds) {
-        try {
-          await generateFn({ chatId, limit: 50 });
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to index chat ${chatId}:`, error);
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        // Clear any old global conversation history (migration)
+        if (user?.id) {
+          const oldGlobalKey = '@ai_assistant_conversation';
+          const oldGlobalHistory = await AsyncStorage.getItem(oldGlobalKey);
+          if (oldGlobalHistory) {
+            // Remove old global history
+            await AsyncStorage.removeItem(oldGlobalKey);
+            console.log('🧹 Cleared old global AI Assistant history');
+          }
         }
+
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const history = JSON.parse(stored);
+          setMessages(history);
+        }
+      } catch (error) {
+        console.error('Error loading conversation history:', error);
+      } finally {
+        setIsLoadingHistory(false);
       }
+    };
 
-      Alert.alert(
-        'Indexing Complete!',
-        `Indexed ${successCount} out of ${chatIds.length} chats. You can now search your messages!`
-      );
-    } catch (error: any) {
-      console.error('Indexing error:', error);
-      Alert.alert('Indexing Failed', error.message || 'Please try again');
-    } finally {
-      setIndexing(false);
+    loadHistory();
+  }, [STORAGE_KEY, user?.id]);
+
+  /**
+   * Save conversation history to AsyncStorage
+   */
+  const saveHistory = useCallback(async (newMessages: Message[]) => {
+    try {
+      // Keep last 50 messages to avoid storage bloat
+      const messagesToSave = newMessages.slice(-50);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messagesToSave));
+    } catch (error) {
+      console.error('Error saving conversation history:', error);
     }
-  }, [user]);
+  }, [STORAGE_KEY]);
 
   /**
-   * Open chat and jump to message
+   * Send message to AI Assistant
    */
-  const handleResultTap = useCallback((chatId: string, messageId: string) => {
-    // Navigate to chat
-    router.push({
-      pathname: '/chat/[id]' as any,
-      params: { id: chatId, highlightMessage: messageId },
-    });
-  }, []);
+  const handleSend = useCallback(async (queryText?: string) => {
+    const query = queryText || input.trim();
+    
+    if (!query) return;
+
+    // Clear input
+    setInput('');
+
+    // Add user message
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: query,
+      timestamp: Date.now(),
+    };
+
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setIsLoading(true);
+
+    // Scroll to bottom
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+
+    try {
+      console.log('🤖 Querying AI Assistant:', query);
+
+      // Call AI Assistant function
+      const aiAssistantFn = httpsCallable(functions, 'aiAssistant');
+      const result: any = await aiAssistantFn({
+        query,
+        conversationHistory: updatedMessages.slice(-10).map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+      });
+
+      console.log('✅ AI Response received');
+
+      // Add AI response
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: result.data.answer,
+        timestamp: result.data.timestamp || Date.now(),
+        sources: result.data.sources || [],
+      };
+
+      const finalMessages = [...updatedMessages, aiMessage];
+      setMessages(finalMessages);
+      await saveHistory(finalMessages);
+
+      // Scroll to bottom
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error: any) {
+      console.error('❌ AI Assistant error:', error);
+      
+      // Add error message
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: "I'm sorry, I encountered an error while searching your messages. Please try again in a moment.",
+        timestamp: Date.now(),
+      };
+
+      const finalMessages = [...updatedMessages, errorMessage];
+      setMessages(finalMessages);
+      await saveHistory(finalMessages);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [input, messages, saveHistory]);
 
   /**
-   * Render a single search result
+   * Clear conversation history
    */
-  const renderResult = useCallback(({ item: msg }: { item: EnhancedResult }) => {
-    const chatResult = results.find(c => 
-      c.results.some(r => r.messageId === msg.messageId)
-    );
-    const chatId = chatResult?.chatId || '';
-    const translatingKey = `${chatId}-${msg.messageId}`;
-    const isTranslating = translating.has(translatingKey);
+  const handleClearHistory = useCallback(async () => {
+    setMessages([]);
+    await AsyncStorage.removeItem(STORAGE_KEY);
+  }, [STORAGE_KEY]);
+
+  /**
+   * Render a message bubble
+   */
+  const renderMessage = useCallback((message: Message) => {
+    const isUser = message.role === 'user';
 
     return (
       <View
-        style={[styles.resultItem, { backgroundColor: theme.colors.surface }]}
+        key={message.id}
+        style={[
+          styles.messageBubble,
+          isUser ? styles.userBubble : styles.aiBubble,
+          { backgroundColor: isUser ? theme.colors.primary : theme.colors.surface },
+        ]}
       >
-        <Text style={[styles.messageText, { color: theme.colors.text }]}>
-          {msg.displayText}
+        {/* Message content */}
+        <Text
+          style={[
+            styles.messageText,
+            { color: isUser ? '#FFFFFF' : theme.colors.text },
+          ]}
+        >
+          {message.content}
         </Text>
 
-        <View style={styles.resultFooter}>
-          <Text style={[styles.score, { color: theme.colors.textSecondary }]}>
-            {Math.round(msg.score * 100)}% match
-          </Text>
-
-          {msg.isTranslated && (
-            <View style={[styles.badge, { backgroundColor: theme.colors.primary + '20' }]}>
-              <Ionicons name="language" size={12} color={theme.colors.primary} />
-              <Text style={[styles.badgeText, { color: theme.colors.primary }]}>
-                Translated
-              </Text>
-            </View>
-          )}
-
-          {!msg.isTranslated && msg.displayText !== msg.originalText && (
-            <Pressable
-              style={[styles.translateButton, { borderColor: theme.colors.primary }]}
-              onPress={() => handleTranslate(chatId, msg.messageId, msg.originalText)}
-              disabled={isTranslating}
-            >
-              {isTranslating ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (
-                <>
-                  <Ionicons name="language-outline" size={14} color={theme.colors.primary} />
-                  <Text style={[styles.translateButtonText, { color: theme.colors.primary }]}>
-                    Translate
+        {/* Source links (AI messages only) */}
+        {!isUser && message.sources && message.sources.length > 0 && (
+          <View style={styles.sourcesContainer}>
+            <View style={styles.sourcesDivider} />
+            <Text style={[styles.sourcesLabel, { color: theme.colors.textSecondary }]}>
+              Sources:
+            </Text>
+            {message.sources.map((source, index) => (
+              <View
+                key={`${source.chatId}-${source.messageId || index}`}
+                style={[
+                  styles.sourceItem,
+                  { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
+                ]}
+              >
+                <Ionicons name="link-outline" size={14} color={theme.colors.primary} />
+                <View style={styles.sourceContent}>
+                  <Text style={[styles.sourceChatName, { color: theme.colors.text }]} numberOfLines={1}>
+                    {source.chatName}
                   </Text>
-                </>
-              )}
-            </Pressable>
-          )}
-        </View>
+                  <Text style={[styles.sourceSnippet, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                    {source.snippet}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Timestamp */}
+        <Text
+          style={[
+            styles.timestamp,
+            { color: isUser ? 'rgba(255, 255, 255, 0.7)' : theme.colors.textSecondary },
+          ]}
+        >
+          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
       </View>
     );
-  }, [results, translating, theme, handleTranslate]);
+  }, [theme]);
 
-  /**
-   * Render a chat section with results
-   */
-  const renderChat = useCallback(({ item: chat }: { item: EnhancedChatResult }) => (
-    <View style={styles.chatSection}>
-      <View style={styles.chatHeader}>
-        <Ionicons
-          name={chat.isGroup ? 'people' : 'person'}
-          size={20}
-          color={theme.colors.primary}
-        />
-        <Text style={[styles.chatName, { color: theme.colors.text }]}>
-          {chat.chatName}
-        </Text>
+  if (isLoadingHistory) {
+    return (
+      <View style={[styles.container, styles.center, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
-
-      {chat.results.map(msg => (
-        <View key={msg.messageId}>
-          {renderResult({ item: msg })}
-        </View>
-      ))}
-    </View>
-  ), [theme, renderResult]);
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Search Input */}
-      <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
-        <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
-        <TextInput
-          style={[styles.searchInput, { color: theme.colors.text }]}
-          placeholder="Search across all chats..."
-          placeholderTextColor={theme.colors.textSecondary}
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {query.length > 0 && (
-          <Pressable onPress={() => setQuery('')}>
-            <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      {/* Header */}
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+        <View style={styles.headerLeft}>
+          <Ionicons name="sparkles" size={24} color={theme.colors.primary} />
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            AI Assistant
+          </Text>
+        </View>
+        {messages.length > 0 && (
+          <Pressable onPress={handleClearHistory} style={styles.clearButton}>
+            <Ionicons name="trash-outline" size={20} color={theme.colors.textSecondary} />
           </Pressable>
         )}
       </View>
 
-      {/* Search Button */}
-      <Pressable
-        style={[
-          styles.searchButton,
-          { backgroundColor: theme.colors.primary },
-          (!query.trim() || searching) && styles.searchButtonDisabled,
-        ]}
-        onPress={handleSearch}
-        disabled={!query.trim() || searching}
+      {/* Messages */}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.messagesContainer}
+        contentContainerStyle={styles.messagesContent}
+        showsVerticalScrollIndicator={false}
       >
-        {searching ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <Text style={styles.searchButtonText}>Search</Text>
+        {/* Welcome message */}
+        {messages.length === 0 && (
+          <View style={styles.welcomeContainer}>
+            <Ionicons name="sparkles" size={64} color={theme.colors.primary} />
+            <Text style={[styles.welcomeTitle, { color: theme.colors.text }]}>
+              Hi! I&apos;m your AI Assistant
+            </Text>
+            <Text style={[styles.welcomeSubtitle, { color: theme.colors.textSecondary }]}>
+              Ask me anything - I can help with your conversations, general questions, advice, and more!
+            </Text>
+
+            {/* Suggested prompts */}
+            <View style={styles.suggestedPrompts}>
+              {SUGGESTED_PROMPTS.map((prompt, index) => (
+                <Pressable
+                  key={index}
+                  style={[styles.promptButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+                  onPress={() => handleSend(prompt)}
+                >
+                  <Text style={[styles.promptText, { color: theme.colors.text }]}>
+                    {prompt}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={14} color={theme.colors.textSecondary} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
         )}
-      </Pressable>
 
-      {/* Results */}
-      {searching && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-            Searching across all chats...
-          </Text>
-        </View>
-      )}
+        {/* Message history */}
+        {messages.map(renderMessage)}
 
-      {!searching && results.length === 0 && query.length > 0 && (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="search-outline" size={64} color={theme.colors.textSecondary} />
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-            No results found
-          </Text>
-          <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
-            Try different keywords
-          </Text>
-        </View>
-      )}
+        {/* Loading indicator */}
+        {isLoading && (
+          <View style={[styles.messageBubble, styles.aiBubble, { backgroundColor: theme.colors.surface }]}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+              Searching your messages...
+            </Text>
+          </View>
+        )}
+      </ScrollView>
 
-      {!searching && results.length === 0 && query.length === 0 && (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="sparkles" size={64} color={theme.colors.primary} />
-          <Text style={[styles.emptyText, { color: theme.colors.text }]}>
-            Semantic Search
-          </Text>
-          <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
-            Search by meaning across all your chats
-          </Text>
-        </View>
-      )}
-
-      {!searching && results.length > 0 && (
-        <FlatList
-          data={results}
-          renderItem={renderChat}
-          keyExtractor={(item) => item.chatId}
-          contentContainerStyle={styles.resultsList}
-          showsVerticalScrollIndicator={false}
+      {/* Input */}
+      <View style={[styles.inputContainer, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+        <TextInput
+          style={[styles.input, { color: theme.colors.text }]}
+          placeholder="Ask me anything..."
+          placeholderTextColor={theme.colors.textSecondary}
+          value={input}
+          onChangeText={setInput}
+          onSubmitEditing={() => handleSend()}
+          returnKeyType="send"
+          multiline
+          maxLength={500}
         />
-      )}
-    </View>
+        <Pressable
+          style={[
+            styles.sendButton,
+            { backgroundColor: input.trim() ? theme.colors.primary : theme.colors.border },
+          ]}
+          onPress={() => handleSend()}
+          disabled={!input.trim() || isLoading}
+        >
+          <Ionicons name="send" size={20} color="#FFFFFF" />
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    paddingTop: 24,
   },
-  searchContainer: {
+  center: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 12,
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    paddingVertical: 0,
-    height: 28,
-  },
-  searchButton: {
-    paddingVertical: 14,
-    borderRadius: 12,
+  headerLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    gap: 10,
   },
-  searchButtonDisabled: {
-    opacity: 0.5,
-  },
-  searchButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  emptyText: {
+  headerTitle: {
     fontSize: 18,
     fontWeight: '600',
   },
-  emptySubtext: {
-    fontSize: 14,
+  clearButton: {
+    padding: 8,
   },
-  resultsList: {
-    gap: 16,
+  messagesContainer: {
+    flex: 1,
   },
-  chatSection: {
-    gap: 8,
+  messagesContent: {
+    padding: 16,
+    gap: 12,
   },
-  chatHeader: {
+  welcomeContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 16,
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  suggestedPrompts: {
+    gap: 10,
+    width: '100%',
+  },
+  promptButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  chatName: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  resultItem: {
+    justifyContent: 'space-between',
     padding: 16,
     borderRadius: 12,
-    gap: 12,
+    borderWidth: 1,
+  },
+  promptText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  messageBubble: {
+    maxWidth: '85%',
+    padding: 12,
+    borderRadius: 16,
+    gap: 8,
+  },
+  userBubble: {
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 4,
+  },
+  aiBubble: {
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 4,
   },
   messageText: {
     fontSize: 15,
     lineHeight: 20,
   },
-  resultFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  score: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  badgeText: {
+  timestamp: {
     fontSize: 11,
-    fontWeight: '600',
+    marginTop: 4,
   },
-  translateButton: {
+  loadingText: {
+    fontSize: 13,
+    marginLeft: 8,
+  },
+  sourcesContainer: {
+    marginTop: 8,
+    gap: 8,
+  },
+  sourcesDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    marginVertical: 4,
+  },
+  sourcesLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  sourceItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    padding: 10,
+    borderRadius: 8,
+    gap: 8,
     borderWidth: 1,
   },
-  translateButtonText: {
-    fontSize: 12,
+  sourceContent: {
+    flex: 1,
+    gap: 2,
+  },
+  sourceChatName: {
+    fontSize: 13,
     fontWeight: '600',
   },
-  indexButton: {
+  sourceSnippet: {
+    fontSize: 12,
+  },
+  inputContainer: {
     flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    maxHeight: 100,
+    paddingVertical: 8,
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 24,
-  },
-  indexButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  helperText: {
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
+    justifyContent: 'center',
   },
 });
-

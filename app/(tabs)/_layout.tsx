@@ -46,10 +46,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="find"
         options={{
-          title: 'Find',
+          title: 'AI Assistant',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
-              name={focused ? 'search' : 'search-outline'} 
+              name={focused ? 'sparkles' : 'sparkles-outline'} 
               size={26} 
               color={color} 
             />
