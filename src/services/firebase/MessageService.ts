@@ -13,21 +13,21 @@
 import { Message, MessageStatus, User } from '@/shared/types';
 import { Logger } from '@/shared/utils/Logger';
 import {
-    collection,
-    doc,
-    DocumentData,
-    getDoc,
-    getDocs,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    QueryDocumentSnapshot,
-    serverTimestamp,
-    setDoc,
-    startAfter,
-    Unsubscribe,
-    updateDoc
+  collection,
+  doc,
+  DocumentData,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  QueryDocumentSnapshot,
+  serverTimestamp,
+  setDoc,
+  startAfter,
+  Unsubscribe,
+  updateDoc
 } from 'firebase/firestore';
 import { NotificationHelper } from '../NotificationHelper';
 import { firestore } from './FirebaseConfig';

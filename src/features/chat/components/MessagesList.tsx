@@ -12,8 +12,8 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
-import React, { useCallback } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ListItem, shouldShowAvatar } from '../utils/messageUtils';
 import { DateSeparator } from './DateSeparator';
 import { MessageBubble } from './MessageBubble';
@@ -34,8 +34,7 @@ interface MessagesListProps {
   // Scroll state
   flashListRef: React.RefObject<any>;
   showJumpToBottom: boolean;
-  isInitializing: boolean;
-  contentOffset?: { x: number; y: number };
+  isReady: boolean;
   
   // Typing indicators
   typingUsers: { userName: string }[];
@@ -63,8 +62,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   getUserProfile,
   flashListRef,
   showJumpToBottom,
-  isInitializing,
-  contentOffset,
+  isReady,
   typingUsers,
   onScroll,
   onJumpToBottom,
@@ -78,6 +76,20 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   onCulturalAnalysis,
 }) => {
   const theme = useTheme();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Fade in when ready
+  useEffect(() => {
+    if (isReady) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [isReady, fadeAnim]);
 
   // Render list item - memoized for performance
   const renderItem: ListRenderItem<ListItem> = useCallback(({ item, index }) => {
@@ -141,35 +153,36 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   return (
     <>
       {/* Messages List */}
-      <FlashList
-        ref={flashListRef}
-        data={listItems}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => 
-          item.type === 'message' 
-            ? item.data.id 
-            : `${item.type}-${index}`
-        }
-        getItemType={getItemType}
-        estimatedItemSize={80}
-        drawDistance={800}
-        estimatedListSize={{ height: 600, width: 400 }}
-        contentContainerStyle={styles.messagesListContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        removeClippedSubviews={Platform.OS === 'android' ? false : true}
-        contentOffset={contentOffset}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-      />
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <FlashList
+          ref={flashListRef}
+          data={listItems}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => 
+            item.type === 'message' 
+              ? item.data.id 
+              : `${item.type}-${index}`
+          }
+          getItemType={getItemType}
+          estimatedItemSize={80}
+          drawDistance={800}
+          estimatedListSize={{ height: 600, width: 400 }}
+          contentContainerStyle={styles.messagesListContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          removeClippedSubviews={Platform.OS === 'android' ? false : true}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        />
+      </Animated.View>
 
-      {/* Loading Overlay - Show while initializing chat position */}
-      {isInitializing && (
+      {/* Loading Overlay - Show while positioning messages */}
+      {!isReady && listItems.length > 0 && (
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
             <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-              Loading messages...
+              Loading chat...
             </Text>
           </View>
         </View>

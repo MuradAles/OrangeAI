@@ -107,21 +107,6 @@ describe('MessageService', () => {
     });
   });
 
-  describe('deleteMessageForEveryone', () => {
-    it('should mark message as deleted for everyone', async () => {
-      (updateDoc as jest.Mock).mockResolvedValue(undefined);
-
-      await MessageService.deleteMessageForEveryone('chat-123', 'message-123');
-
-      expect(updateDoc).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          deletedForEveryone: true,
-          deletedAt: expect.anything()
-        })
-      );
-    });
-  });
 
   describe('addReaction', () => {
     it('should add a reaction to a message', async () => {

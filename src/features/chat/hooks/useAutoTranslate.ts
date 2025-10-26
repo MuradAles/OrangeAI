@@ -31,6 +31,7 @@ export function useAutoTranslate({
   messages,
 }: UseAutoTranslateOptions) {
   const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(false);
+  const [translationPreviewEnabled, setTranslationPreviewEnabled] = useState(false);
   const translatingMessages = useRef<Set<string>>(new Set()); // Track messages being translated
   const previousMessageIds = useRef<Set<string>>(new Set()); // Track message IDs we've seen before
 
@@ -49,6 +50,24 @@ export function useAutoTranslate({
       };
       
       loadAutoTranslateSetting();
+    }
+  }, [visible, chatId]);
+
+  // Load translation preview setting when chat opens
+  useEffect(() => {
+    if (visible && chatId) {
+      const loadTranslationPreviewSetting = async () => {
+        try {
+          const saved = await AsyncStorage.getItem(`@translation_preview_${chatId}`);
+          if (saved !== null) {
+            setTranslationPreviewEnabled(JSON.parse(saved));
+          }
+        } catch {
+          // Silent fail - not critical, defaults to false
+        }
+      };
+      
+      loadTranslationPreviewSetting();
     }
   }, [visible, chatId]);
 
@@ -188,6 +207,22 @@ export function useAutoTranslate({
       console.error('Failed to save auto-translate setting:', error);
     }
   }, [chatId, autoTranslateEnabled]);
+
+  // Handle toggle translation preview
+  const handleToggleTranslationPreview = useCallback(async () => {
+    if (!chatId) return;
+    
+    const newValue = !translationPreviewEnabled;
+    setTranslationPreviewEnabled(newValue);
+    
+    // Save to AsyncStorage
+    try {
+      await AsyncStorage.setItem(`@translation_preview_${chatId}`, JSON.stringify(newValue));
+      // Silent toggle - no confirmation needed
+    } catch (error) {
+      console.error('Failed to save translation preview setting:', error);
+    }
+  }, [chatId, translationPreviewEnabled]);
 
   // Handle translate message
   const handleTranslateMessage = useCallback(async (message: Message) => {
@@ -440,9 +475,11 @@ export function useAutoTranslate({
   return {
     // State
     autoTranslateEnabled,
+    translationPreviewEnabled,
     
     // Actions
     handleToggleAutoTranslate,
+    handleToggleTranslationPreview,
     handleTranslateMessage,
     handleTranslatePrevious,
   };

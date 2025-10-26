@@ -45,8 +45,8 @@ export const useMessageTranslation = ({
   const needsTranslation = messageLanguage !== preferredLanguage;
 
   // Check if translation exists for user's preferred language
-  const hasTranslation = message.translations && message.translations[preferredLanguage];
-  const translationData: MessageTranslation | string | null = hasTranslation ? message.translations![preferredLanguage] : null;
+  const hasTranslation = !!(message.translations && message.translations[preferredLanguage]);
+  const translationData: MessageTranslation | string | null = hasTranslation ? (message.translations![preferredLanguage] || null) : null;
   const translatedText = translationData 
     ? (typeof translationData === 'string' ? translationData : translationData.text)
     : null;
@@ -76,16 +76,16 @@ export const useMessageTranslation = ({
   };
 
   return {
-    // State
+    // Translation state
     showTranslation: showTranslation && needsTranslation, // Only show if translation needed
     showTranslatedText,
     isTranslating,
     
-    // Data
-    hasTranslation,
-    translationData,
-    translatedText,
-    needsTranslation, // Export this so components know if translation is needed
+    // Translation data
+    hasTranslation: hasTranslation,
+    translationData: translationData,
+    translatedText: translatedText,
+    needsTranslation: needsTranslation, // Export this so components know if translation is needed
     
     // Actions
     handleTranslationSwap,
