@@ -109,6 +109,7 @@ export default function RootLayout() {
       
       if (!hasCompletedProfile) {
         // No profile yet, redirect to create-profile
+        // @ts-expect-error - expo-router segments type doesn't properly support array access
         const isOnCreateProfile = segments[1] === 'create-profile';
         if (!isOnCreateProfile) {
           router.replace('/(auth)/create-profile');

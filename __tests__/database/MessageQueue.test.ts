@@ -84,7 +84,7 @@ describe('MessageQueue', () => {
       expect(result.failed).toBe(0);
       expect(result.total).toBe(1);
       expect(MessageService.sendMessage).toHaveBeenCalled();
-      expect(SQLiteService.updateMessageStatus).toHaveBeenCalledWith('msg-1', 'sent');
+      expect(SQLiteService.updateMessageStatus).toHaveBeenCalledWith('msg-1', 'sent', 'synced');
     });
 
     it('should return zero counts when queue is empty', async () => {
@@ -149,7 +149,7 @@ describe('MessageQueue', () => {
       expect(result).toBe(true);
       expect(SQLiteService.updateMessageStatus).toHaveBeenCalledWith('msg-1', 'sending');
       expect(MessageService.sendMessage).toHaveBeenCalled();
-      expect(SQLiteService.updateMessageStatus).toHaveBeenCalledWith('msg-1', 'sent');
+      expect(SQLiteService.updateMessageStatus).toHaveBeenCalledWith('msg-1', 'sent', 'synced');
     });
 
     it('should return false if message not found', async () => {

@@ -301,7 +301,8 @@ export class UserService {
 
     // Only lowercase letters, numbers, and underscores
     const usernameRegex = /^[a-z0-9_]+$/;
-    if (!usernameRegex.test(trimmed.toLowerCase())) {
+    // Check the original (not lowercased) to ensure no uppercase
+    if (!usernameRegex.test(trimmed)) {
       return {
         isValid: false,
         error: 'Username can only contain lowercase letters, numbers, and underscores',
@@ -329,8 +330,8 @@ export class UserService {
 
     const trimmed = displayName.trim();
 
-    if (trimmed.length < 1) {
-      return { isValid: false, error: 'Display name is required' };
+    if (trimmed.length < 2) {
+      return { isValid: false, error: 'Display name must be at least 2 characters' };
     }
 
     if (trimmed.length > 50) {

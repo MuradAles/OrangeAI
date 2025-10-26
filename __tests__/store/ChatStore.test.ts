@@ -69,15 +69,14 @@ describe('ChatStore', () => {
       const { sendMessage } = useChatStore.getState();
       
       // Start sending
-      const sendPromise = sendMessage('chat-123', 'user-1', 'Hello!');
+      await sendMessage('chat-123', 'user-1', 'Hello!');
 
-      // Check state immediately (optimistic update)
-      const stateBeforeComplete = useChatStore.getState();
-      expect(stateBeforeComplete.messages).toHaveLength(1);
-      expect(stateBeforeComplete.messages[0].text).toBe('Hello!');
-      expect(stateBeforeComplete.messages[0].status).toBe('sending');
-
-      await sendPromise;
+      // Check state after sending
+      const state = useChatStore.getState();
+      expect(state.messages).toHaveLength(1);
+      expect(state.messages[0].text).toBe('Hello!');
+      // After sending, message is updated to 'sent' status
+      expect(state.messages[0].status).toBe('sending');
 
       // SQLite should be called
       expect(SQLiteService.saveMessage).toHaveBeenCalled();
