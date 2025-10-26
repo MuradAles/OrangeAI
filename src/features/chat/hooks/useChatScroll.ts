@@ -30,7 +30,7 @@ export function useChatScroll({
   const isAtBottomRef = useRef(true);
   const previousMessagesLength = useRef(0);
   const previousChatId = useRef<string | null>(null);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasInitializedRef = useRef(false);
 
   // Detect when chat changes

@@ -38,11 +38,11 @@ describe('GroupStore', () => {
       );
 
       expect(GroupService.createGroup).toHaveBeenCalledWith(
-        'user-1',
         'Test Group',
-        ['user-2'],
         'Description',
-        undefined
+        undefined,
+        'user-1',
+        ['user-2']
       );
 
       expect(result.success).toBe(true);

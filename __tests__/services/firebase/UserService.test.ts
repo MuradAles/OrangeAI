@@ -16,30 +16,30 @@ jest.mock('@/services/firebase/UserService', () => {
 describe('UserService - Validation', () => {
   describe('validateUsername', () => {
     it('should validate valid usernames', () => {
-      expect(UserService.validateUsername('testuser')).toBe(true);
-      expect(UserService.validateUsername('test123')).toBe(true);
-      expect(UserService.validateUsername('test_user')).toBe(true);
+      expect(UserService.validateUsername('testuser').isValid).toBe(true);
+      expect(UserService.validateUsername('test123').isValid).toBe(true);
+      expect(UserService.validateUsername('test_user').isValid).toBe(true);
     });
 
     it('should reject invalid usernames', () => {
-      expect(UserService.validateUsername('ab')).toBe(false); // Too short
-      expect(UserService.validateUsername('ThisHasUpperCase')).toBe(false); // Has uppercase
-      expect(UserService.validateUsername('test user')).toBe(false); // Has space
-      expect(UserService.validateUsername('test@user')).toBe(false); // Has special char
-      expect(UserService.validateUsername('123test')).toBe(false); // Starts with number
+      expect(UserService.validateUsername('ab').isValid).toBe(false); // Too short
+      expect(UserService.validateUsername('ThisHasUpperCase').isValid).toBe(false); // Has uppercase
+      expect(UserService.validateUsername('test user').isValid).toBe(false); // Has space
+      expect(UserService.validateUsername('test@user').isValid).toBe(false); // Has special char
+      expect(UserService.validateUsername('123test').isValid).toBe(false); // Starts with number
     });
   });
 
   describe('validateDisplayName', () => {
     it('should validate valid display names', () => {
-      expect(UserService.validateDisplayName('John Doe')).toBe(true);
-      expect(UserService.validateDisplayName('AB')).toBe(true); // Min 2 chars
+      expect(UserService.validateDisplayName('John Doe').isValid).toBe(true);
+      expect(UserService.validateDisplayName('AB').isValid).toBe(true); // Min 2 chars
     });
 
     it('should reject invalid display names', () => {
-      expect(UserService.validateDisplayName('J')).toBe(false); // Too short
-      expect(UserService.validateDisplayName('A'.repeat(51))).toBe(false); // Too long
-      expect(UserService.validateDisplayName('')).toBe(false); // Empty
+      expect(UserService.validateDisplayName('J').isValid).toBe(false); // Too short
+      expect(UserService.validateDisplayName('A'.repeat(51)).isValid).toBe(false); // Too long
+      expect(UserService.validateDisplayName('').isValid).toBe(false); // Empty
     });
   });
 
