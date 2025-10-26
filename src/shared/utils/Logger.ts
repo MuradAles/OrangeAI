@@ -152,6 +152,24 @@ export class Logger {
   }
 
   /**
+   * FCM token removal
+   */
+  static fcmTokenRemoved(
+    userId: string,
+    username: string,
+    displayName: string
+  ): void {
+    this.log(
+      this.getUserDisplay(userId, username),
+      'FCM token removed',
+      {
+        'DISPLAY NAME': displayName,
+        'STATUS': '🔕 Will not receive push notifications'
+      }
+    );
+  }
+
+  /**
    * User sign in
    */
   static userSignIn(userId: string, username: string, displayName: string): void {

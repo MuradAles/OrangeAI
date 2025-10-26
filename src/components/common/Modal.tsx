@@ -66,6 +66,11 @@ export interface ModalProps extends Omit<RNModalProps, 'visible'> {
    * Scrollable content
    */
   scrollable?: boolean;
+  
+  /**
+   * Disable keyboard avoiding behavior (e.g., for modals with fixed footer buttons)
+   */
+  disableKeyboardAvoid?: boolean;
 }
 
 /**
@@ -81,6 +86,7 @@ export const Modal: React.FC<ModalProps> = ({
   modalStyle,
   fullScreen = false,
   scrollable = false,
+  disableKeyboardAvoid = false,
   ...props
 }) => {
   const theme = useTheme();
@@ -148,10 +154,8 @@ export const Modal: React.FC<ModalProps> = ({
       onRequestClose={onClose}
       {...props}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoid}
-      >
+      {disableKeyboardAvoid ? (
+        <View style={styles.keyboardAvoid}>
         <TouchableOpacity
           style={overlayStyle}
           activeOpacity={1}
@@ -181,7 +185,43 @@ export const Modal: React.FC<ModalProps> = ({
             </ContentWrapper>
           </TouchableOpacity>
         </TouchableOpacity>
-      </KeyboardAvoidingView>
+        </View>
+      ) : (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+        >
+          <TouchableOpacity
+            style={overlayStyle}
+            activeOpacity={1}
+            onPress={closeOnBackdropPress ? onClose : undefined}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+              style={containerStyle}
+            >
+              {/* Close Button */}
+              {showCloseButton && !fullScreen && (
+                <TouchableOpacity style={closeButtonStyle} onPress={onClose}>
+                  <Text style={closeTextStyle}>✕</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* Title */}
+              {title && <Text style={titleStyle}>{title}</Text>}
+              
+              {/* Content */}
+              <ContentWrapper
+                style={contentWrapperStyle}
+                showsVerticalScrollIndicator={scrollable}
+              >
+                {children}
+              </ContentWrapper>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      )}
     </RNModal>
   );
 };

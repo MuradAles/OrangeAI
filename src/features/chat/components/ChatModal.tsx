@@ -21,7 +21,6 @@ import {
 
 // Import our new components
 import { ChatHeader } from './ChatHeader';
-import { ChatMenuModal } from './ChatMenuModal';
 import { ChatSummaryModal } from './ChatSummaryModal';
 import { GroupSettingsModal } from './GroupSettingsModal';
 import { MessageInput } from './MessageInput';
@@ -188,7 +187,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           onToggleAutoTranslate={autoTranslate.handleToggleAutoTranslate}
           onGenerateSummary={chatModals.handleGenerateSummary}
           onOpenGroupSettings={() => chatModals.setShowGroupSettings(true)}
-          onOpenChatMenu={() => chatModals.setShowChatMenu(true)}
           autoTranslateEnabled={autoTranslate.autoTranslateEnabled}
           isGeneratingSummary={chatModals.isGeneratingSummary}
           messagesCount={chatMessages.messages.length}
@@ -264,23 +262,6 @@ export const ChatModal = ({ visible, chatId, onClose }: ChatModalProps) => {
           chatModals.setSelectedMessage(null);
         }}
       />
-
-      {/* One-on-One Chat Menu Modal */}
-      {!isGroupChat && (
-        <ChatMenuModal
-          visible={chatModals.showChatMenu}
-          messages={chatMessages.messages}
-          autoTranslateEnabled={autoTranslate.autoTranslateEnabled}
-          chatId={chatId}
-          userId={user.id}
-          onClose={() => chatModals.setShowChatMenu(false)}
-          onToggleAutoTranslate={autoTranslate.handleToggleAutoTranslate}
-          onDeleteChat={() => {
-            // TODO: Implement delete chat functionality
-            console.log('Delete chat:', chatId);
-          }}
-        />
-      )}
 
       {/* Chat Summary Modal */}
       <ChatSummaryModal

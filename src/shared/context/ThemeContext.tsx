@@ -1,20 +1,20 @@
 /**
- * ThemeContext - Theme management with dark/light mode toggle
+ * ThemeContext - Theme management with multiple theme options
  * 
  * Features:
- * - Manual theme toggle (light/dark)
+ * - Multiple color themes (Light, Dark, Ocean, Sunset, Forest, Midnight)
  * - AsyncStorage persistence
  * - System theme fallback
  */
 
-import { darkTheme, lightTheme, Theme } from '@/theme';
+import { arcticTheme, darkTheme, forestTheme, lightTheme, midnightTheme, oceanTheme, roseTheme, sunsetTheme, Theme } from '@/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 const THEME_STORAGE_KEY = '@theme_preference';
 
-type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark' | 'ocean' | 'sunset' | 'forest' | 'midnight' | 'rose' | 'arctic' | 'system';
 
 interface ThemeContextType {
   theme: Theme;
@@ -38,8 +38,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const loadThemePreference = async () => {
     try {
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
-        setThemeModeState(savedTheme);
+      const validThemes: ThemeMode[] = ['light', 'dark', 'ocean', 'sunset', 'forest', 'midnight', 'rose', 'arctic', 'system'];
+      if (savedTheme && validThemes.includes(savedTheme as ThemeMode)) {
+        setThemeModeState(savedTheme as ThemeMode);
       }
     } catch (error) {
       console.error('Error loading theme preference:', error);
@@ -58,8 +59,34 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Determine which theme to use based on themeMode
-  const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
-  const theme = isDark ? darkTheme : lightTheme;
+  const getTheme = (): Theme => {
+    if (themeMode === 'system') {
+      return systemColorScheme === 'dark' ? darkTheme : lightTheme;
+    }
+    
+    switch (themeMode) {
+      case 'dark':
+        return darkTheme;
+      case 'ocean':
+        return oceanTheme;
+      case 'sunset':
+        return sunsetTheme;
+      case 'forest':
+        return forestTheme;
+      case 'midnight':
+        return midnightTheme;
+      case 'rose':
+        return roseTheme;
+      case 'arctic':
+        return arcticTheme;
+      case 'light':
+      default:
+        return lightTheme;
+    }
+  };
+  
+  const theme = getTheme();
+  const isDark = themeMode === 'dark' || themeMode === 'midnight' || (themeMode === 'system' && systemColorScheme === 'dark');
 
   // Don't render children until theme is loaded
   if (isLoading) {

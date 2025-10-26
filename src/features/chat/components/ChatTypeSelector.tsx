@@ -17,13 +17,6 @@ export const ChatTypeSelector: React.FC<ChatTypeSelectorProps> = ({ onSelectType
 
   return (
     <View style={styles.container}>
-      <Text style={[theme.typography.h3, { color: theme.colors.text, marginBottom: 8 }]}>
-        Start a Chat
-      </Text>
-      <Text style={[theme.typography.body, { color: theme.colors.textSecondary, marginBottom: 24 }]}>
-        Choose how you want to chat
-      </Text>
-
       {/* One-on-One Option */}
       <Pressable
         style={({ pressed }) => [
@@ -37,7 +30,7 @@ export const ChatTypeSelector: React.FC<ChatTypeSelectorProps> = ({ onSelectType
         onPress={() => onSelectType('one-on-one')}
       >
         <View style={[styles.iconContainer, { backgroundColor: theme.colors.primaryLight }]}>
-          <Ionicons name="person" size={32} color={theme.colors.primary} />
+          <Ionicons name="person" size={40} color={theme.colors.primary} />
         </View>
         <View style={styles.optionText}>
           <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]}>
@@ -63,7 +56,7 @@ export const ChatTypeSelector: React.FC<ChatTypeSelectorProps> = ({ onSelectType
         onPress={() => onSelectType('group')}
       >
         <View style={[styles.iconContainer, { backgroundColor: '#E8F5E9' }]}>
-          <Ionicons name="people" size={32} color={theme.colors.success} />
+          <Ionicons name="people" size={40} color={theme.colors.success} />
         </View>
         <View style={styles.optionText}>
           <Text style={[theme.typography.bodyBold, { color: theme.colors.text }]}>
@@ -86,15 +79,15 @@ const styles = StyleSheet.create({
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,

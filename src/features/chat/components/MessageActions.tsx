@@ -22,6 +22,10 @@ interface MessageActionsProps {
   isAnalyzing: boolean;
   onCulturalAnalysis: () => void;
   
+  // Language props
+  detectedLanguage?: string;
+  preferredLanguage: string;
+  
   // Animation refs
   translatePulseAnim: Animated.Value;
   translateSparkle1Anim: Animated.Value;
@@ -45,6 +49,8 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   onTranslationSwap,
   isAnalyzing,
   onCulturalAnalysis,
+  detectedLanguage,
+  preferredLanguage,
   translatePulseAnim,
   translateSparkle1Anim,
   translateSparkle2Anim,
@@ -55,21 +61,25 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   sparkle3Anim,
 }) => {
   const theme = useTheme();
+  
+  // Get language codes for the buttons
+  const originalLang = (detectedLanguage || message.detectedLanguage || 'EN').toUpperCase();
+  const translatedLang = preferredLanguage.toUpperCase();
 
   // Get status icon
   const getStatusIcon = () => {
     if (!isSent) return null;
 
-    // Use dark colors for sent messages (on yellow background)
+    // Use white/light colors for sent messages (on blue background)
     switch (message.status) {
       case 'sending':
-        return <Ionicons name={'time-outline' as any} size={14} color="rgba(0, 0, 0, 0.4)" />;
+        return <Ionicons name={'time-outline' as any} size={14} color="rgba(255, 255, 255, 0.8)" />;
       case 'sent':
-        return <Ionicons name={'checkmark' as any} size={14} color="rgba(0, 0, 0, 0.5)" />;
+        return <Ionicons name={'checkmark' as any} size={14} color="rgba(255, 255, 255, 0.9)" />;
       case 'delivered':
-        return <Ionicons name={'checkmark-done' as any} size={14} color="rgba(0, 0, 0, 0.5)" />;
+        return <Ionicons name={'checkmark-done' as any} size={14} color="rgba(255, 255, 255, 0.9)" />;
       case 'read':
-        return <Ionicons name={'checkmark-done' as any} size={14} color="#0084FF" />;
+        return <Ionicons name={'checkmark-done' as any} size={14} color="#FFFFFF" />;
       case 'failed':
         return <Ionicons name={'alert-circle' as any} size={14} color="#FF6B6B" />;
       default:
@@ -90,47 +100,18 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
           <View style={styles.buttonRow}>
             {translatedText ? (
               <>
-                {/* Swap Button with Sparkles */}
+                {/* Swap Button with Language Codes - Shows current view */}
                 <Pressable 
                   onPress={onTranslationSwap}
                   style={[styles.translationButtonTop, {
-                    backgroundColor: isSent ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    backgroundColor: isSent ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)',
                     marginRight: 4,
                   }]}
                 >
-                  <View style={styles.magicalAnimation}>
-                    <Animated.View style={{ transform: [{ scale: translatePulseAnim }] }}>
-                      <Ionicons 
-                        name="swap-horizontal" 
-                        size={10} 
-                        color="#FFD700" 
-                      />
-                    </Animated.View>
-                    <View style={styles.sparkleContainer}>
-                      <Animated.View style={{ 
-                        opacity: translateSparkle1Anim,
-                        transform: [{ scale: translateSparkle1Anim }]
-                      }}>
-                        <Ionicons name="star" size={6} color="#FFD700" style={styles.sparkle1} />
-                      </Animated.View>
-                      <Animated.View style={{ 
-                        opacity: translateSparkle2Anim,
-                        transform: [{ scale: translateSparkle2Anim }]
-                      }}>
-                        <Ionicons name="star" size={5} color="#FFA500" style={styles.sparkle2} />
-                      </Animated.View>
-                      <Animated.View style={{ 
-                        opacity: translateSparkle3Anim,
-                        transform: [{ scale: translateSparkle3Anim }]
-                      }}>
-                        <Ionicons name="star" size={6} color="#FFD700" style={styles.sparkle3} />
-                      </Animated.View>
-                    </View>
-                  </View>
                   <Text style={[styles.translationButtonTextTop, {
                     color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary,
                   }]}>
-                    {showTranslatedText ? 'Original' : 'Translate'}
+                    {showTranslatedText ? `${translatedLang} ⇄ ${originalLang}` : `${originalLang} ⇄ ${translatedLang}`}
                   </Text>
                 </Pressable>
                 
@@ -139,7 +120,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
                   onPress={onCulturalAnalysis}
                   disabled={isAnalyzing}
                   style={[styles.culturalBulbButton, {
-                    backgroundColor: isSent ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    backgroundColor: isSent ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)',
                     opacity: isAnalyzing ? 0.8 : 1,
                   }]}
                 >
@@ -183,66 +164,28 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
                 </Pressable>
               </>
             ) : (
-              /* Translate Button with Magical Animation */
+              /* Translate Button - Shows source ⇄ target languages */
               <Pressable 
                 onPress={onTranslationSwap}
                 disabled={isTranslating}
                 style={[styles.translationButtonTop, {
-                  backgroundColor: isSent ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  backgroundColor: isSent ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)',
                   opacity: isTranslating ? 0.8 : 1,
                 }]}
               >
                 {isTranslating ? (
-                  <>
-                    <View style={styles.magicalAnimation}>
-                      <Animated.View style={{ transform: [{ scale: translatePulseAnim }] }}>
-                        <Ionicons 
-                          name="swap-horizontal" 
-                          size={10} 
-                          color="#FFD700" 
-                        />
-                      </Animated.View>
-                      <View style={styles.sparkleContainer}>
-                        <Animated.View style={{ 
-                          opacity: translateSparkle1Anim,
-                          transform: [{ scale: translateSparkle1Anim }]
-                        }}>
-                          <Ionicons name="star" size={6} color="#FFD700" style={styles.sparkle1} />
-                        </Animated.View>
-                        <Animated.View style={{ 
-                          opacity: translateSparkle2Anim,
-                          transform: [{ scale: translateSparkle2Anim }]
-                        }}>
-                          <Ionicons name="star" size={5} color="#FFA500" style={styles.sparkle2} />
-                        </Animated.View>
-                        <Animated.View style={{ 
-                          opacity: translateSparkle3Anim,
-                          transform: [{ scale: translateSparkle3Anim }]
-                        }}>
-                          <Ionicons name="star" size={6} color="#FFD700" style={styles.sparkle3} />
-                        </Animated.View>
-                      </View>
-                    </View>
-                    <Text style={[styles.translationButtonTextTop, {
-                      color: '#FFD700',
-                      fontWeight: '700',
-                    }]}>
-                      Translating...
-                    </Text>
-                  </>
+                  <Text style={[styles.translationButtonTextTop, {
+                    color: '#FFD700',
+                    fontWeight: '700',
+                  }]}>
+                    Translating...
+                  </Text>
                 ) : (
-                  <>
-                    <Ionicons 
-                      name="swap-horizontal" 
-                      size={10} 
-                      color={isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary} 
-                    />
-                    <Text style={[styles.translationButtonTextTop, {
-                      color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary,
-                    }]}>
-                      Translate
-                    </Text>
-                  </>
+                  <Text style={[styles.translationButtonTextTop, {
+                    color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary,
+                  }]}>
+                    {originalLang} ⇄ {translatedLang}
+                  </Text>
                 )}
               </Pressable>
             )}
@@ -250,23 +193,6 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
         </View>
       )}
 
-      {/* Timestamp and Status */}
-      <View style={styles.footer}>
-        <Text style={[
-          styles.timestamp, 
-          { color: isSent ? 'rgba(0,0,0,0.5)' : theme.colors.textSecondary }
-        ]}>
-          {formatTimestamp(message.timestamp)}
-        </Text>
-        {getStatusIcon()}
-      </View>
-      
-      {/* "Delivered" status text below message (only for sent messages) */}
-      {isSent && message.status === 'delivered' && (
-        <Text style={[styles.deliveredStatus, { color: theme.colors.textSecondary }]}>
-          Delivered
-        </Text>
-      )}
     </>
   );
 };
@@ -319,7 +245,7 @@ const styles = StyleSheet.create({
   translationButtonTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -366,15 +292,12 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     marginTop: 4,
     gap: 4,
+    alignSelf: 'flex-end',
   },
   timestamp: {
     fontSize: 11,
-  },
-  deliveredStatus: {
-    fontSize: 11,
-    marginTop: 2,
-    alignSelf: 'flex-end',
   },
 });

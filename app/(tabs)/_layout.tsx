@@ -4,11 +4,15 @@
  */
 
 import { useTheme } from '@/shared/hooks/useTheme';
+import { useContactStore } from '@/store';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const friendRequests = useContactStore((state) => state.friendRequests);
+  const friendRequestsCount = friendRequests.length;
 
   return (
     <Tabs 
@@ -61,11 +65,20 @@ export default function TabsLayout() {
         options={{
           title: 'Friends',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'people' : 'people-outline'} 
-              size={26} 
-              color={color} 
-            />
+            <View style={styles.iconContainer}>
+              <Ionicons 
+                name={focused ? 'people' : 'people-outline'} 
+                size={26} 
+                color={color} 
+              />
+              {friendRequestsCount > 0 && (
+                <View style={[styles.badge, { backgroundColor: theme.colors.error }]}>
+                  <Text style={[styles.badgeText]}>
+                    {friendRequestsCount > 99 ? '99+' : friendRequestsCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -85,3 +98,27 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -8,
+    right: -12,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+});

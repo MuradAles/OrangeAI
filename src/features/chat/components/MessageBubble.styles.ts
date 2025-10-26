@@ -62,18 +62,9 @@ export const messageBubbleStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  reactions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 4,
-    gap: 4,
-  },
   reaction: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 12,
     gap: 2,
   },
   reactionEmoji: {

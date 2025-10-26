@@ -10,7 +10,7 @@ import { initializeFirebase, PresenceService } from '@/services/firebase';
 import { OfflineBanner } from '@/shared/components/OfflineBanner';
 import { ThemeProvider } from '@/shared/context/ThemeContext';
 import { useNotifications } from '@/shared/hooks/useNotifications';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useContactStore } from '@/store';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, AppStateStatus, Text, View } from 'react-native';
@@ -18,6 +18,7 @@ import { ActivityIndicator, AppState, AppStateStatus, Text, View } from 'react-n
 export default function RootLayout() {
   const [isAppReady, setIsAppReady] = useState(false);
   const { isAuthenticated, user, isInitialized, initialize } = useAuthStore();
+  const { subscribeFriendRequests, unsubscribeAll } = useContactStore();
   const segments = useSegments();
   const router = useRouter();
   const appState = useRef(AppState.currentState);
@@ -195,6 +196,17 @@ export default function RootLayout() {
       cleanupNotifications();
     }
   }, [isAuthenticated, user?.id]);
+
+  // Subscribe to friend requests globally for badge updates
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      subscribeFriendRequests(user.id);
+      
+      return () => {
+        unsubscribeAll();
+      };
+    }
+  }, [isAuthenticated, user?.id, subscribeFriendRequests, unsubscribeAll]);
 
   if (!isAppReady || !isInitialized) {
     return (

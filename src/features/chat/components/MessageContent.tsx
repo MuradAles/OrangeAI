@@ -244,25 +244,6 @@ export const MessageContent: React.FC<MessageContentProps> = ({
             ]}>
               {translatedText}
             </Text>
-          ) : isTranslating ? (
-            // Show loading state while translating - keep original text visible with spinner
-            <View style={styles.translatingContainer}>
-              <Text style={[
-                theme.typography.body,
-                { color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived }
-              ]}>
-                {message.text}
-              </Text>
-              <View style={styles.translatingIndicator}>
-                <ActivityIndicator size="small" color={isSent ? 'rgba(255,255,255,0.8)' : theme.colors.primary} />
-                <Text style={[
-                  styles.translatingText,
-                  { color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary }
-                ]}>
-                  Translating...
-                </Text>
-              </View>
-            </View>
           ) : (
             // Show original text
             <Text style={[
@@ -428,18 +409,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
     lineHeight: 16,
-  },
-  translatingContainer: {
-    gap: 8,
-  },
-  translatingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  translatingText: {
-    fontSize: 11,
-    fontStyle: 'italic',
   },
 });

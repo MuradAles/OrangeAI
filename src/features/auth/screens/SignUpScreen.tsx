@@ -11,13 +11,12 @@ import { useAuthStore } from '@/store';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 
 export const SignUpScreen: React.FC = () => {
@@ -64,13 +63,13 @@ export const SignUpScreen: React.FC = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
+    <KeyboardAvoidingView style={{flex: 1, backgroundColor: theme.colors.background}} behavior='padding'>
       <ScrollView
+        style={{ backgroundColor: theme.colors.background }}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
       >
         <View style={styles.header}>
           <Text style={[theme.typography.h1, { color: theme.colors.text }]}>
@@ -140,7 +139,12 @@ export const SignUpScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  scrollContent: { 
+    flexGrow: 1, 
+    padding: 24, 
+    paddingBottom: 32,
+    justifyContent: 'center' 
+  },
   header: { marginBottom: 32 },
   formCard: { marginBottom: 24 },
   input: { marginBottom: 16 },

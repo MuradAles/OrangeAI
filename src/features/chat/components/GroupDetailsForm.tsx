@@ -9,7 +9,7 @@ import { Contact } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 interface GroupDetailsFormProps {
   selectedContacts: Contact[];
@@ -77,11 +77,7 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
+    <View style={{flex: 1, backgroundColor: theme.colors.background}}>
       {/* Header */}
       <View style={[
         styles.header, 
@@ -205,7 +201,7 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
         </View>
       </ScrollView>
 
-      {/* Footer */}
+      {/* Footer - Fixed at bottom */}
       <View style={[styles.footer, { 
         backgroundColor: theme.colors.background,
         borderTopColor: theme.colors.border,
@@ -232,7 +228,7 @@ export const GroupDetailsForm: React.FC<GroupDetailsFormProps> = ({
           )}
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -257,7 +253,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingVertical: 24,
-    paddingBottom: 40,
+    paddingBottom: 120, // Extra padding to account for fixed footer
   },
   iconSection: {
     alignItems: 'center',

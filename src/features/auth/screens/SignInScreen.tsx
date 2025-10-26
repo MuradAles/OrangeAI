@@ -11,12 +11,12 @@ import { useAuthStore } from '@/store';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Image,
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 
 export const SignInScreen: React.FC = () => {
@@ -77,18 +77,26 @@ export const SignInScreen: React.FC = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
-      <ScrollView
+    <KeyboardAvoidingView style={{flex: 1, backgroundColor: theme.colors.background}} behavior='padding'>
+      <ScrollView 
+        style={{ backgroundColor: theme.colors.background }}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
+        {/* Logo/Icon */}
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../../../../assets/images/avo-ai.jpg')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+
         {/* Header */}
         <View style={styles.header}>
           <Text style={[theme.typography.h1, { color: theme.colors.text }]}>
-            Welcome Back
+            Welcome to AVO-AI
           </Text>
           <Text
             style={[
@@ -96,7 +104,7 @@ export const SignInScreen: React.FC = () => {
               { color: theme.colors.textSecondary, marginTop: theme.spacing.sm },
             ]}
           >
-            Sign in to continue messaging
+            Your AI-powered translation assistant for seamless messaging
           </Text>
         </View>
 
@@ -122,14 +130,6 @@ export const SignInScreen: React.FC = () => {
             secureTextEntry
             error={passwordError}
             containerStyle={styles.input}
-          />
-
-          <Button
-            title="Forgot Password?"
-            variant="ghost"
-            size="small"
-            onPress={() => router.push('/(auth)/forgot-password')}
-            style={styles.forgotButton}
           />
 
           {authError && (
@@ -184,20 +184,32 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    justifyContent: 'center',
+  },
+  accentBar: {
+    height: 4,
+    marginHorizontal: -24,
+    marginTop: 0,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: 80,
+    marginBottom: 8,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 40,
+    alignItems: 'center',
   },
   formCard: {
     marginBottom: 24,
   },
   input: {
     marginBottom: 16,
-  },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
   },
   errorContainer: {
     padding: 12,
