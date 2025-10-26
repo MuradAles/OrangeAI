@@ -2,6 +2,8 @@
  * Unit tests for CulturalAnalysisService
  */
 
+import { generateText } from 'ai';
+import * as logger from 'firebase-functions/logger';
 import { CulturalAnalysisService, CulturalPhrase } from './CulturalAnalysisService';
 
 // Mock the AI SDK
@@ -14,9 +16,6 @@ jest.mock('firebase-functions/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
 }));
-
-import { generateText } from 'ai';
-import * as logger from 'firebase-functions/logger';
 
 const mockGenerateText = generateText as jest.MockedFunction<typeof generateText>;
 
