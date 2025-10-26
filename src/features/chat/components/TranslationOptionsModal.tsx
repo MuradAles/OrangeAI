@@ -2,13 +2,13 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 interface TranslationOption {
@@ -39,7 +39,8 @@ export const TranslationOptionsModal: React.FC<TranslationOptionsModalProps> = (
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [options, setOptions] = useState<TranslationOption[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
+  const [error, setError] = useState<string | null>(null);
 
   // Language names
   const languageNames: Record<string, string> = {
@@ -53,20 +54,36 @@ export const TranslationOptionsModal: React.FC<TranslationOptionsModalProps> = (
   useEffect(() => {
     if (visible && chatLanguages.length > 0) {
       // Choose first chat language that's not the original language
-      const targetLang = chatLanguages.find(lang => lang !== originalLanguage) || chatLanguages[0];
+      let targetLang = chatLanguages.find(lang => lang !== originalLanguage);
+      
+      // If no different language found in chat, default to English if original isn't English
+      if (!targetLang) {
+        targetLang = originalLanguage !== 'en' ? 'en' : 'es';
+        console.log('⚠️ All chat languages are same as original, defaulting to:', targetLang);
+      }
+      
+      console.log('🎯 Default target language:', targetLang, '(from original:', originalLanguage + ')');
       setSelectedLanguage(targetLang);
     }
   }, [visible, chatLanguages, originalLanguage]);
 
-  // Generate translation options when language changes
+  // Generate translation options when language or visibility changes
   useEffect(() => {
     if (visible && originalText && selectedLanguage) {
       generateOptions();
     }
-  }, [visible, originalText, selectedLanguage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, originalText, selectedLanguage, originalLanguage]);
 
   const generateOptions = async () => {
+    console.log('🔄 Generating translation options:', {
+      originalLanguage,
+      selectedLanguage,
+      originalText: originalText.substring(0, 50),
+    });
+    
     setIsLoading(true);
+    setError(null);
     try {
       const { httpsCallable } = await import('firebase/functions');
       const { functions } = await import('@/services/firebase/FirebaseConfig');
@@ -83,12 +100,15 @@ export const TranslationOptionsModal: React.FC<TranslationOptionsModalProps> = (
 
       // If translating to different language, get all variations
       if (selectedLanguage !== originalLanguage) {
+         console.log('🌐 Calling translatePreview function...');
          // Get standard translation
          const translateFn = httpsCallable(functions, 'translatePreview');
          const translateResult: any = await translateFn({
            messageText: originalText,
            targetLanguage: selectedLanguage,
          });
+         
+         console.log('✅ Translation result:', translateResult.data);
 
         if (translateResult.data.success && translateResult.data.translated) {
           const translatedText = translateResult.data.translated;
@@ -129,12 +149,19 @@ export const TranslationOptionsModal: React.FC<TranslationOptionsModalProps> = (
               console.error(`Error generating ${tone.id} version:`, error);
             }
           }
+        } else {
+          console.log('⚠️ No translation returned from API');
         }
+      } else {
+        console.log('ℹ️ Same language - skipping translation');
       }
 
+      console.log('✅ Generated options:', newOptions.length, 'options');
       setOptions(newOptions);
-    } catch (error) {
-      console.error('Error generating translation options:', error);
+    } catch (error: any) {
+      console.error('❌ Error generating translation options:', error);
+      const errorMessage = error?.message || 'Failed to generate translations';
+      setError(errorMessage);
       // Fallback to just original
       setOptions([
         {
@@ -150,6 +177,7 @@ export const TranslationOptionsModal: React.FC<TranslationOptionsModalProps> = (
   };
 
   const handleSelectOption = (option: TranslationOption) => {
+    console.log('🎯 Option selected:', option.label, '- Text:', option.text.substring(0, 50));
     onSelectOption(option.text);
     onClose();
   };
@@ -189,13 +217,28 @@ export const TranslationOptionsModal: React.FC<TranslationOptionsModalProps> = (
               <Pressable
                 style={[styles.languageButton, { backgroundColor: theme.colors.background }]}
                 onPress={() => setShowLanguageMenu(true)}
+                disabled={isLoading}
               >
                 <Text style={[styles.languageButtonText, { color: theme.colors.text }]}>
                   {languageNames[selectedLanguage] || selectedLanguage}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+                )}
               </Pressable>
             </View>
+
+            {/* Error Message */}
+            {error && (
+              <View style={[styles.errorContainer, { backgroundColor: theme.colors.error + '15' }]}>
+                <Ionicons name="warning" size={20} color={theme.colors.error} />
+                <Text style={[styles.errorText, { color: theme.colors.error }]}>
+                  {error}
+                </Text>
+              </View>
+            )}
 
             {/* Options List */}
             <ScrollView style={styles.optionsList}>
@@ -246,26 +289,65 @@ export const TranslationOptionsModal: React.FC<TranslationOptionsModalProps> = (
               Select Language
             </Text>
             <ScrollView style={styles.languageList}>
-              {chatLanguages.map((lang) => (
-                <Pressable
-                  key={lang}
-                  style={[
-                    styles.languageMenuItem,
-                    selectedLanguage === lang && { backgroundColor: theme.colors.primary + '15' }
-                  ]}
-                  onPress={() => {
-                    setSelectedLanguage(lang);
-                    setShowLanguageMenu(false);
-                  }}
-                >
-                  <Text style={[styles.languageMenuItemText, { color: theme.colors.text }]}>
-                    {languageNames[lang] || lang}
+              {/* Chat Languages Section */}
+              {chatLanguages.length > 0 && (
+                <>
+                  <Text style={[styles.languageSectionTitle, { color: theme.colors.textSecondary }]}>
+                    Chat Languages
                   </Text>
-                  {selectedLanguage === lang && (
-                    <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
-                  )}
-                </Pressable>
-              ))}
+                  {chatLanguages.map((lang) => (
+                    <Pressable
+                      key={`chat-${lang}`}
+                      style={[
+                        styles.languageMenuItem,
+                        selectedLanguage === lang && { backgroundColor: theme.colors.primary + '15' }
+                      ]}
+                      onPress={() => {
+                        // Clear options immediately to show loading state
+                        setOptions([]);
+                        setSelectedLanguage(lang);
+                        setShowLanguageMenu(false);
+                      }}
+                    >
+                      <Text style={[styles.languageMenuItemText, { color: theme.colors.text }]}>
+                        {languageNames[lang] || lang}
+                      </Text>
+                      {selectedLanguage === lang && (
+                        <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                      )}
+                    </Pressable>
+                  ))}
+                </>
+              )}
+              
+              {/* All Languages Section */}
+              <Text style={[styles.languageSectionTitle, { color: theme.colors.textSecondary }]}>
+                All Languages
+              </Text>
+              {Object.keys(languageNames)
+                .filter(lang => !chatLanguages.includes(lang))
+                .map((lang) => (
+                  <Pressable
+                    key={`all-${lang}`}
+                    style={[
+                      styles.languageMenuItem,
+                      selectedLanguage === lang && { backgroundColor: theme.colors.primary + '15' }
+                    ]}
+                    onPress={() => {
+                      // Clear options immediately to show loading state
+                      setOptions([]);
+                      setSelectedLanguage(lang);
+                      setShowLanguageMenu(false);
+                    }}
+                  >
+                    <Text style={[styles.languageMenuItemText, { color: theme.colors.text }]}>
+                      {languageNames[lang] || lang}
+                    </Text>
+                    {selectedLanguage === lang && (
+                      <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                    )}
+                  </Pressable>
+                ))}
             </ScrollView>
           </View>
         </Pressable>
@@ -352,6 +434,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
+    gap: 8,
+  },
+  errorText: {
+    fontSize: 13,
+    flex: 1,
+  },
   languageMenuContainer: {
     position: 'absolute',
     bottom: 120,
@@ -371,6 +466,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+  },
+  languageSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    letterSpacing: 0.5,
   },
   languageList: {
     maxHeight: 240,

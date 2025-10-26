@@ -149,6 +149,8 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
 
   // Use full screen for contact picker and group details
   const shouldUseFullScreen = step !== 'select-type';
+  // Disable keyboard avoiding for group details to keep button fixed at bottom
+  const shouldDisableKeyboardAvoid = step === 'group-details';
 
   return (
     <Modal
@@ -158,6 +160,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
       title={step === 'select-type' ? 'New Chat' : undefined}
       fullScreen={shouldUseFullScreen}
       closeOnBackdropPress={step === 'select-type'}
+      disableKeyboardAvoid={shouldDisableKeyboardAvoid}
     >
       {renderContent()}
     </Modal>

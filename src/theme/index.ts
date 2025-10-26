@@ -22,7 +22,7 @@ import {
     messageBubbleRadius,
     outline
 } from './borders';
-import { ColorPalette, avatarColors, darkColors, getAvatarColor, lightColors } from './colors';
+import { arcticColors, avatarColors, ColorPalette, darkColors, forestColors, getAvatarColor, lightColors, midnightColors, oceanColors, roseColors, sunsetColors } from './colors';
 import {
     componentShadows,
     createGlow,
@@ -165,20 +165,244 @@ export const darkTheme: Theme = {
 };
 
 /**
+ * Ocean Theme
+ */
+export const oceanTheme: Theme = {
+  colors: oceanColors,
+  spacing,
+  screenSpacing,
+  componentSpacing,
+  layoutSpacing,
+  chatSpacing,
+  fontFamily,
+  fontWeight,
+  fontSize,
+  lineHeight,
+  typography,
+  letterSpacing,
+  textTransform,
+  textAlign,
+  textDecoration,
+  borderRadius,
+  componentBorderRadius,
+  borderWidth,
+  componentBorderWidth,
+  borderStyle,
+  messageBubbleRadius,
+  shadows,
+  componentShadows,
+  innerShadow,
+  textShadows,
+  getSpacing,
+  verticalRhythm,
+  getMessageBubbleRadius,
+  getShadow,
+  createGlow,
+  getAvatarColor,
+};
+
+/**
+ * Sunset Theme
+ */
+export const sunsetTheme: Theme = {
+  colors: sunsetColors,
+  spacing,
+  screenSpacing,
+  componentSpacing,
+  layoutSpacing,
+  chatSpacing,
+  fontFamily,
+  fontWeight,
+  fontSize,
+  lineHeight,
+  typography,
+  letterSpacing,
+  textTransform,
+  textAlign,
+  textDecoration,
+  borderRadius,
+  componentBorderRadius,
+  borderWidth,
+  componentBorderWidth,
+  borderStyle,
+  messageBubbleRadius,
+  shadows,
+  componentShadows,
+  innerShadow,
+  textShadows,
+  getSpacing,
+  verticalRhythm,
+  getMessageBubbleRadius,
+  getShadow,
+  createGlow,
+  getAvatarColor,
+};
+
+/**
+ * Forest Theme
+ */
+export const forestTheme: Theme = {
+  colors: forestColors,
+  spacing,
+  screenSpacing,
+  componentSpacing,
+  layoutSpacing,
+  chatSpacing,
+  fontFamily,
+  fontWeight,
+  fontSize,
+  lineHeight,
+  typography,
+  letterSpacing,
+  textTransform,
+  textAlign,
+  textDecoration,
+  borderRadius,
+  componentBorderRadius,
+  borderWidth,
+  componentBorderWidth,
+  borderStyle,
+  messageBubbleRadius,
+  shadows,
+  componentShadows,
+  innerShadow,
+  textShadows,
+  getSpacing,
+  verticalRhythm,
+  getMessageBubbleRadius,
+  getShadow,
+  createGlow,
+  getAvatarColor,
+};
+
+/**
+ * Midnight Theme
+ */
+export const midnightTheme: Theme = {
+  colors: midnightColors,
+  spacing,
+  screenSpacing,
+  componentSpacing,
+  layoutSpacing,
+  chatSpacing,
+  fontFamily,
+  fontWeight,
+  fontSize,
+  lineHeight,
+  typography,
+  letterSpacing,
+  textTransform,
+  textAlign,
+  textDecoration,
+  borderRadius,
+  componentBorderRadius,
+  borderWidth,
+  componentBorderWidth,
+  borderStyle,
+  messageBubbleRadius,
+  shadows,
+  componentShadows,
+  innerShadow,
+  textShadows,
+  getSpacing,
+  verticalRhythm,
+  getMessageBubbleRadius,
+  getShadow,
+  createGlow,
+  getAvatarColor,
+};
+
+/**
+ * Rose Theme
+ */
+export const roseTheme: Theme = {
+  colors: roseColors,
+  spacing,
+  screenSpacing,
+  componentSpacing,
+  layoutSpacing,
+  chatSpacing,
+  fontFamily,
+  fontWeight,
+  fontSize,
+  lineHeight,
+  typography,
+  letterSpacing,
+  textTransform,
+  textAlign,
+  textDecoration,
+  borderRadius,
+  componentBorderRadius,
+  borderWidth,
+  componentBorderWidth,
+  borderStyle,
+  messageBubbleRadius,
+  shadows,
+  componentShadows,
+  innerShadow,
+  textShadows,
+  getSpacing,
+  verticalRhythm,
+  getMessageBubbleRadius,
+  getShadow,
+  createGlow,
+  getAvatarColor,
+};
+
+/**
+ * Arctic Theme
+ */
+export const arcticTheme: Theme = {
+  colors: arcticColors,
+  spacing,
+  screenSpacing,
+  componentSpacing,
+  layoutSpacing,
+  chatSpacing,
+  fontFamily,
+  fontWeight,
+  fontSize,
+  lineHeight,
+  typography,
+  letterSpacing,
+  textTransform,
+  textAlign,
+  textDecoration,
+  borderRadius,
+  componentBorderRadius,
+  borderWidth,
+  componentBorderWidth,
+  borderStyle,
+  messageBubbleRadius,
+  shadows,
+  componentShadows,
+  innerShadow,
+  textShadows,
+  getSpacing,
+  verticalRhythm,
+  getMessageBubbleRadius,
+  getShadow,
+  createGlow,
+  getAvatarColor,
+};
+
+/**
  * Export individual theme parts for direct import
  */
 export {
-    avatarColors,
+    arcticColors, avatarColors,
     // Borders
     borderRadius, borderStyle, borderWidth, chatSpacing, componentBorderRadius, componentBorderWidth, componentShadows, componentSpacing, createGlow, darkColors,
     // Typography
-    fontFamily, fontSize, fontWeight, getAvatarColor, getMessageBubbleRadius, getShadow, getSpacing, innerShadow, layoutSpacing, letterSpacing,
+    fontFamily, fontSize, fontWeight,
+    // New color palettes
+    forestColors, getAvatarColor, getMessageBubbleRadius, getShadow, getSpacing, innerShadow, layoutSpacing, letterSpacing,
     // Colors
-    lightColors, lineHeight, messageBubbleRadius, outline, screenSpacing,
+    lightColors, lineHeight, messageBubbleRadius, midnightColors, oceanColors, outline, roseColors, screenSpacing,
     // Shadows
     shadows,
     // Spacing
-    spacing, textAlign,
+    spacing, sunsetColors, textAlign,
     textDecoration, textShadows, textTransform, typography, verticalRhythm
 };
 

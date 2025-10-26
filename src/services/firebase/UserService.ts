@@ -42,6 +42,7 @@ export class UserService {
         phoneNumber: profileData.phoneNumber || null,
         phoneNumberVisible: profileData.phoneNumberVisible || false,
         bio: profileData.bio || '',
+        editableLanguages: profileData.editableLanguages || [],
         isOnline: true,
         lastSeen: null,
         createdAt: profileData.createdAt || Date.now(),

@@ -174,6 +174,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
       
+      // Remove FCM token BEFORE signing out (to stop receiving notifications)
+      if (currentUser?.id) {
+        try {
+          const { MessagingService } = await import('@/services/firebase');
+          await MessagingService.removeFCMToken(currentUser.id);
+          console.log('🔕 Removed FCM token for user:', currentUser.id);
+        } catch (fcmError) {
+          console.warn('⚠️ Failed to remove FCM token during logout:', fcmError);
+          // Continue with logout even if FCM token removal fails
+        }
+      }
+      
       // Clean up all presence subscriptions BEFORE logout
       try {
         const { usePresenceStore } = await import('@/store');

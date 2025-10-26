@@ -91,6 +91,16 @@ export const SmartReplyBar: React.FC<SmartReplyBarProps> = ({
       return;
     }
 
+    // CRITICAL: Verify message belongs to current chat (prevents errors when switching chats)
+    if (message.chatId && message.chatId !== chatId) {
+      console.log('Skipping smart replies - message belongs to different chat', {
+        messageChatId: message.chatId,
+        currentChatId: chatId
+      });
+      setIsLoading(false);
+      return;
+    }
+
     // Check if message ID looks like a temporary local ID (not synced to Firestore yet)
     // Temporary IDs typically start with 'temp_' or are very short
     if (message.id.startsWith('temp_') || message.id.length < 10) {
@@ -144,6 +154,16 @@ export const SmartReplyBar: React.FC<SmartReplyBarProps> = ({
       setIsLoading(false);
     }
   }, [message, chatId, preferredLanguage]);
+
+  // Reset replies when chat changes (prevents showing stale replies from previous chat)
+  useEffect(() => {
+    setRepliesByTone({
+      casual: [],
+      professional: [],
+      formal: [],
+    });
+    setIsLoading(true);
+  }, [chatId]);
 
   // Load saved tone preference on mount
   useEffect(() => {
@@ -298,6 +318,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     maxWidth: 200,
+    maxHeight: 64, // Limit to ~3 lines (20px line height * 3 = 60px + 4px padding)
   },
   replyText: {
     fontSize: 14,

@@ -14,6 +14,7 @@ import { Avatar } from '@/components/common';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
+import { format } from 'date-fns';
 import React, { memo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useCulturalAnalysis, useMessageAnimations, useMessageTranslation } from '../hooks';
@@ -234,6 +235,8 @@ export const MessageBubble = memo(({
           sparkle1Anim={sparkle1Anim}
           sparkle2Anim={sparkle2Anim}
           sparkle3Anim={sparkle3Anim}
+          detectedLanguage={message.detectedLanguage}
+          preferredLanguage={preferredLanguage}
         />
 
         {/* Message Content (text, images, translations) */}
@@ -255,6 +258,61 @@ export const MessageBubble = memo(({
           onSetImageLoading={setImageLoading}
           onSetImageDimensions={setImageDimensions}
         />
+
+        {/* Timestamp, Status, and Reactions - Inside bubble, bottom right */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4, alignSelf: 'flex-end', width: '100%' }}>
+          {/* Reactions on the left */}
+          <View style={{ flexDirection: 'row', flex: 1 }}>
+            {message.reactions && Object.keys(message.reactions).length > 0 && (
+              <>
+                {Object.entries(message.reactions).map(([emoji, users]) => (
+                  users.length > 0 && (
+                    <View 
+                      key={emoji} 
+                      style={messageBubbleStyles.reaction}
+                    >
+                      <Text style={messageBubbleStyles.reactionEmoji}>{emoji}</Text>
+                      {users.length > 1 && (
+                        <Text style={[messageBubbleStyles.reactionCount, { color: isSent ? 'rgba(255,255,255,0.9)' : theme.colors.text }]}>
+                          {users.length}
+                        </Text>
+                      )}
+                    </View>
+                  )
+                ))}
+              </>
+            )}
+          </View>
+          
+          {/* Timestamp and Status on the right */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={[
+              { fontSize: 11 },
+              { color: isSent ? 'rgba(255,255,255,1)' : theme.colors.textSecondary }
+            ]}>
+              {format(new Date(message.timestamp), 'h:mm a')}
+            </Text>
+            {isSent && (
+              <>
+                {message.status === 'sending' && (
+                  <Ionicons name={'time-outline' as any} size={14} color="rgba(255, 255, 255, 1)" />
+                )}
+                {message.status === 'sent' && (
+                  <Ionicons name={'checkmark' as any} size={14} color="rgba(255, 255, 255, 1)" />
+                )}
+                {message.status === 'delivered' && (
+                  <Ionicons name={'checkmark-done' as any} size={14} color="rgba(255, 255, 255, 1)" />
+                )}
+                {message.status === 'read' && (
+                  <Ionicons name={'checkmark-done' as any} size={14} color="#FFFFFF" />
+                )}
+                {message.status === 'failed' && (
+                  <Ionicons name={'alert-circle' as any} size={14} color="#FF6B6B" />
+                )}
+              </>
+            )}
+          </View>
+        </View>
 
         {/* Failed Message Actions */}
         {isSent && message.status === 'failed' && (
@@ -285,26 +343,6 @@ export const MessageBubble = memo(({
           </View>
         )}
 
-        {/* Reactions */}
-        {message.reactions && Object.keys(message.reactions).length > 0 && (
-          <View style={messageBubbleStyles.reactions}>
-            {Object.entries(message.reactions).map(([emoji, users]) => (
-              users.length > 0 && (
-                <View 
-                  key={emoji} 
-                  style={[messageBubbleStyles.reaction, { backgroundColor: theme.colors.background }]}
-                >
-                  <Text style={messageBubbleStyles.reactionEmoji}>{emoji}</Text>
-                  {users.length > 1 && (
-                    <Text style={[messageBubbleStyles.reactionCount, { color: theme.colors.text }]}>
-                      {users.length}
-                    </Text>
-                  )}
-                </View>
-              )
-            ))}
-          </View>
-        )}
       </Pressable>
 
       {/* Modals */}

@@ -2,7 +2,7 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import { Message, MessageTranslation } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface MessageContentProps {
   message: Message;
@@ -76,7 +76,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
       )}
       
       {/* Image Message */}
-      {message.type === 'image' && message.thumbnailUrl && (
+      {message.type === 'image' && (message.imageUrl || message.thumbnailUrl) && (
         <Pressable onPress={() => onSetShowFullImage(true)}>
           <View style={[
             styles.imageContainer,
@@ -91,42 +91,34 @@ export const MessageContent: React.FC<MessageContentProps> = ({
               </View>
             )}
             <Image
-              source={{ uri: message.thumbnailUrl }}
+              source={{ uri: (message.imageUrl || message.thumbnailUrl) as string }}
               style={styles.thumbnail}
               onLoadStart={() => onSetImageLoading(true)}
               onLoad={(e) => {
                 onSetImageLoading(false);
                 // Calculate dimensions to fit image while maintaining aspect ratio
                 const { width, height } = e.nativeEvent.source;
-                const maxWidth = 280;
-                const maxHeight = 400;
-                const minWidth = 150;
-                const minHeight = 150;
+                
+                // Calculate maxWidth based on screen size
+                // Message bubble is 75% of screen width, minus padding (~50px total)
+                const screenWidth = Dimensions.get('window').width;
+                const maxWidth = Math.min(screenWidth * 0.75 - 50, 280);
+                const maxHeight = 400; // Maximum height for message bubble
                 
                 let displayWidth = width;
                 let displayHeight = height;
+                const aspectRatio = width / height;
                 
-                // If image is too wide
+                // Scale down if too wide or too tall, maintaining aspect ratio
                 if (width > maxWidth) {
                   displayWidth = maxWidth;
-                  displayHeight = (height / width) * maxWidth;
+                  displayHeight = maxWidth / aspectRatio;
                 }
                 
-                // If image is too tall
+                // If still too tall after width adjustment, scale by height
                 if (displayHeight > maxHeight) {
                   displayHeight = maxHeight;
-                  displayWidth = (width / height) * maxHeight;
-                }
-                
-                // Ensure minimum dimensions
-                if (displayWidth < minWidth) {
-                  displayWidth = minWidth;
-                  displayHeight = (height / width) * minWidth;
-                }
-                
-                if (displayHeight < minHeight) {
-                  displayHeight = minHeight;
-                  displayWidth = (width / height) * minHeight;
+                  displayWidth = maxHeight * aspectRatio;
                 }
                 
                 onSetImageDimensions({
@@ -244,25 +236,6 @@ export const MessageContent: React.FC<MessageContentProps> = ({
             ]}>
               {translatedText}
             </Text>
-          ) : isTranslating ? (
-            // Show loading state while translating - keep original text visible with spinner
-            <View style={styles.translatingContainer}>
-              <Text style={[
-                theme.typography.body,
-                { color: isSent ? theme.colors.messageText : theme.colors.messageTextReceived }
-              ]}>
-                {message.text}
-              </Text>
-              <View style={styles.translatingIndicator}>
-                <ActivityIndicator size="small" color={isSent ? 'rgba(255,255,255,0.8)' : theme.colors.primary} />
-                <Text style={[
-                  styles.translatingText,
-                  { color: isSent ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary }
-                ]}>
-                  Translating...
-                </Text>
-              </View>
-            </View>
           ) : (
             // Show original text
             <Text style={[
@@ -335,8 +308,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 12,
     overflow: 'hidden',
-    width: 200,
-    height: 200,
+    minWidth: 200,
+    minHeight: 150,
   },
   thumbnail: {
     width: '100%',
@@ -428,18 +401,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
     lineHeight: 16,
-  },
-  translatingContainer: {
-    gap: 8,
-  },
-  translatingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  translatingText: {
-    fontSize: 11,
-    fontStyle: 'italic',
   },
 });

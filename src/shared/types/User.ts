@@ -17,6 +17,7 @@ export interface User {
   phoneNumberVisible: boolean;      // Phone number visibility setting
   bio?: string;                     // Optional bio
   preferredLanguage?: string;       // Preferred language for translations (ISO 639-1 code)
+  editableLanguages?: string[];    // Languages user can edit/use (ISO 639-1 codes)
   isOnline: boolean;                // Current online status
   lastSeen: number | null;          // Timestamp of last activity (null if online)
   createdAt: number;                // Account creation timestamp
@@ -43,6 +44,7 @@ export interface UserProfileUpdate {
   phoneNumber?: string | null;
   phoneNumberVisible?: boolean;
   preferredLanguage?: string;
+  editableLanguages?: string[];
 }
 
 /**

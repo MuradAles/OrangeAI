@@ -157,12 +157,26 @@ export const MessageInput = ({
     }
   };
 
-  // Sync with initialText changes from parent (e.g., smart replies)
+  // Sync with initialText changes from parent (e.g., smart replies, translations)
   useEffect(() => {
     if (initialText !== text) {
+      console.log('📝 Syncing input text from parent:', initialText.substring(0, 50));
       setText(initialText);
+      // Force height recalculation when text changes externally
+      // Use a small delay to ensure text is rendered before measuring
+      setTimeout(() => {
+        // Trigger a fake event to recalculate height
+        if (initialText) {
+          // Estimate height based on text length and line height
+          const lineHeight = 20; // Approximate line height
+          const lines = initialText.split('\n').length || 1;
+          const estimatedHeight = Math.max(40, lines * lineHeight + 16);
+          setInputHeight(estimatedHeight);
+          console.log('📐 Input height set to:', estimatedHeight, 'for', lines, 'lines');
+        }
+      }, 50);
     }
-  }, [initialText]);
+  }, [initialText, text]);
 
   // Handle text change with typing indicator and translation preview
   const handleTextChange = (newText: string) => {
@@ -190,8 +204,8 @@ export const MessageInput = ({
         stopTyping();
       }, TYPING_TIMEOUT);
       
-      // Detect input language for translation modal
-      if (newText.trim().length > 10) {
+      // Detect input language for translation modal (earlier detection for better UX)
+      if (newText.trim().length >= 5) {
         detectInputLanguage(newText.trim());
       }
     } else {
@@ -255,14 +269,59 @@ export const MessageInput = ({
   };
   
   // Open translation options modal
-  const handleOpenTranslationModal = () => {
+  const handleOpenTranslationModal = async () => {
     if (!text.trim()) return;
+    
+    // Detect language immediately when opening modal
+    const trimmedText = text.trim();
+    let detectedLang = preferredLanguage || 'en';
+    
+    if (trimmedText.length > 0) {
+      try {
+        console.log('🔍 Detecting language for:', trimmedText.substring(0, 30));
+        const { httpsCallable } = await import('firebase/functions');
+        const { functions } = await import('@/services/firebase/FirebaseConfig');
+        
+        const detectFn = httpsCallable(functions, 'quickDetectLanguage');
+        const result: any = await detectFn({ text: trimmedText });
+        
+        if (result.data?.language) {
+          detectedLang = result.data.language;
+          console.log('✅ Detected language:', detectedLang);
+        } else {
+          console.log('⚠️ No language detected, using:', detectedLang);
+        }
+      } catch (error) {
+        console.error('❌ Failed to detect language:', error);
+      }
+    }
+    
+    // Set the detected language BEFORE opening modal
+    setDetectedInputLanguage(detectedLang);
+    console.log('🌐 Opening translation modal with language:', detectedLang);
     setShowTranslationModal(true);
   };
 
   // Handle selection from translation modal
   const handleSelectTranslationOption = (selectedText: string) => {
+    console.log('✅ Translation option selected:', selectedText.substring(0, 50));
     setText(selectedText);
+    
+    // Notify parent of text change
+    if (onTextChange) {
+      onTextChange(selectedText);
+    }
+    
+    // Force height recalculation for multi-line text
+    setTimeout(() => {
+      if (selectedText) {
+        const lineHeight = 20;
+        const lines = selectedText.split('\n').length || 1;
+        const estimatedHeight = Math.max(40, lines * lineHeight + 16);
+        setInputHeight(estimatedHeight);
+      }
+    }, 50);
+    
     setShowTranslationModal(false);
   };
   

@@ -1,3 +1,4 @@
+import { useTheme } from '@/shared/hooks/useTheme';
 import { Message } from '@/shared/types';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -57,6 +58,9 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
   isAnalyzing = false,
   onCloseCulturalContext,
 }) => {
+  const theme = useTheme();
+  const dynamicStyles = getStyles(theme);
+  
   return (
     <>
       {/* Full-Screen Image Modal */}
@@ -67,26 +71,26 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
           onRequestClose={onCloseImage}
           animationType="fade"
         >
-          <Pressable 
-            style={styles.fullImageModal}
-            onPress={onCloseImage}
-          >
-            <View style={styles.fullImageHeader}>
-              <Pressable onPress={onCloseImage}>
-                <Ionicons name="close" size={32} color="#fff" />
-              </Pressable>
-            </View>
-            <Image
-              source={{ uri: message.imageUrl }}
-              style={styles.fullImage}
-              resizeMode="contain"
-            />
-            {message.caption && (
-              <View style={styles.fullImageCaptionContainer}>
-                <Text style={styles.fullImageCaption}>{message.caption}</Text>
+            <Pressable 
+              style={dynamicStyles.fullImageModal}
+              onPress={onCloseImage}
+            >
+              <View style={dynamicStyles.fullImageHeader}>
+                <Pressable onPress={onCloseImage}>
+                  <Ionicons name="close" size={32} color="#fff" />
+                </Pressable>
               </View>
-            )}
-          </Pressable>
+              <Image
+                source={{ uri: message.imageUrl }}
+                style={dynamicStyles.fullImage}
+                resizeMode="contain"
+              />
+              {message.caption && (
+                <View style={dynamicStyles.fullImageCaptionContainer}>
+                  <Text style={dynamicStyles.fullImageCaption}>{message.caption}</Text>
+                </View>
+              )}
+            </Pressable>
         </Modal>
       )}
 
@@ -98,37 +102,37 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
            animationType="none"
            onRequestClose={onCloseCulturalPopup}
          >
-           <View style={styles.popupOverlay}>
-             <View style={styles.popupContent}>
+           <View style={dynamicStyles.popupOverlay}>
+             <View style={[dynamicStyles.popupContent, { backgroundColor: theme.colors.background }]}>
                {/* Close button in top right */}
                <Pressable
-                 style={styles.popupCloseX}
+                 style={dynamicStyles.popupCloseX}
                  onPress={onCloseCulturalPopup}
                >
-                 <Ionicons name="close" size={24} color="#666" />
+                 <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
                </Pressable>
                
-               <Text style={styles.popupTitle}>
+               <Text style={[dynamicStyles.popupTitle, { color: theme.colors.text }]}>
                  {selectedPhrase.type === 'cultural' ? 'Cultural Phrase' : 'Slang/Idiom'}
                </Text>
                
-               <View style={styles.popupItem}>
-                 <Text style={styles.popupPhrase}>
+               <View style={dynamicStyles.popupItem}>
+                 <Text style={dynamicStyles.popupPhrase}>
                    {selectedPhrase.phrase.phrase || selectedPhrase.phrase.slang} / {selectedPhrase.phrase.englishPhrase || selectedPhrase.phrase.englishSlang || 'N/A'}
                  </Text>
-                 <Text style={styles.popupExplanation}>
+                 <Text style={[dynamicStyles.popupExplanation, { color: theme.colors.text }]}>
                    {selectedPhrase.type === 'cultural' 
                      ? selectedPhrase.phrase.explanation 
                      : selectedPhrase.phrase.standardMeaning
                    }
                  </Text>
                  {selectedPhrase.type === 'cultural' && selectedPhrase.phrase.culturalContext && (
-                   <Text style={styles.popupContext}>
+                   <Text style={[dynamicStyles.popupContext, { color: theme.colors.textSecondary }]}>
                      Cultural Context: {selectedPhrase.phrase.culturalContext}
                    </Text>
                  )}
                  {selectedPhrase.type === 'slang' && selectedPhrase.phrase.usage && (
-                   <Text style={styles.popupContext}>
+                   <Text style={[dynamicStyles.popupContext, { color: theme.colors.textSecondary }]}>
                      Usage: {selectedPhrase.phrase.usage}
                    </Text>
                  )}
@@ -147,68 +151,68 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
           onRequestClose={onCloseCulturalContext}
         >
           <Pressable 
-            style={styles.culturalContextOverlay}
+            style={dynamicStyles.culturalContextOverlay}
             onPress={onCloseCulturalContext}
           >
             <Pressable 
-              style={styles.culturalContextContainer}
+              style={[dynamicStyles.culturalContextContainer, { backgroundColor: theme.colors.background }]}
               onPress={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <View style={styles.culturalContextHeader}>
-                <View style={styles.headerTitleRow}>
+              <View style={[dynamicStyles.culturalContextHeader, { borderBottomColor: theme.colors.border }]}>
+                <View style={dynamicStyles.headerTitleRow}>
                   <Ionicons name="bulb" size={24} color="#FFD700" />
-                  <Text style={styles.culturalContextTitle}>Cultural Context</Text>
+                  <Text style={[dynamicStyles.culturalContextTitle, { color: theme.colors.text }]}>Cultural Context</Text>
                 </View>
                 <Pressable onPress={onCloseCulturalContext}>
-                  <Ionicons name="close" size={28} color="#666" />
+                  <Ionicons name="close" size={28} color={theme.colors.textSecondary} />
                 </Pressable>
               </View>
 
-              <ScrollView style={styles.culturalContextScroll} showsVerticalScrollIndicator={false}>
+              <ScrollView style={dynamicStyles.culturalContextScroll} showsVerticalScrollIndicator={false}>
                 {/* 1. Translation Section - ALWAYS AT TOP */}
                 {translatedText && (
-                  <View style={styles.translationSection}>
-                    <View style={styles.sectionHeader}>
+                  <View style={dynamicStyles.translationSection}>
+                    <View style={dynamicStyles.sectionHeader}>
                       <Ionicons name="swap-horizontal" size={20} color="#007AFF" />
-                      <Text style={styles.sectionTitle}>Translation</Text>
+                      <Text style={[dynamicStyles.sectionTitle, { color: theme.colors.text }]}>Translation</Text>
                     </View>
-                    <View style={styles.translationBox}>
-                      <Text style={styles.translationText}>{translatedText}</Text>
+                    <View style={[dynamicStyles.translationBox, { backgroundColor: theme.colors.backgroundElevated }]}>
+                      <Text style={[dynamicStyles.translationText, { color: theme.colors.text }]}>{translatedText}</Text>
                     </View>
                   </View>
                 )}
 
                 {/* Loading State - BELOW TRANSLATION */}
                 {isAnalyzing && !culturalAnalysis && (
-                  <View style={styles.loadingState}>
+                  <View style={dynamicStyles.loadingState}>
                     <ActivityIndicator size="large" color="#FFD700" />
-                    <Text style={styles.loadingText}>Analyzing cultural context...</Text>
-                    <Text style={styles.loadingSubtext}>This may take a few seconds</Text>
+                    <Text style={[dynamicStyles.loadingText, { color: theme.colors.text }]}>Analyzing cultural context...</Text>
+                    <Text style={[dynamicStyles.loadingSubtext, { color: theme.colors.textSecondary }]}>This may take a few seconds</Text>
                   </View>
                 )}
 
                 {/* 2. Message Explanation Section - IN MIDDLE */}
                 {culturalAnalysis && culturalAnalysis.messageExplanation && (
-                  <View style={styles.explanationSection}>
-                    <View style={styles.sectionHeader}>
+                  <View style={dynamicStyles.explanationSection}>
+                    <View style={dynamicStyles.sectionHeader}>
                       <Ionicons name="bulb" size={22} color="#FFD700" />
-                      <Text style={styles.sectionTitle}>What This Means</Text>
+                      <Text style={[dynamicStyles.sectionTitle, { color: theme.colors.text }]}>What This Means</Text>
                     </View>
-                    <View style={styles.explanationBox}>
-                      <Text style={styles.explanationMainText}>{culturalAnalysis.messageExplanation}</Text>
+                    <View style={[dynamicStyles.explanationBox, { backgroundColor: theme.colors.backgroundElevated }]}>
+                      <Text style={[dynamicStyles.explanationMainText, { color: theme.colors.text }]}>{culturalAnalysis.messageExplanation}</Text>
                     </View>
                   </View>
                 )}
 
                 {/* Cultural Context (Slangs & Idioms combined) - Only show if items exist */}
                 {culturalAnalysis && (culturalAnalysis.culturalPhrases.length > 0 || culturalAnalysis.slangExpressions.length > 0) && (
-                  <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
+                  <View style={dynamicStyles.section}>
+                    <View style={dynamicStyles.sectionHeader}>
                       <Ionicons name="book-outline" size={20} color="#FF9500" />
-                      <Text style={styles.sectionTitle}>Cultural Details</Text>
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>
+                      <Text style={[dynamicStyles.sectionTitle, { color: theme.colors.text }]}>Cultural Details</Text>
+                      <View style={[dynamicStyles.badge, { backgroundColor: theme.colors.primary }]}>
+                        <Text style={dynamicStyles.badgeText}>
                           {culturalAnalysis.culturalPhrases.length + culturalAnalysis.slangExpressions.length}
                         </Text>
                       </View>
@@ -216,23 +220,23 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
                     
                     {/* Cultural Phrases */}
                     {culturalAnalysis.culturalPhrases.map((item, index) => (
-                      <View key={`cultural-${index}`} style={styles.culturalItem}>
-                        <Text style={styles.phraseText}>
+                      <View key={`cultural-${index}`} style={[dynamicStyles.culturalItem, { backgroundColor: theme.colors.backgroundElevated }]}>
+                        <Text style={[dynamicStyles.phraseText, { color: theme.colors.text }]}>
                           {item.phrase}
-                          {item.englishPhrase && <Text style={styles.phraseEnglish}> → {item.englishPhrase}</Text>}
+                          {item.englishPhrase && <Text style={dynamicStyles.phraseEnglish}> → {item.englishPhrase}</Text>}
                         </Text>
-                        <Text style={styles.explanationText}>{item.explanation}</Text>
+                        <Text style={[dynamicStyles.explanationText, { color: theme.colors.textSecondary }]}>{item.explanation}</Text>
                         {item.culturalContext && (
-                          <View style={styles.contextBox}>
-                            <Ionicons name="information-circle-outline" size={14} color="#666" />
-                            <Text style={styles.contextText}>{item.culturalContext}</Text>
+                          <View style={[dynamicStyles.contextBox, { borderTopColor: theme.colors.border }]}>
+                            <Ionicons name="information-circle-outline" size={14} color={theme.colors.textSecondary} />
+                            <Text style={[dynamicStyles.contextText, { color: theme.colors.textSecondary }]}>{item.culturalContext}</Text>
                           </View>
                         )}
                         {item.examples && item.examples.length > 0 && (
-                          <View style={styles.examplesBox}>
-                            <Text style={styles.examplesLabel}>Examples:</Text>
+                          <View style={[dynamicStyles.examplesBox, { borderTopColor: theme.colors.border }]}>
+                            <Text style={[dynamicStyles.examplesLabel, { color: theme.colors.textTertiary }]}>Examples:</Text>
                             {item.examples.slice(0, 2).map((example, idx) => (
-                              <Text key={idx} style={styles.exampleText}>• {example}</Text>
+                              <Text key={idx} style={[dynamicStyles.exampleText, { color: theme.colors.textSecondary }]}>• {example}</Text>
                             ))}
                           </View>
                         )}
@@ -241,16 +245,16 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
                     
                     {/* Slang Expressions */}
                     {culturalAnalysis.slangExpressions.map((item, index) => (
-                      <View key={`slang-${index}`} style={styles.culturalItem}>
-                        <Text style={styles.phraseText}>
+                      <View key={`slang-${index}`} style={[dynamicStyles.culturalItem, { backgroundColor: theme.colors.backgroundElevated }]}>
+                        <Text style={[dynamicStyles.phraseText, { color: theme.colors.text }]}>
                           {item.slang}
-                          {item.englishSlang && <Text style={styles.phraseEnglish}> → {item.englishSlang}</Text>}
+                          {item.englishSlang && <Text style={dynamicStyles.phraseEnglish}> → {item.englishSlang}</Text>}
                         </Text>
-                        <Text style={styles.explanationText}>{item.standardMeaning}</Text>
+                        <Text style={[dynamicStyles.explanationText, { color: theme.colors.textSecondary }]}>{item.standardMeaning}</Text>
                         {item.usage && (
-                          <View style={styles.usageBox}>
-                            <Text style={styles.usageLabel}>Usage: </Text>
-                            <Text style={styles.usageText}>{item.usage}</Text>
+                          <View style={[dynamicStyles.usageBox, { borderTopColor: theme.colors.border }]}>
+                            <Text style={[dynamicStyles.usageLabel, { color: theme.colors.textTertiary }]}>Usage: </Text>
+                            <Text style={[dynamicStyles.usageText, { color: theme.colors.textSecondary }]}>{item.usage}</Text>
                           </View>
                         )}
                       </View>
@@ -260,10 +264,10 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
 
                 {/* No Analysis Found (shouldn't happen often) */}
                 {!culturalAnalysis && !translatedText && (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="bulb-outline" size={48} color="#CCC" />
-                    <Text style={styles.emptyStateText}>No analysis available</Text>
-                    <Text style={styles.emptyStateSubtext}>
+                  <View style={dynamicStyles.emptyState}>
+                    <Ionicons name="bulb-outline" size={48} color={theme.colors.textTertiary} />
+                    <Text style={[dynamicStyles.emptyStateText, { color: theme.colors.textSecondary }]}>No analysis available</Text>
+                    <Text style={[dynamicStyles.emptyStateSubtext, { color: theme.colors.textTertiary }]}>
                       Press the translate button first to analyze this message
                     </Text>
                   </View>
@@ -277,7 +281,7 @@ export const MessageModals: React.FC<MessageModalsProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   fullImageModal: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.95)',
@@ -314,7 +318,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   popupContent: {
-    backgroundColor: 'white',
     borderRadius: 12,
     padding: 24,
     margin: 20,
@@ -347,12 +350,10 @@ const styles = StyleSheet.create({
   },
   popupExplanation: {
     fontSize: 16,
-    color: '#333',
     lineHeight: 22,
   },
   popupContext: {
     fontSize: 12,
-    color: '#888',
     fontStyle: 'italic',
     marginTop: 6,
   },
@@ -376,7 +377,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   culturalContextContainer: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     height: '90%',
@@ -389,7 +389,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -399,7 +398,6 @@ const styles = StyleSheet.create({
   culturalContextTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#000',
   },
   culturalContextScroll: {
     flex: 1,
@@ -410,7 +408,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   explanationBox: {
-    backgroundColor: '#FFF9E6',
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
@@ -419,7 +416,6 @@ const styles = StyleSheet.create({
   explanationMainText: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#000',
     fontWeight: '500',
   },
   translationSection: {
@@ -435,11 +431,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000',
     flex: 1,
   },
   badge: {
-    backgroundColor: '#007AFF',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -452,7 +446,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   translationBox: {
-    backgroundColor: '#F0F8FF',
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
@@ -461,13 +454,11 @@ const styles = StyleSheet.create({
   translationText: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#000',
   },
   section: {
     marginBottom: 24,
   },
   culturalItem: {
-    backgroundColor: '#F9F9F9',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -477,7 +468,6 @@ const styles = StyleSheet.create({
   phraseText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
     lineHeight: 22,
     marginBottom: 8,
   },
@@ -490,24 +480,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
   },
   examplesLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
     marginBottom: 4,
   },
   exampleText: {
     fontSize: 13,
-    color: '#555',
     lineHeight: 18,
     marginLeft: 4,
   },
   explanationText: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#333',
     marginBottom: 8,
   },
   contextBox: {
@@ -517,11 +503,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
   },
   contextText: {
     fontSize: 13,
-    color: '#666',
     fontStyle: 'italic',
     flex: 1,
   },
@@ -531,16 +515,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
   },
   usageLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#666',
   },
   usageText: {
     fontSize: 13,
-    color: '#666',
     flex: 1,
   },
   emptyState: {
@@ -552,13 +533,11 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -572,12 +551,10 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginTop: 8,
   },
   loadingSubtext: {
     fontSize: 14,
-    color: '#999',
     textAlign: 'center',
   },
 });

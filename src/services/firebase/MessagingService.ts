@@ -194,11 +194,21 @@ class MessagingServiceClass {
   async removeFCMToken(userId: string): Promise<void> {
     try {
       const userRef = doc(firestore, 'users', userId);
+      
+      // Get user info for better logging
+      const userDoc = await getDoc(userRef);
+      const userData = userDoc.exists() ? userDoc.data() : null;
+      
       await setDoc(userRef, {
         fcmToken: null,
         lastTokenUpdate: new Date().toISOString(),
       }, { merge: true });
 
+      Logger.fcmTokenRemoved(
+        userId,
+        userData?.username || 'unknown',
+        userData?.displayName || 'Unknown'
+      );
     } catch (error) {
       console.error('Error removing FCM token:', error);
     }

@@ -30,7 +30,7 @@ interface ChatHeaderProps {
   onToggleAutoTranslate: () => void;
   onGenerateSummary: () => void;
   onOpenGroupSettings: () => void;
-  onOpenChatMenu: () => void;
+  onOpenChatMenu?: () => void;
   
   // States
   autoTranslateEnabled: boolean;
@@ -143,13 +143,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           )}
         </Pressable>
         
-        {/* Three-dot menu for both group and one-on-one chats */}
-        <Pressable 
-          style={styles.actionButton}
-          onPress={() => isGroupChat ? onOpenGroupSettings() : onOpenChatMenu()}
-        >
-          <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
-        </Pressable>
+        {/* Three-dot menu for group chats only */}
+        {isGroupChat && (
+          <Pressable 
+            style={styles.actionButton}
+            onPress={onOpenGroupSettings}
+          >
+            <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
