@@ -158,10 +158,14 @@ export const MessageInput = ({
   };
 
   // Sync with initialText changes from parent (e.g., smart replies, translations)
+  const prevInitialTextRef = useRef(initialText);
   useEffect(() => {
-    if (initialText !== text) {
+    // Only sync if initialText actually changed from its previous value
+    if (initialText !== prevInitialTextRef.current) {
       console.log('📝 Syncing input text from parent:', initialText.substring(0, 50));
       setText(initialText);
+      prevInitialTextRef.current = initialText;
+      
       // Force height recalculation when text changes externally
       // Use a small delay to ensure text is rendered before measuring
       setTimeout(() => {
@@ -176,7 +180,7 @@ export const MessageInput = ({
         }
       }, 50);
     }
-  }, [initialText, text]);
+  }, [initialText]);
 
   // Handle text change with typing indicator and translation preview
   const handleTextChange = (newText: string) => {
@@ -260,11 +264,19 @@ export const MessageInput = ({
       setSelectedImage(null);
       setText('');
       setInputHeight(40);
+      // Clear parent's input text state
+      if (onTextChange) {
+        onTextChange('');
+      }
     } else if (text.trim().length > 0) {
       // Send text message
       onSend(text.trim());
       setText('');
       setInputHeight(40);
+      // Clear parent's input text state
+      if (onTextChange) {
+        onTextChange('');
+      }
     }
   };
   
