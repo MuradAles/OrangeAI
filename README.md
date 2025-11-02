@@ -1,4 +1,4 @@
-# MessageAI - Simple Messaging App
+# AVO-AI - Simple Messaging App
 
 A modern React Native messaging application built with Expo, Firebase, and TypeScript. Features real-time messaging, offline support, and a foundation for future AI translation capabilities.
 
